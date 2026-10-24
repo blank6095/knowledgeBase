@@ -50,6 +50,10 @@ export default function GraphPage() {
   const [nodes, setNodes] = useState<GNode[] | null>(null);
   const [links, setLinks] = useState<GLink[]>([]);
   const [error, setError] = useState('');
+  // 压测模式：?fixture=<name> 加载 /fixtures/<name>.json（由 scripts/gen-graph-data.mjs 生成）
+  const [fixture] = useState(() =>
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('fixture') : null,
+  );
   const [statusOn, setStatusOn] = useState<Record<string, boolean>>(
     Object.fromEntries(STATUS_ORDER.map((s) => [s, true])),
   );
@@ -60,13 +64,13 @@ export default function GraphPage() {
   const [size, setSize] = useState({ w: 900, h: 560 });
 
   useEffect(() => {
-    api<{ nodes: GNode[]; edges: GLink[] }>('/api/graph')
+    api<{ nodes: GNode[]; edges: GLink[] }>(fixture ? `/fixtures/${fixture}.json` : '/api/graph')
       .then((d) => {
         setNodes(d.nodes);
         setLinks(d.edges);
       })
       .catch((e) => setError(e.message));
-  }, []);
+  }, [fixture]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -102,6 +106,11 @@ export default function GraphPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">知识网络</h1>
+        {fixture && (
+          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
+            压测数据模式：{fixture}（{nodes?.length ?? 0} 节点）
+          </span>
+        )}
         <div className="flex-1" />
         {/* 掌握度图例 */}
         <div className="flex items-center gap-3 text-xs text-slate-600">
