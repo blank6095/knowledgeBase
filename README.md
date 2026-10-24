@@ -1,36 +1,115 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 个人知识库
 
-## Getting Started
+跨设备访问、自动关联、间隔重复复习的个人知识库。为解决 Obsidian 本地笔记的痛点而生：知识不再锁在本地、不用手动归类关联、知识网络图按**掌握程度**着色，一眼看出哪些内容还没掌握。
 
-First, run the development server:
+## 核心特性
+
+| Obsidian 痛点 | 本项目的解法 |
+|---|---|
+| 知识在本地，跨设备要付费同步 | 部署在 Vercel，任何设备浏览器访问 |
+| 不知道如何归类、关联要手动建 | 导入时自动提取标签和 `[[双链]]`，自动建立三类关联（双链/共同标签/同文档） |
+| 知识网络庞大，看不出哪些没掌握 | 力导向图节点按掌握度从红到绿着色，未学习灰色，可按状态/关联类型过滤 |
+| 缺少复习机制 | SM-2 间隔重复：查看次数、最近查看时间、复习评分共同驱动掌握度 |
+| 长文复习容易失去耐心 | 导入时按标题+段落自动分割为合适长度的知识点 |
+
+## 技术栈
+
+- **前端**：Next.js 16（App Router、Turbopack、Cache Components）+ Tailwind CSS 4 + react-force-graph-2d
+- **数据库**：[Neon](https://neon.tech) Serverless Postgres（免费层 100 项目 × 1GB）+ Drizzle ORM
+- **对象存储**：[Cloudflare R2](https://developers.cloudflare.com/r2/)（免费 10GB、流量免费）备份导入的原始 md
+- **部署**：[Vercel Hobby](https://vercel.com)（个人非商业免费）
+- **认证**：单口令登录（`AUTH_PASSCODE` 环境变量 + HttpOnly Cookie + Proxy 网关），个人自用无注册体系
+
+## 快速开始
+
+### 1. 准备 Neon 数据库
+
+1. 注册 [neon.tech](https://neon.tech)，创建项目
+2. 复制连接串（选 **Pooled connection**，形如 `postgresql://user:pass@ep-xxx-pooler.xx.aws.neon.tech/neondb?sslmode=require`）
+
+### 2. 准备 Cloudflare R2（可选，不配则不备份原文）
+
+1. R2 控制台创建存储桶（如 `knowledge-base-originals`）
+2. Manage API Tokens → 创建 `Object Storage: Edit` 权限的 Token，得到 Access Key ID / Secret
+
+### 3. 本地运行
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local   # 填入 DATABASE_URL、AUTH_PASSCODE，可选填 R2_*
+npm install
+npm run db:push              # 把 schema 推到 Neon 建表
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 4. 部署到 Vercel
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+git init && git add -A && git commit -m "init"   # 若尚未初始化 git
+git remote add origin <你的 GitHub 仓库> && git push -u origin main
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+然后到 [vercel.com](https://vercel.com) → Add New Project → 导入该仓库，在 **Environment Variables** 里配置：
 
-## Learn More
+| 变量 | 说明 |
+|---|---|
+| `DATABASE_URL` | Neon Pooled 连接串 |
+| `AUTH_PASSCODE` | 登录口令（足够长的随机串） |
+| `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | 可选，R2 备份 |
 
-To learn more about Next.js, take a look at the following resources:
+部署完成后先执行一次建表：`DATABASE_URL=<连接串> npm run db:push`。
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 使用流程
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. **导入**（`/import`）：上传 `.md` 文件或粘贴内容 → 按 `##` 标题自动分割知识点，超长章节按段落组块并标（续 N）
+2. **复习**（`/review`）：先看标题回忆 → 翻面看内容 → 自评「忘记 / 困难 / 良好 / 简单」→ SM-2 安排下次复习时间
+3. **知识网络**（`/graph`）：节点颜色 = 掌握度（灰=未学习，红→绿=低→高），节点大小 = 关联数，点击进入知识点
+4. **概览**（`/`）：待复习数、掌握分布、最近导入
 
-## Deploy on Vercel
+掌握度由 SM-2 状态派生：间隔 ≥ 21 天且无遗忘 ≈ 已掌握；间隔越长、ease 越高、遗忘越少，掌握度越高。详见 `src/lib/sm2.ts`。
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 常用脚本
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run dev          # 开发
+npm run build        # 生产构建
+npm run test         # 单元测试（分割器、SM-2）
+npm run db:push      # 推送 schema 到数据库
+npm run db:generate  # 生成迁移 SQL（src/db/migrations/）
+npm run db:studio    # Drizzle Studio 查看数据
+```
+
+## 目录结构
+
+```
+src/
+├── proxy.ts                 # 认证网关（全站登录门）
+├── db/
+│   ├── schema.ts            # documents / segments / links / review_logs
+│   ├── index.ts             # Neon 连接（惰性初始化）
+│   └── migrations/          # 生成的 SQL 迁移
+├── lib/
+│   ├── splitter.ts          # Markdown → 知识点分割
+│   ├── markdown.ts          # frontmatter / 标签 / [[双链]] 提取
+│   ├── sm2.ts               # SM-2 间隔重复 + 掌握度派生
+│   ├── r2.ts                # R2 原文备份
+│   └── auth.ts / api.ts / client.ts
+├── components/              # AppShell / MasteryBadge / GradeButtons
+└── app/
+    ├── page.tsx             # 概览
+    ├── login/ import/ notes/ segments/ review/ graph/
+    └── api/                 # notes / segments / review / graph / stats / auth
+```
+
+## 已知限制
+
+- Vercel Hobby 请求体上限约 4.5MB：超大 md 建议粘贴分次导入
+- 单用户设计：一个 `AUTH_PASSCODE`，无多用户/注册体系
+- 导入仅支持 Markdown 纯文本；图片等附件暂不处理
+
+## Roadmap
+
+- [ ] 测验模式：由知识点自动生成选择题/填空题，替代自评
+- [ ] LLM 智能分割：语义级拆分长文，替代标题+段落启发式
+- [ ] 更多导入格式（PDF / DOCX / 网页剪藏）
+- [ ] 附件与图片上传到 R2 并在知识点内渲染
+- [ ] 复习热力图与学习统计报表
