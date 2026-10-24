@@ -31,40 +31,44 @@ export default function NoteDetailPage() {
       .catch((e) => setError(e.message));
   }, [id]);
 
-  if (error) return <p className="text-red-600">{error}</p>;
-  if (!data) return <p className="text-slate-400">加载中…</p>;
+  if (error) return <p className="text-danger">{error}</p>;
+  if (!data) return <p className="text-muted">加载中…</p>;
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-4xl space-y-4">
       <div>
-        <Link href="/notes" className="text-sm text-slate-500 hover:underline">← 知识库</Link>
-        <h1 className="mt-2 text-2xl font-semibold">{data.document.title}</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          {data.document.segmentCount} 个知识点
-          {data.document.storageKey && ' · 原文已备份至 R2'}
-        </p>
+        <Link href="/notes" className="text-xs text-muted hover:text-accent hover:underline">← 知识库</Link>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <h1 className="text-lg font-semibold">{data.document.title}</h1>
+          <span className="text-xs text-muted">
+            {data.document.segmentCount} 个知识点
+            {data.document.storageKey && ' · 原文已备份至 R2'}
+          </span>
+        </div>
         {data.document.tags.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
             {data.document.tags.map((t) => (
-              <span key={t} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">#{t}</span>
+              <span key={t} className="rounded bg-surface-hover px-1.5 py-0.5 text-[11px] text-muted">#{t}</span>
             ))}
           </div>
         )}
       </div>
 
-      <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+      <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
         {data.segments.map((s, i) => (
           <li key={s.id}>
-            <Link href={`/segments/${s.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
-              <span className="w-6 shrink-0 text-center text-xs text-slate-300">{i + 1}</span>
+            <Link href={`/segments/${s.id}`} className="flex items-center gap-3 px-4 py-2 transition-colors hover:bg-surface-hover">
+              <span className="w-5 shrink-0 text-center text-[11px] tabular-nums text-muted/50">{i + 1}</span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{s.title}</p>
+                <p className="truncate text-sm">{s.title}</p>
                 {s.headingPath && s.headingPath !== s.title && (
-                  <p className="truncate text-xs text-slate-400">{s.headingPath}</p>
+                  <p className="truncate text-[11px] text-muted/70">{s.headingPath}</p>
                 )}
               </div>
-              <span className="hidden shrink-0 text-xs text-slate-400 sm:block" title="查看次数">查看 {s.viewCount} 次</span>
-              <span className="shrink-0 text-xs text-slate-400" title="建议回看">{formatDue(s.dueAt)}</span>
+              <span className="hidden shrink-0 text-[11px] tabular-nums text-muted sm:block" title="查看次数">
+                {s.viewCount} 次
+              </span>
+              <span className="shrink-0 text-[11px] text-muted" title="建议回看">{formatDue(s.dueAt)}</span>
               <MasteryBadge status={s.status} mastery={s.mastery} />
             </Link>
           </li>

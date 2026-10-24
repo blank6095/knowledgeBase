@@ -27,8 +27,8 @@ const Graph = dynamic(() => import('react-force-graph-2d'), { ssr: false }) as u
 }>;
 
 interface FGInstance {
-  pause(): void;
-  resume(): void;
+  pauseAnimation(): void;
+  resumeAnimation(): void;
   d3Force(name: string): unknown;
   d3ReheatSimulation(): void;
 }
@@ -66,10 +66,11 @@ interface Forces {
 }
 
 const STATUS_ORDER: SegmentStatus[] = ['new', 'learning', 'familiar', 'mastered'];
+/** 深底可辨的连线色 */
 const KINDS = [
-  { kind: 'wiki', label: '双链', color: '#6366f1' },
-  { kind: 'tag', label: '标签', color: '#94a3b8' },
-  { kind: 'doc', label: '同文档', color: '#e2e8f0' },
+  { kind: 'wiki', label: '双链', color: '#9d8cff' },
+  { kind: 'tag', label: '标签', color: '#8b9bb4' },
+  { kind: 'doc', label: '同文档', color: '#4a4a4a' },
 ];
 const TABS = ['筛选', '分组', '显示', '力'] as const;
 
@@ -113,7 +114,7 @@ export default function GraphPage() {
   );
   const [groups, setGroups] = useState<GroupRule[]>([]);
   const [newGroupQuery, setNewGroupQuery] = useState('');
-  const [newGroupColor, setNewGroupColor] = useState('#6366f1');
+  const [newGroupColor, setNewGroupColor] = useState('#8b6cef');
   const [arrows, setArrows] = useState(false);
   const [fadeThreshold, setFadeThreshold] = useState(1.2);
   const [sizeMult, setSizeMult] = useState(1);
@@ -151,7 +152,7 @@ export default function GraphPage() {
     const fg = fgRef.current;
     if (!fg) return;
     if (forcesTouched.current) applyForces(fg, forces);
-    if (paused) fg.pause();
+    if (paused) fg.pauseAnimation();
   }, [nodes, links, forces, paused]);
 
   const adjacency = useMemo(() => {
@@ -202,8 +203,8 @@ export default function GraphPage() {
     };
   }, [nodes, links, statusOn, kindOn]);
 
-  if (error) return <p className="text-red-600">{error}</p>;
-  if (!nodes) return <p className="text-slate-400">加载中…</p>;
+  if (error) return <p className="text-danger">{error}</p>;
+  if (!nodes) return <p className="text-muted">加载中…</p>;
 
   /** 节点着色：自定义关键词分组优先，其次按掌握度 */
   const resolveColor = (n: GNode) => {
@@ -226,8 +227,8 @@ export default function GraphPage() {
     setPaused(next);
     const fg = fgRef.current;
     if (!fg) return;
-    if (next) fg.pause();
-    else fg.resume();
+    if (next) fg.pauseAnimation();
+    else fg.resumeAnimation();
   };
 
   const addGroup = () => {
@@ -253,7 +254,7 @@ export default function GraphPage() {
     ctx.fill();
     if (hoverId === node.id) {
       ctx.lineWidth = 1.2;
-      ctx.strokeStyle = '#0f172a';
+      ctx.strokeStyle = '#e0e0e0';
       ctx.stroke();
     }
 
@@ -265,7 +266,7 @@ export default function GraphPage() {
       ctx.font = `${fontSize}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillStyle = '#334155';
+      ctx.fillStyle = '#a3a3a3';
       const label = node.title.length > 14 ? `${node.title.slice(0, 13)}…` : node.title;
       ctx.fillText(label, x, y + r + 1);
     }
@@ -281,11 +282,11 @@ export default function GraphPage() {
   };
 
   const linkColorOf = (l: GLink) => {
-    const base = KINDS.find((k) => k.kind === l.kind)?.color ?? '#cbd5e1';
+    const base = KINDS.find((k) => k.kind === l.kind)?.color ?? '#5a5a5a';
     const [s, t] = ends(l);
     const searchOk = !matchedIds || (matchedIds.has(s) && matchedIds.has(t));
     const hoverOk = !hoverSet || hoverId === s || hoverId === t;
-    return searchOk && hoverOk ? base : `${base}24`;
+    return searchOk && hoverOk ? base : `${base}40`;
   };
   const linkWidthOf = (l: GLink) => {
     const [s, t] = ends(l);
@@ -294,42 +295,42 @@ export default function GraphPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="relative flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold">关系图谱</h1>
+        <h1 className="text-lg font-semibold">关系图谱</h1>
         {fixture && (
-          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
+          <span className="rounded-full bg-warn/10 px-2.5 py-1 text-xs font-medium text-warn">
             压测数据模式：{fixture}（{nodes.length} 节点）
           </span>
         )}
         <div className="flex-1" />
         {/* 掌握度图例 */}
-        <div className="flex items-center gap-3 text-xs text-slate-600">
-          <span className="text-slate-400">掌握度</span>
-          <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full" style={{ background: '#ef4444' }} />低</span>
-          <span className="h-2.5 w-16 rounded-full" style={{ background: 'linear-gradient(to right, #ef4444, #f59e0b, #22c55e)' }} />
-          <span className="flex items-center gap-1">高<i className="h-2.5 w-2.5 rounded-full" style={{ background: '#22c55e' }} /></span>
-          <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-slate-400" />未学习</span>
+        <div className="hidden items-center gap-3 text-xs text-muted sm:flex">
+          <span className="text-muted/60">掌握度</span>
+          <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full" style={{ background: '#f87171' }} />低</span>
+          <span className="h-2.5 w-16 rounded-full" style={{ background: 'linear-gradient(to right, #f87171, #fbbf24, #4ade80)' }} />
+          <span className="flex items-center gap-1">高<i className="h-2.5 w-2.5 rounded-full" style={{ background: '#4ade80' }} /></span>
+          <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-neutral" />未学习</span>
         </div>
         <button
           onClick={() => setPanelOpen((o) => !o)}
           aria-label="关系图谱设置"
           className={`rounded-lg border px-2.5 py-1.5 text-sm transition-colors ${
-            panelOpen ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white hover:bg-slate-100'
+            panelOpen ? 'border-accent bg-accent text-white' : 'border-line bg-surface text-muted hover:bg-surface-hover hover:text-primary'
           }`}
         >
           ⚙
         </button>
 
         {panelOpen && (
-          <div className="absolute right-0 top-11 z-30 w-[300px] rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-xl">
-            <div className="mb-3 flex gap-0.5 border-b border-slate-100 pb-2">
+          <div className="absolute right-0 top-11 z-30 w-[300px] max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-surface p-3 text-xs shadow-2xl">
+            <div className="mb-3 flex gap-0.5 border-b border-line pb-2">
               {TABS.map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
                   className={`flex-1 rounded-md px-2 py-1.5 transition-colors ${
-                    tab === t ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100'
+                    tab === t ? 'bg-accent text-white' : 'text-muted hover:bg-surface-hover hover:text-primary'
                   }`}
                 >
                   {t}
@@ -343,15 +344,16 @@ export default function GraphPage() {
                   value={searchKw}
                   onChange={(e) => setSearchKw(e.target.value)}
                   placeholder="搜索标题：命中高亮，其余淡化"
-                  className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 outline-none focus:border-slate-900"
+                  className="w-full rounded-lg border border-line bg-app px-2.5 py-1.5 text-primary outline-none transition-colors placeholder:text-muted focus:border-accent"
                 />
                 <div>
-                  <p className="mb-1.5 text-slate-400">掌握度状态</p>
+                  <p className="mb-1.5 text-muted/60">掌握度状态</p>
                   <div className="flex flex-wrap gap-x-3 gap-y-1.5">
                     {STATUS_ORDER.map((s) => (
                       <label key={s} className="flex cursor-pointer items-center gap-1.5">
                         <input
                           type="checkbox"
+                          className="accent-accent"
                           checked={statusOn[s] ?? false}
                           onChange={(e) => setStatusOn((prev) => ({ ...prev, [s]: e.target.checked }))}
                         />
@@ -362,12 +364,13 @@ export default function GraphPage() {
                   </div>
                 </div>
                 <div>
-                  <p className="mb-1.5 text-slate-400">关联类型</p>
+                  <p className="mb-1.5 text-muted/60">关联类型</p>
                   <div className="flex flex-wrap gap-x-3 gap-y-1.5">
                     {KINDS.map((k) => (
                       <label key={k.kind} className="flex cursor-pointer items-center gap-1.5">
                         <input
                           type="checkbox"
+                          className="accent-accent"
                           checked={kindOn[k.kind] ?? false}
                           onChange={(e) => setKindOn((prev) => ({ ...prev, [k.kind]: e.target.checked }))}
                         />
@@ -377,42 +380,42 @@ export default function GraphPage() {
                     ))}
                   </div>
                 </div>
-                <p className="text-[11px] leading-relaxed text-slate-400">节点大小 = 关联数 · 悬停高亮邻接 · 点击进入知识点 · 节点可拖拽</p>
+                <p className="text-[11px] leading-relaxed text-muted/70">节点大小 = 关联数 · 悬停高亮邻接 · 点击进入知识点 · 节点可拖拽</p>
               </div>
             )}
 
             {tab === '分组' && (
               <div className="space-y-2">
-                <p className="text-slate-500">默认：按掌握度着色。命中关键词分组的节点改用该组颜色（优先于掌握度）。</p>
+                <p className="text-muted">默认：按掌握度着色。命中关键词分组的节点改用该组颜色（优先于掌握度）。</p>
                 {groups.map((g) => (
                   <div key={g.id} className="flex items-center gap-1.5">
                     <input
                       type="color"
                       value={g.color}
                       onChange={(e) => setGroups((gs) => gs.map((x) => (x.id === g.id ? { ...x, color: e.target.value } : x)))}
-                      className="h-6 w-8 cursor-pointer rounded border border-slate-200"
+                      className="h-6 w-8 cursor-pointer rounded border border-line bg-app"
                       aria-label="分组颜色"
                     />
                     <input
                       value={g.query}
                       onChange={(e) => setGroups((gs) => gs.map((x) => (x.id === g.id ? { ...x, query: e.target.value } : x)))}
-                      className="min-w-0 flex-1 rounded border border-slate-200 px-2 py-1 outline-none focus:border-slate-900"
+                      className="min-w-0 flex-1 rounded border border-line bg-app px-2 py-1 text-primary outline-none transition-colors focus:border-accent"
                     />
                     <button
                       onClick={() => setGroups((gs) => gs.filter((x) => x.id !== g.id))}
-                      className="rounded px-1.5 py-0.5 text-slate-400 hover:bg-slate-100 hover:text-red-500"
+                      className="rounded px-1.5 py-0.5 text-muted transition-colors hover:bg-surface-hover hover:text-danger"
                       aria-label="删除分组"
                     >
                       ✕
                     </button>
                   </div>
                 ))}
-                <div className="flex items-center gap-1.5 border-t border-slate-100 pt-2">
+                <div className="flex items-center gap-1.5 border-t border-line pt-2">
                   <input
                     type="color"
                     value={newGroupColor}
                     onChange={(e) => setNewGroupColor(e.target.value)}
-                    className="h-6 w-8 cursor-pointer rounded border border-slate-200"
+                    className="h-6 w-8 cursor-pointer rounded border border-line bg-app"
                     aria-label="新分组颜色"
                   />
                   <input
@@ -420,9 +423,9 @@ export default function GraphPage() {
                     onChange={(e) => setNewGroupQuery(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && addGroup()}
                     placeholder="关键词…"
-                    className="min-w-0 flex-1 rounded border border-slate-200 px-2 py-1 outline-none focus:border-slate-900"
+                    className="min-w-0 flex-1 rounded border border-line bg-app px-2 py-1 text-primary outline-none transition-colors placeholder:text-muted focus:border-accent"
                   />
-                  <button onClick={addGroup} className="rounded bg-slate-900 px-2.5 py-1 text-white hover:bg-slate-700">
+                  <button onClick={addGroup} className="rounded bg-accent px-2.5 py-1 text-white transition-colors hover:bg-accent/85">
                     添加
                   </button>
                 </div>
@@ -433,12 +436,14 @@ export default function GraphPage() {
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-x-4 gap-y-2">
                   <label className="flex cursor-pointer items-center gap-1.5">
-                    <input type="checkbox" checked={arrows} onChange={(e) => setArrows(e.target.checked)} />
+                    <input type="checkbox" className="accent-accent" checked={arrows} onChange={(e) => setArrows(e.target.checked)} />
                     连线方向箭头
                   </label>
                   <button
                     onClick={togglePause}
-                    className={`rounded-md border px-2 py-1 ${paused ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-slate-300 hover:bg-slate-100'}`}
+                    className={`rounded-md border px-2 py-1 transition-colors ${
+                      paused ? 'border-warn/40 bg-warn/10 text-warn' : 'border-line text-muted hover:bg-surface-hover hover:text-primary'
+                    }`}
                   >
                     {paused ? '▶ 继续动画' : '⏸ 暂停动画'}
                   </button>
@@ -462,22 +467,22 @@ export default function GraphPage() {
       </div>
 
       {nodes.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
-          还没有知识点，先去 <Link href="/import" className="text-blue-600 underline">导入</Link> 一篇笔记吧。
+        <div className="rounded-xl border border-line bg-surface p-10 text-center text-sm text-muted">
+          还没有知识点，先去 <Link href="/import" className="text-accent underline">导入</Link> 一篇笔记吧。
         </div>
       ) : (
-        <div ref={wrapRef} className="relative h-[65vh] overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div ref={wrapRef} className="relative h-[calc(100vh-11rem)] min-h-[420px] overflow-hidden rounded-xl border border-line bg-app">
           <Graph
             ref={fgRef}
             graphData={graphData}
             width={size.w}
             height={size.h}
-            backgroundColor="#ffffff"
+            backgroundColor="#1e1e1e"
             nodeLabel={(n) => {
               const d = n as unknown as GNode;
-              return `<div style="max-width:280px;font:13px sans-serif;padding:4px">
+              return `<div style="max-width:280px;font:13px sans-serif;padding:6px 9px;background:#262626;color:#dadada;border:1px solid #3f3f3f;border-radius:6px">
                 <b>${d.title}</b><br/>
-                <span style="color:#64748b">${d.documentTitle ?? ''}</span><br/>
+                <span style="color:#999">${d.documentTitle ?? ''}</span><br/>
                 掌握 ${Math.round(d.mastery * 100)}% · 查看 ${d.viewCount} 次
               </div>`;
             }}
@@ -494,6 +499,9 @@ export default function GraphPage() {
               document.body.style.cursor = id ? 'pointer' : 'default';
             }}
           />
+          <span className="pointer-events-none absolute bottom-2 left-3 text-[11px] text-muted/60">
+            节点大小 = 关联数 · 点击节点查看知识点
+          </span>
         </div>
       )}
     </div>
@@ -519,9 +527,9 @@ function LabeledSlider({
 }) {
   return (
     <label className="block space-y-1">
-      <span className="flex items-center justify-between text-slate-600">
+      <span className="flex items-center justify-between text-muted">
         <span>{label}</span>
-        <span className="tabular-nums text-slate-400">{value}</span>
+        <span className="tabular-nums text-muted/60">{value}</span>
       </span>
       <input
         type="range"
@@ -530,9 +538,9 @@ function LabeledSlider({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-slate-900"
+        className="w-full accent-accent"
       />
-      {hint && <span className="block text-[11px] text-slate-400">{hint}</span>}
+      {hint && <span className="block text-[11px] text-muted/60">{hint}</span>}
     </label>
   );
 }

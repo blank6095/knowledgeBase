@@ -61,70 +61,70 @@ export default function ImportPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">导入知识</h1>
-      <p className="text-sm text-slate-500">
+    <div className="mx-auto max-w-3xl space-y-4">
+      <h1 className="text-lg font-semibold">导入知识</h1>
+      <p className="text-sm text-muted">
         支持 Markdown 文件或直接粘贴。导入后按标题层级自动拆解为知识点、提取标签与 [[双链]] 关联，原文备份到 Cloudflare R2。
       </p>
 
-      <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
+      <div className="space-y-4 rounded-xl border border-line bg-surface p-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm">
-            <span className="mb-1 block text-slate-600">标题（留空自动取文件名/首个标题）</span>
+            <span className="mb-1 block text-muted">标题（留空自动取文件名/首个标题）</span>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-900"
+              className="w-full rounded-lg border border-line bg-app px-3 py-2 text-primary outline-none transition-colors placeholder:text-muted focus:border-accent"
               placeholder="如：React Hooks 笔记"
             />
           </label>
           <div className="text-sm">
-            <span className="mb-1.5 block text-slate-600">拆分粒度</span>
-            <div className="flex overflow-hidden rounded-lg border border-slate-300">
+            <span className="mb-1.5 block text-muted">拆分粒度</span>
+            <div className="flex overflow-hidden rounded-lg border border-line">
               {GRANULARITY.map((g) => (
                 <button
                   key={g.label}
                   type="button"
                   onClick={() => setMaxChars(g.value)}
                   className={`flex-1 px-4 py-2 transition-colors ${
-                    maxChars === g.value ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'
+                    maxChars === g.value ? 'bg-accent text-white' : 'bg-app text-muted hover:bg-surface-hover hover:text-primary'
                   }`}
                 >
                   {g.label}
                 </button>
               ))}
             </div>
-            <p className="mt-1.5 text-xs text-slate-400">
+            <p className="mt-1.5 text-xs text-muted/70">
               按标题层级优先拆解，超长内容降级到句子边界，代码块与表格始终保持完整。粗 ≈ 2400 字 · 中 ≈ 1200 字 · 细 ≈ 600 字
             </p>
           </div>
         </div>
 
         <label className="block text-sm">
-          <span className="mb-1 block text-slate-600">选择 .md 文件</span>
+          <span className="mb-1 block text-muted">选择 .md 文件</span>
           <input
             ref={fileRef}
             type="file"
             accept=".md,.markdown,.txt"
             onChange={onFile}
-            className="w-full text-sm text-slate-500 file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-1.5 file:text-white hover:file:bg-slate-700"
+            className="w-full text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-white hover:file:bg-accent/85"
           />
         </label>
 
         <label className="block text-sm">
-          <span className="mb-1 block text-slate-600">或粘贴 Markdown 内容</span>
+          <span className="mb-1 block text-muted">或粘贴 Markdown 内容</span>
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             rows={12}
             placeholder={'---\ntitle: 笔记标题\ntags: [前端, React]\n---\n\n## 第一节\n内容…\n\n## 第二节\n内容…'}
-            className="w-full rounded-lg border border-slate-300 p-3 font-mono text-xs outline-none focus:border-slate-900"
+            className="w-full rounded-lg border border-line bg-app p-3 font-mono text-xs text-primary outline-none transition-colors placeholder:text-muted focus:border-accent"
           />
         </label>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
         {result && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+          <div className="rounded-lg border border-success/25 bg-success/10 p-3 text-sm text-success">
             导入成功：分割出 <b>{result.segmentCount}</b> 个知识点，建立 <b>{result.linkCount}</b> 条关联。
             <Link href={`/notes/${result.documentId}`} className="ml-2 font-medium underline">查看文档 →</Link>
             <Link href="/graph" className="ml-3 font-medium underline">查看关系图谱 →</Link>
@@ -134,7 +134,7 @@ export default function ImportPage() {
         <button
           onClick={submit}
           disabled={loading}
-          className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-accent/85 disabled:opacity-50"
         >
           {loading ? '导入中…' : '导入'}
         </button>

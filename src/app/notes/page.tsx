@@ -32,56 +32,64 @@ export default function NotesPage() {
     return docs.filter((d) => d.title.toLowerCase().includes(kw) || d.tags.some((t) => t.toLowerCase().includes(kw)));
   }, [docs, q]);
 
-  if (error) return <p className="text-red-600">{error}</p>;
+  if (error) return <p className="text-danger">{error}</p>;
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-4xl space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold">知识库</h1>
+        <h1 className="text-lg font-semibold">知识库</h1>
+        <span className="text-xs text-muted">{docs ? `${docs.length} 篇文档` : ''}</span>
         <div className="flex-1" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="搜索标题或标签…"
-          className="w-56 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+          className="w-48 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-primary outline-none transition-colors placeholder:text-muted focus:border-accent"
         />
-        <Link href="/import" className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-100">
+        <Link
+          href="/import"
+          className="rounded-lg bg-accent px-3.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent/85"
+        >
           导入
         </Link>
       </div>
 
       {!docs ? (
-        <p className="text-slate-400">加载中…</p>
+        <p className="text-muted">加载中…</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-slate-400">{docs.length === 0 ? '还没有文档，点击右上角「导入」开始。' : '没有匹配的文档。'}</p>
+        <p className="py-8 text-center text-sm text-muted">
+          {docs.length === 0 ? '还没有文档，点击右上角「导入」开始。' : '没有匹配的文档。'}
+        </p>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
           {filtered.map((d) => (
             <li key={d.id}>
               <Link
                 href={`/notes/${d.id}`}
-                className="block rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-slate-400"
+                className="flex flex-col gap-1.5 px-4 py-2.5 transition-colors hover:bg-surface-hover sm:flex-row sm:items-center sm:gap-3"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate font-medium">{d.title}</span>
-                  <span className="shrink-0 text-xs text-slate-400">{d.source === 'file' ? '文件' : '粘贴'}</span>
+                <div className="min-w-0 flex-1">
+                  <span className="truncate text-sm font-medium">{d.title}</span>
+                  {d.tags.length > 0 && (
+                    <span className="ml-2 hidden space-x-1.5 lg:inline">
+                      {d.tags.slice(0, 4).map((t) => (
+                        <span key={t} className="rounded bg-surface-hover px-1.5 py-0.5 text-[11px] text-muted">
+                          #{t}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </div>
-                {d.tags.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {d.tags.slice(0, 6).map((t) => (
-                      <span key={t} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
-                        #{t}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <div className="mt-3 flex items-center gap-3 text-xs text-slate-400">
-                  <span>{d.segmentCount} 个知识点</span>
-                  <span>平均掌握 {Math.round((d.avgMastery ?? 0) * 100)}%</span>
-                  <span className="flex-1 text-right">{formatDate(d.createdAt)}</span>
-                </div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.round((d.avgMastery ?? 0) * 100)}%` }} />
+                <div className="flex shrink-0 items-center gap-3 text-xs text-muted">
+                  <span className="h-1 w-14 overflow-hidden rounded-full bg-surface-hover">
+                    <span
+                      className="block h-full rounded-full bg-success"
+                      style={{ width: `${Math.round((d.avgMastery ?? 0) * 100)}%` }}
+                    />
+                  </span>
+                  <span className="tabular-nums">掌握 {Math.round((d.avgMastery ?? 0) * 100)}%</span>
+                  <span className="tabular-nums">{d.segmentCount} 点</span>
+                  <span className="hidden tabular-nums sm:inline">{formatDate(d.createdAt)}</span>
                 </div>
               </Link>
             </li>

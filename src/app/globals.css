@@ -5,7 +5,39 @@
   --font-mono: var(--font-geist-mono);
 }
 
-/* Markdown 正文排版（复习与详情页） */
+/*
+ * 深色知识工作台语义 token（Obsidian 式）。
+ * 注册 --color- 前缀变量后 Tailwind 4 自动生成对应工具类，
+ * 页面一律使用语义类（bg-surface / text-muted / border-line / bg-accent 等）。
+ */
+@theme {
+  --color-app: #1e1e1e; /* 应用底 */
+  --color-surface: #262626; /* 卡片/面板 */
+  --color-surface-hover: #303030; /* 悬停 */
+  --color-line: #3f3f3f; /* 分隔线/描边 */
+  --color-primary: #dadada; /* 正文 */
+  --color-muted: #999999; /* 次要文字 */
+  --color-accent: #8b6cef; /* Obsidian 紫：激活/主按钮/链接 */
+  --color-danger: #f87171;
+  --color-warn: #fbbf24;
+  --color-success: #4ade80;
+  --color-neutral: #9ca3af;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-app);
+  color: var(--color-primary);
+}
+
+* {
+  scrollbar-color: var(--color-line) transparent;
+}
+
+/* Markdown 正文排版（深色阅读） */
 .md-body {
   line-height: 1.75;
   font-size: 0.95rem;
@@ -31,14 +63,15 @@
 .md-body code {
   font-family: var(--font-mono);
   font-size: 0.85em;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  background: var(--color-app);
+  border: 1px solid var(--color-line);
   border-radius: 4px;
   padding: 0.1em 0.35em;
 }
 .md-body pre {
-  background: #0f172a;
-  color: #e2e8f0;
+  background: #161616;
+  color: var(--color-primary);
+  border: 1px solid var(--color-line);
   border-radius: 8px;
   padding: 0.9em 1em;
   overflow-x: auto;
@@ -51,23 +84,37 @@
   font-size: 0.85em;
 }
 .md-body blockquote {
-  border-left: 3px solid #cbd5e1;
-  color: #475569;
+  border-left: 3px solid var(--color-line);
+  color: var(--color-muted);
   padding-left: 1em;
   margin: 0.8em 0;
 }
 .md-body table {
+  display: block;
+  overflow-x: auto; /* 窄屏防溢出 */
   border-collapse: collapse;
   margin: 0.8em 0;
   font-size: 0.9em;
 }
 .md-body th,
 .md-body td {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-line);
   padding: 0.35em 0.7em;
   text-align: left;
 }
-.md-body th { background: #f8fafc; font-weight: 600; }
-.md-body a { color: #2563eb; text-decoration: underline; }
-.md-body hr { border-color: #e2e8f0; margin: 1.2em 0; }
-.md-body img { max-width: 100%; border-radius: 8px; }
+.md-body th {
+  background: var(--color-surface);
+  font-weight: 600;
+}
+.md-body a {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+.md-body hr {
+  border-color: var(--color-line);
+  margin: 1.2em 0;
+}
+.md-body img {
+  max-width: 100%;
+  border-radius: 8px;
+}
