@@ -59,7 +59,14 @@ export function review(state: Sm2State, grade: Grade, now = new Date()): Sm2Resu
       ? new Date(now.getTime() + 10 * 60 * 1000) // 10 分钟后重现
       : new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000);
 
-  return { ease, intervalDays, reps, lapses, dueAt, ...derive(state, grade) };
+  return {
+    ease,
+    intervalDays,
+    reps,
+    lapses,
+    dueAt,
+    ...derive({ ease, intervalDays, reps, lapses }, grade),
+  };
 }
 
 /** 从 SM-2 状态派生掌握度（0~1）与状态标签 */
@@ -86,4 +93,20 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 function round2(v: number): number {
   return Math.round(v * 100) / 100;
+}
+
+/**
+ * 打开即学习：当日（服务器本地日期）首次打开按 grade=2 隐式推进；
+ * 同日重复打开返回 null——仅记查看，不推进 SM-2、不写学习流水。
+ */
+export function touch(state: Sm2State, lastViewedAt: Date | string | null, now: Date = new Date()): Sm2Result | null {
+  if (lastViewedAt) {
+    const last = typeof lastViewedAt === 'string' ? new Date(lastViewedAt) : lastViewedAt;
+    if (sameLocalDay(last, now)) return null;
+  }
+  return review(state, 2, now);
+}
+
+function sameLocalDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }

@@ -5,7 +5,7 @@ import { documents, reviewLogs, segments } from '@/db/schema';
 import { guard } from '@/lib/api';
 
 
-/** 概览统计：总数/状态分布/待复习/今日复习数/最近导入 */
+/** 概览统计：总数/状态分布/建议回看/今日已学习/最近导入 */
 export async function GET(req: NextRequest) {
   const denied = await guard(req);
   if (denied) return denied;
@@ -38,8 +38,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     total,
     byStatus: statusCount,
-    dueCount: dueRow[0]?.count ?? 0,
-    reviewsToday: todayRow[0]?.count ?? 0,
+    suggestCount: dueRow[0]?.count ?? 0,
+    learnedToday: todayRow[0]?.count ?? 0,
     recentDocuments: recentDocs,
   });
 }

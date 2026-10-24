@@ -63,8 +63,8 @@ export default function NoteDetailPage() {
                   <p className="truncate text-xs text-slate-400">{s.headingPath}</p>
                 )}
               </div>
-              <span className="hidden shrink-0 text-xs text-slate-400 sm:block">查看 {s.viewCount} 次</span>
-              <span className="shrink-0 text-xs text-slate-400">{formatDue(s.dueAt)}</span>
+              <span className="hidden shrink-0 text-xs text-slate-400 sm:block" title="查看次数">查看 {s.viewCount} 次</span>
+              <span className="shrink-0 text-xs text-slate-400" title="建议回看">{formatDue(s.dueAt)}</span>
               <MasteryBadge status={s.status} mastery={s.mastery} />
             </Link>
           </li>

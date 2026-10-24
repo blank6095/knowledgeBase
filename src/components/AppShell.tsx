@@ -6,10 +6,8 @@ import { usePathname, useRouter } from 'next/navigation';
 
 const NAV = [
   { href: '/', label: '概览' },
-  { href: '/review', label: '复习' },
   { href: '/notes', label: '知识库' },
   { href: '/graph', label: '关系图谱' },
-  { href: '/import', label: '导入' },
 ] as const;
 
 /**

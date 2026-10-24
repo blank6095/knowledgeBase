@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { derive, review, type Sm2State } from '../sm2';
+import { derive, review, touch, type Sm2State } from '../sm2';
 
 const fresh: Sm2State = { ease: 2.5, intervalDays: 0, reps: 0, lapses: 0 };
 
@@ -68,5 +68,29 @@ describe('SM-2 复习算法', () => {
     let s = fresh;
     for (let i = 0; i < 30; i++) s = review(s, 3);
     expect(s.intervalDays).toBeLessThanOrEqual(365);
+  });
+});
+
+describe('touch（打开即学习）', () => {
+  it('首次打开（无 lastViewedAt）按 grade=2 推进', () => {
+    const r = touch(fresh, null, new Date('2026-10-25T10:00:00'));
+    expect(r).not.toBeNull();
+    expect(r!.reps).toBe(1);
+    expect(r!.intervalDays).toBe(1);
+    expect(r!.status).toBe('learning');
+  });
+
+  it('同日重复打开返回 null，不推进', () => {
+    const learned: Sm2State = { ease: 2.5, intervalDays: 1, reps: 1, lapses: 0 };
+    const r = touch(learned, new Date('2026-10-25T08:00:00'), new Date('2026-10-25T22:00:00'));
+    expect(r).toBeNull();
+  });
+
+  it('跨天首次打开推进（等价 grade=2 语义）并接受字符串日期', () => {
+    const learned: Sm2State = { ease: 2.5, intervalDays: 1, reps: 1, lapses: 0 };
+    const r = touch(learned, '2026-10-25T23:59:00', new Date('2026-10-26T09:00:00'));
+    expect(r).not.toBeNull();
+    expect(r!.reps).toBe(2);
+    expect(r!.intervalDays).toBe(3);
   });
 });

@@ -7,8 +7,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api, formatDate, formatDue } from '@/lib/client';
 import MasteryBadge, { STATUS_META } from '@/components/MasteryBadge';
-import GradeButtons from '@/components/GradeButtons';
-import type { Grade, SegmentStatus } from '@/lib/sm2';
+import type { SegmentStatus } from '@/lib/sm2';
 
 interface SegmentDetail {
   segment: {
@@ -36,7 +35,6 @@ export default function SegmentPage() {
   const { id } = useParams<{ id: string }>();
   const [data, setData] = useState<SegmentDetail | null>(null);
   const [error, setError] = useState('');
-  const [graded, setGraded] = useState<string | null>(null);
   const viewed = useRef(false);
 
   useEffect(() => {
@@ -57,26 +55,6 @@ export default function SegmentPage() {
 
   const s = data.segment;
   const meta = STATUS_META[(s.status as SegmentStatus) ?? 'new'] ?? STATUS_META.new;
-
-  const onGrade = async (grade: Grade) => {
-    try {
-      const res = await api<{ dueAt: string; mastery: number; status: string }>(`/api/segments/${s.id}/review`, {
-        method: 'POST',
-        body: JSON.stringify({ grade }),
-      });
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              segment: { ...prev.segment, dueAt: res.dueAt, mastery: res.mastery, status: res.status },
-            }
-          : prev,
-      );
-      setGraded(`已记录，下次复习：${formatDue(res.dueAt)}`);
-    } catch (e) {
-      setGraded(e instanceof Error ? e.message : '提交失败');
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -106,33 +84,22 @@ export default function SegmentPage() {
         </div>
       </article>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm">
-          <h2 className="mb-3 font-medium text-slate-500">学习状态</h2>
-          <dl className="space-y-1.5 text-slate-700">
-            <Row k="掌握度">
-              <div className="flex items-center gap-2">
-                <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full rounded-full" style={{ width: `${Math.round(s.mastery * 100)}%`, background: meta.dot }} />
-                </div>
-                {Math.round(s.mastery * 100)}%
+      <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm">
+        <h2 className="mb-3 font-medium text-slate-500">学习状态</h2>
+        <dl className="grid gap-1.5 text-slate-700 sm:grid-cols-2">
+          <Row k="掌握度">
+            <div className="flex items-center gap-2">
+              <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full" style={{ width: `${Math.round(s.mastery * 100)}%`, background: meta.dot }} />
               </div>
-            </Row>
-            <Row k="查看次数">{s.viewCount} 次</Row>
-            <Row k="最近查看">{formatDate(s.lastViewedAt)}</Row>
-            <Row k="复习次数">{s.reps} 次（遗忘 {s.lapses} 次）</Row>
-            <Row k="下次复习">{formatDue(s.dueAt)}</Row>
-          </dl>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="mb-3 text-sm font-medium text-slate-500">现在自评一下</h2>
-          <GradeButtons
-            state={{ ease: s.ease, intervalDays: s.intervalDays, reps: s.reps, lapses: s.lapses }}
-            onGrade={onGrade}
-          />
-          {graded && <p className="mt-3 text-sm text-emerald-700">{graded}</p>}
-        </div>
+              {Math.round(s.mastery * 100)}%
+            </div>
+          </Row>
+          <Row k="查看次数">{s.viewCount} 次</Row>
+          <Row k="最近查看">{formatDate(s.lastViewedAt)}</Row>
+          <Row k="学习次数">{s.reps} 次（遗忘 {s.lapses} 次）</Row>
+          <Row k="建议回看">{formatDue(s.dueAt)}</Row>
+        </dl>
       </div>
 
       {data.neighbors.length > 0 && (

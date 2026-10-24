@@ -10,6 +10,12 @@ interface ImportResult {
   linkCount: number;
 }
 
+const GRANULARITY = [
+  { label: '粗', value: 2400 },
+  { label: '中', value: 1200 },
+  { label: '细', value: 600 },
+] as const;
+
 export default function ImportPage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -58,7 +64,7 @@ export default function ImportPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">导入知识</h1>
       <p className="text-sm text-slate-500">
-        支持 Markdown 文件或直接粘贴。导入后会按标题自动分割为知识点、提取标签与 [[双链]] 关联，原文备份到 Cloudflare R2。
+        支持 Markdown 文件或直接粘贴。导入后按标题层级自动拆解为知识点、提取标签与 [[双链]] 关联，原文备份到 Cloudflare R2。
       </p>
 
       <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
@@ -72,18 +78,26 @@ export default function ImportPage() {
               placeholder="如：React Hooks 笔记"
             />
           </label>
-          <label className="block text-sm">
-            <span className="mb-1 block text-slate-600">单个知识点建议长度：{maxChars} 字符</span>
-            <input
-              type="range"
-              min={400}
-              max={3000}
-              step={100}
-              value={maxChars}
-              onChange={(e) => setMaxChars(Number(e.target.value))}
-              className="mt-3 w-full"
-            />
-          </label>
+          <div className="text-sm">
+            <span className="mb-1.5 block text-slate-600">拆分粒度</span>
+            <div className="flex overflow-hidden rounded-lg border border-slate-300">
+              {GRANULARITY.map((g) => (
+                <button
+                  key={g.label}
+                  type="button"
+                  onClick={() => setMaxChars(g.value)}
+                  className={`flex-1 px-4 py-2 transition-colors ${
+                    maxChars === g.value ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5 text-xs text-slate-400">
+              按标题层级优先拆解，超长内容降级到句子边界，代码块与表格始终保持完整。粗 ≈ 2400 字 · 中 ≈ 1200 字 · 细 ≈ 600 字
+            </p>
+          </div>
         </div>
 
         <label className="block text-sm">

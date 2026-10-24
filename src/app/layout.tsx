@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "个人知识库",
-  description: "跨设备访问、自动关联、间隔重复复习的个人知识库",
+  description: "跨设备访问、自动关联、打开即学习的个人知识库",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -8,8 +8,8 @@ import { STATUS_META } from '@/components/MasteryBadge';
 interface Stats {
   total: number;
   byStatus: Record<string, number>;
-  dueCount: number;
-  reviewsToday: number;
+  suggestCount: number;
+  learnedToday: number;
   recentDocuments: { id: string; title: string; segmentCount: number; createdAt: string }[];
 }
 
@@ -32,19 +32,16 @@ export default function DashboardPage() {
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">概览</h1>
         <div className="flex-1" />
-        <Link href="/review" className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500">
-          开始复习{stats.dueCount > 0 ? `（${stats.dueCount} 个到期）` : ''}
-        </Link>
-        <Link href="/import" className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-100">
+        <Link href="/import" className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700">
           导入知识
         </Link>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Card label="知识点总数" value={stats.total} />
-        <Card label="待复习" value={stats.dueCount} accent="text-red-600" />
+        <Card label="建议回看" value={stats.suggestCount} accent="text-red-600" />
         <Card label="已掌握" value={stats.byStatus.mastered ?? 0} accent="text-emerald-600" />
-        <Card label="今日已复习" value={stats.reviewsToday} />
+        <Card label="今日已学习" value={stats.learnedToday} />
       </div>
 
       <section className="rounded-xl border border-slate-200 bg-white p-5">
