@@ -131,7 +131,7 @@ export default function ReviewPage() {
       {queue.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-10 text-center">
           <p className="text-lg">🎉 没有到期的知识点</p>
-          <p className="mt-2 text-sm text-slate-500">都复习完了，去 <Link href="/import" className="text-blue-600 underline">导入新知识</Link> 或 <Link href="/graph" className="text-blue-600 underline">看看知识网络</Link>。</p>
+          <p className="mt-2 text-sm text-slate-500">都复习完了，去 <Link href="/import" className="text-blue-600 underline">导入新知识</Link> 或 <Link href="/graph" className="text-blue-600 underline">看看关系图谱</Link>。</p>
         </div>
       ) : finished ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-10 text-center">

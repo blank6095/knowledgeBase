@@ -1,4 +1,4 @@
-# 知识网络丝滑度优化方案（含压测数据体系）
+# 关系图谱丝滑度优化方案（含压测数据体系）
 
 > 诊断基于当前实现：`react-force-graph-2d`（Canvas 2D 渲染，d3-force-3d 布局引擎**已在 Web Worker 中运行**）、数据源 `/api/graph` 全量接口、过滤在客户端重算。压测工具链已落地：`scripts/gen-graph-data.mjs` + `/graph?fixture=<name>`。
 

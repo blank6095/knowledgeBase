@@ -113,7 +113,7 @@ export default function ImportPage() {
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
             导入成功：分割出 <b>{result.segmentCount}</b> 个知识点，建立 <b>{result.linkCount}</b> 条关联。
             <Link href={`/notes/${result.documentId}`} className="ml-2 font-medium underline">查看文档 →</Link>
-            <Link href="/graph" className="ml-3 font-medium underline">查看知识网络 →</Link>
+            <Link href="/graph" className="ml-3 font-medium underline">查看关系图谱 →</Link>
           </div>
         )}
 
