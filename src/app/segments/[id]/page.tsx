@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm';
 import { api, formatDate, formatDuration } from '@/lib/client';
 import MemoryBadge from '@/components/MemoryBadge';
 import { memoryColor } from '@/lib/memory';
+import { Skeleton } from '@/components/Skeleton';
 
 interface SegmentDetail {
   segment: {
@@ -104,73 +105,101 @@ export default function SegmentPage() {
     };
   }, [id]);
 
-  if (error) return <p className="text-danger">{error}</p>;
-  if (!data) return <p className="text-muted">加载中…</p>;
+  if (error) return <p className="text-body text-danger">{error}</p>;
+  if (!data)
+    return (
+      <div className="mx-auto max-w-3xl space-y-4" role="status" aria-label="加载中">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-8 w-2/3" />
+        <div className="card px-5 py-6">
+          {Array.from({ length: 5 }, (_, i) => (
+            <Skeleton key={i} className={`mb-3 h-4 ${i === 4 ? 'w-1/2' : 'w-full'}`} />
+          ))}
+        </div>
+        <div className="card px-4 py-3">
+          <div className="skeleton h-3 w-16" />
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {Array.from({ length: 5 }, (_, i) => (
+              <div key={i} className="skeleton h-4 w-20" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
 
   const s = data.segment;
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <div>
+      <div className="fade-up">
         <Link
           href={`/notes/${data.document?.id ?? ''}`}
-          className="text-xs text-muted transition-colors hover:text-accent hover:underline"
+          className="text-tag text-faint transition-colors hover:text-accent hover:underline"
         >
           ← {data.document?.title ?? '文档'}
         </Link>
-        <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
-          <h1 className="text-lg font-semibold">{s.title}</h1>
+        <div className="mt-2 flex flex-wrap items-center gap-2.5">
+          <h1 className="font-display text-subtitle font-semibold">{s.title}</h1>
           <MemoryBadge memory={s.memory} />
         </div>
         {s.headingPath && s.headingPath !== s.title && (
-          <p className="mt-0.5 text-xs text-muted/70">{s.headingPath}</p>
+          <p className="mt-1 text-tag text-faint">{s.headingPath}</p>
         )}
         {s.tags.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <div className="mt-2 flex flex-wrap gap-1.5">
             {s.tags.map((t) => (
-              <span key={t} className="rounded bg-surface-hover px-1.5 py-0.5 text-[11px] text-muted">#{t}</span>
+              <span key={t} className="rounded bg-surface-hover px-1.5 py-0.5 text-tag text-muted">#{t}</span>
             ))}
           </div>
         )}
       </div>
 
-      <article className="rounded-xl border border-line bg-surface px-5 py-4">
+      <article className="card fade-up px-5 py-4" style={{ animationDelay: '80ms' }}>
         <div className="md-body">
           <Markdown remarkPlugins={[remarkGfm]}>{s.content}</Markdown>
         </div>
       </article>
 
-      <div className="rounded-xl border border-line bg-surface px-4 py-3 text-sm">
-        <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">记忆状态</h2>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-1.5 sm:grid-cols-3">
+      <div className="card fade-up px-4 py-3" style={{ animationDelay: '160ms' }}>
+        <h2 className="mb-3 text-tag uppercase text-muted">记忆状态</h2>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
           <Row k="记忆度">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-end gap-2">
               <div className="h-1 w-16 overflow-hidden rounded-full bg-surface-hover">
-                <div className="h-full rounded-full" style={{ width: `${Math.round(s.memory * 100)}%`, background: memoryColor(s.memory) }} />
+                <div
+                  className="h-full rounded-full transition-[width] duration-500"
+                  style={{ width: `${Math.round(s.memory * 100)}%`, background: memoryColor(s.memory) }}
+                />
               </div>
-              <span className="tabular-nums">{Math.round(s.memory * 100)}%</span>
+              <span className="font-mono text-body tabular-nums">{Math.round(s.memory * 100)}%</span>
             </div>
           </Row>
           <Row k="半衰期">
-            <span title="记忆曲线稳定度 S×ln2">
+            <span title="记忆曲线稳定度 S×ln2" className="text-minor">
               {s.stability > 0 ? `预计 ${formatHalfLife(s.halfLifeDays)}后忘一半` : '—'}
             </span>
           </Row>
-          <Row k="阅读次数">{s.viewCount} 次</Row>
-          <Row k="累计时长">{formatDuration(s.readingMs)}</Row>
-          <Row k="最近阅读">{formatDate(s.lastViewedAt)}</Row>
+          <Row k="阅读次数">
+            <span className="font-mono tabular-nums">{s.viewCount}</span> 次
+          </Row>
+          <Row k="累计时长">
+            <span className="font-mono tabular-nums">{formatDuration(s.readingMs)}</span>
+          </Row>
+          <Row k="最近阅读">
+            <span className="font-mono tabular-nums">{formatDate(s.lastViewedAt)}</span>
+          </Row>
         </dl>
       </div>
 
       {data.neighbors.length > 0 && (
-        <section className="rounded-xl border border-line bg-surface px-4 py-3">
-          <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">相关知识点</h2>
+        <section className="card fade-up px-4 py-3" style={{ animationDelay: '240ms' }}>
+          <h2 className="mb-2 text-tag uppercase text-muted">相关知识点</h2>
           <ul className="space-y-1.5">
             {data.neighbors.map((n) => (
               <li key={n.id}>
                 <Link
                   href={`/segments/${n.id}`}
-                  className="flex items-center justify-between gap-3 text-sm transition-colors hover:text-accent"
+                  className="group flex items-center justify-between gap-3 text-body transition-colors duration-150 hover:text-accent"
                 >
                   <span className="min-w-0 flex-1 truncate">{n.title}</span>
                   <MemoryBadge memory={n.memory} />
@@ -192,8 +221,8 @@ function formatHalfLife(days: number): string {
 function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4">
-      <dt className="text-xs text-muted">{k}</dt>
-      <dd className="text-right text-sm">{children}</dd>
+      <dt className="text-tag text-muted">{k}</dt>
+      <dd className="text-right text-body text-primary">{children}</dd>
     </div>
   );
 }

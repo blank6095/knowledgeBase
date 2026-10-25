@@ -110,10 +110,10 @@ describe('展示档位与配色', () => {
   });
 
   it('memoryColor：未读灰，M∈(0,1] 随 M 单调变亮且更饱和', () => {
-    expect(memoryColor(0)).toBe('#4b5563');
+    expect(memoryColor(0)).toBe('#55504a');
     const hsl = (m: number) => {
-      const match = memoryColor(m).match(/hsl\(254, (\d+)%, ([\d.]+)%\)/);
-      if (!match) throw new Error(`非紫色系输出: ${memoryColor(m)}`);
+      const match = memoryColor(m).match(/hsl\(38, (\d+)%, ([\d.]+)%\)/);
+      if (!match) throw new Error(`非琥珀色系输出: ${memoryColor(m)}`);
       return { s: Number(match[1]), l: Number(match[2]) };
     };
     let prev = { s: -1, l: -1 };
@@ -123,7 +123,9 @@ describe('展示档位与配色', () => {
       expect(cur.s).toBeGreaterThanOrEqual(prev.s);
       prev = cur;
     }
-    // M=1 亮度对齐 accent（#8b6cef ≈ hsl(254, 80%, 68%)）
-    expect(hsl(1)).toEqual({ s: 75, l: 68 });
+    // M=1 到达梯度上界：饱和度 70%、亮度 68%
+    expect(hsl(1)).toEqual({ s: 70, l: 68 });
+    expect(hsl(0.001).s).toBeGreaterThanOrEqual(45);
+    expect(hsl(0.001).l).toBeGreaterThanOrEqual(32);
   });
 });

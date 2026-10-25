@@ -6,6 +6,15 @@ import { Suspense, useState } from 'react';
 
 type IconProps = React.SVGProps<SVGSVGElement>;
 
+/** 四芒灯火 mark：暗夜书房的灯（accent 色，由使用处的 text-accent 决定） */
+const LogoMark = (p: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden {...p}>
+    <path
+      d="M12 2.2c.78 5.02 4.58 8.82 9.8 9.8-5.22.98-9.02 4.78-9.8 9.8-.78-5.02-4.58-8.82-9.8-9.8 5.22-.98 9.02-4.78 9.8-9.8Z"
+      fill="currentColor"
+    />
+  </svg>
+);
 const IcOverview = (p: IconProps) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
     <path d="M3 10.5 12 3l9 7.5" />
@@ -84,9 +93,13 @@ function Shell({ children }: { children: React.ReactNode }) {
         href={item.href}
         title={showLabel ? undefined : item.label}
         onClick={() => setDrawerOpen(false)}
-        className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${
+        className={`navlink ${active ? 'navlink-active' : ''} flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-body transition-colors duration-150 ${
           showLabel ? '' : 'justify-center'
-        } ${active ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-surface-hover hover:text-primary'}`}
+        } ${
+          active
+            ? 'bg-accent/10 text-accent-strong'
+            : 'text-muted hover:bg-surface-hover hover:text-primary'
+        }`}
       >
         <item.icon className="h-4 w-4 shrink-0" />
         {showLabel && <span className="truncate">{item.label}</span>}
@@ -103,13 +116,15 @@ function Shell({ children }: { children: React.ReactNode }) {
 
       {/* 侧边栏：桌面常驻（可折叠成图标栏），<768px 抽屉 */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-line bg-surface transition-all duration-200 md:sticky md:z-20 md:h-screen md:translate-x-0 md:inset-y-auto ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-line bg-surface transition-[transform,width] duration-200 ease-out md:sticky md:z-20 md:h-screen md:translate-x-0 md:inset-y-auto ${
           drawerOpen ? 'translate-x-0' : '-translate-x-full'
         } ${collapsed ? 'md:w-12' : 'md:w-60'}`}
       >
-        <div className={`flex h-12 shrink-0 items-center gap-2 border-b border-line px-3 ${collapsed ? 'md:justify-center md:px-0' : ''}`}>
-          <span className="text-base leading-none">🧠</span>
-          <span className={`truncate text-sm font-semibold ${collapsed ? 'md:hidden' : ''}`}>个人知识库</span>
+        <div className={`flex h-12 shrink-0 items-center gap-2.5 border-b border-line px-3 ${collapsed ? 'md:justify-center md:px-0' : ''}`}>
+          <LogoMark className="h-5 w-5 shrink-0 text-accent" />
+          <span className={`truncate font-display text-body font-semibold ${collapsed ? 'md:hidden' : ''}`}>
+            暗夜书房
+          </span>
         </div>
 
         <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">{NAV.map((item) => navItem(item))}</nav>
@@ -118,7 +133,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <button
             onClick={logout}
             title={collapsed ? '退出' : undefined}
-            className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-muted transition-colors hover:bg-surface-hover hover:text-danger ${
+            className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-body text-faint transition-colors duration-150 hover:bg-surface-hover hover:text-danger ${
               collapsed ? 'md:justify-center md:px-0' : ''
             }`}
           >
@@ -127,12 +142,12 @@ function Shell({ children }: { children: React.ReactNode }) {
           </button>
           <button
             onClick={() => setCollapsed((c) => !c)}
-            className={`hidden w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-muted transition-colors hover:bg-surface-hover hover:text-primary md:flex ${
+            className={`hidden w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-body text-faint transition-colors duration-150 hover:bg-surface-hover hover:text-primary md:flex ${
               collapsed ? 'justify-center px-0' : ''
             }`}
             aria-label="折叠侧边栏"
           >
-            <IcChevron className={`h-4 w-4 shrink-0 transition-transform ${collapsed ? 'rotate-180' : ''}`} />
+            <IcChevron className={`h-4 w-4 shrink-0 transition-transform duration-200 ${collapsed ? 'rotate-180' : ''}`} />
             <span className={collapsed ? 'hidden' : ''}>收起</span>
           </button>
         </div>
@@ -140,19 +155,20 @@ function Shell({ children }: { children: React.ReactNode }) {
 
       {/* 主列：全幅（图谱需要），阅读类页面自行限宽 */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b border-line bg-app/95 px-3 backdrop-blur md:hidden">
+        <header className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b border-line bg-app/90 px-3 backdrop-blur md:hidden">
           <button
             onClick={() => setDrawerOpen(true)}
             aria-label="打开导航"
-            className="rounded-md p-1.5 text-muted hover:bg-surface-hover hover:text-primary"
+            className="rounded-md p-1.5 text-muted transition-colors hover:bg-surface-hover hover:text-primary"
           >
             <IcMenu className="h-5 w-5" />
           </button>
-          <span className="text-sm font-semibold">🧠 个人知识库</span>
+          <LogoMark className="h-4 w-4 text-accent" />
+          <span className="font-display text-body font-semibold">暗夜书房</span>
         </header>
         <main className="flex-1 px-4 py-5 md:px-6 md:py-6">{children}</main>
-        <footer className="border-t border-line py-3 text-center text-[11px] text-muted">
-          个人知识库 · Neon + Cloudflare R2 + Vercel
+        <footer className="border-t border-line py-3 text-center text-tag text-faint">
+          暗夜书房 · Neon + Cloudflare R2 + Vercel
         </footer>
       </div>
     </div>

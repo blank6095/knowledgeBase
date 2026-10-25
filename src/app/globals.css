@@ -3,25 +3,49 @@
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-noto-serif-sc);
 }
 
 /*
- * 深色知识工作台语义 token（Obsidian 式）。
+ * 暗夜书房主题 token（暖墨黑 + 琥珀灯光）。
+ * 隐喻：阅读是点灯，遗忘是变暗，记忆程度 = 灯光亮度。
  * 注册 --color- 前缀变量后 Tailwind 4 自动生成对应工具类，
  * 页面一律使用语义类（bg-surface / text-muted / border-line / bg-accent 等）。
  */
 @theme {
-  --color-app: #1e1e1e; /* 应用底 */
-  --color-surface: #262626; /* 卡片/面板 */
-  --color-surface-hover: #303030; /* 悬停 */
-  --color-line: #3f3f3f; /* 分隔线/描边 */
-  --color-primary: #dadada; /* 正文 */
-  --color-muted: #999999; /* 次要文字 */
-  --color-accent: #8b6cef; /* Obsidian 紫：激活/主按钮/链接 */
-  --color-danger: #f87171;
-  --color-warn: #fbbf24;
-  --color-success: #4ade80;
-  --color-neutral: #9ca3af;
+  --color-app: #131110; /* 暖墨黑：应用底 */
+  --color-surface: #1b1815; /* 卡片/面板 */
+  --color-surface-hover: #242019; /* 悬停 */
+  --color-elevated: #2a251e; /* 浮层：设置面板/下拉/tooltip */
+  --color-line: rgba(236, 230, 218, 0.08); /* 分隔线/描边 */
+  --color-line-strong: rgba(236, 230, 218, 0.16); /* 强描边 */
+  --color-primary: #ece6da; /* 暖白正文 */
+  --color-muted: #a49b8c; /* 次要文字 */
+  --color-faint: #6e675c; /* 三级弱文字（装饰性） */
+  --color-accent: #e8b04b; /* 琥珀：灯光/激活/主按钮 */
+  --color-accent-strong: #f2c069; /* 琥珀高亮：hover 点亮 */
+  --color-accent-ink: #201708; /* 琥珀底上的文字 */
+  --color-danger: #e07a6a;
+  --color-success: #8fb573;
+  --color-warn: #d9915c;
+  --color-canvas: #0f0d0b; /* 图谱画布：比 app 更深的墨底 */
+
+  /* 字阶（px）：12 区块标签 / 13 次要 / 15 正文 / 17 卡片标题 / 20 次页题 / 28 页题 / 36 hero 数字 */
+  --text-tag: 0.75rem;
+  --text-tag--line-height: 1.5;
+  --text-tag--letter-spacing: 0.05em;
+  --text-minor: 0.8125rem;
+  --text-minor--line-height: 1.55;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.65;
+  --text-card: 1.0625rem;
+  --text-card--line-height: 1.5;
+  --text-subtitle: 1.25rem;
+  --text-subtitle--line-height: 1.4;
+  --text-title: 1.75rem;
+  --text-title--line-height: 1.3;
+  --text-hero: 2.25rem;
+  --text-hero--line-height: 1.1;
 }
 
 html {
@@ -33,23 +57,143 @@ body {
   color: var(--color-primary);
 }
 
-* {
-  scrollbar-color: var(--color-line) transparent;
+/* 顶部径向暖光：书房顶灯 */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse 90% 55% at 50% -12%, rgba(232, 176, 75, 0.05), transparent 45%);
 }
 
-/* Markdown 正文排版（深色阅读） */
+/* 全屏纸面噪点 */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+
+* {
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+/* 工艺：键盘焦点琥珀圆环 + 选区暖色 */
+:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 60%, transparent);
+  outline-offset: 2px;
+}
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+
+/* 深度：卡片 = surface + 内描边 + 柔和下阴影；hover 点亮为 elevated 并微升 */
+.card {
+  background: var(--color-surface);
+  border-radius: 0.75rem;
+  box-shadow:
+    inset 0 0 0 1px rgba(236, 230, 218, 0.05),
+    0 8px 24px -12px rgba(0, 0, 0, 0.55);
+}
+.card-hover {
+  transition:
+    background-color 120ms ease,
+    transform 120ms ease,
+    box-shadow 120ms ease;
+}
+.card-hover:hover {
+  background: var(--color-elevated);
+  transform: translateY(-1px);
+}
+
+/* 动效：进场编排 fadeUp + stagger（animation-delay 由页面按序内联） */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.fade-up {
+  animation: fade-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 侧边栏 active 琥珀指示条 */
+.navlink {
+  position: relative;
+}
+.navlink::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 2px;
+  height: 55%;
+  border-radius: 0 1px 1px 0;
+  background: var(--color-accent);
+  transform: translateY(-50%) scaleY(0);
+  transition: transform 160ms ease;
+}
+.navlink-active::before {
+  transform: translateY(-50%) scaleY(1);
+}
+
+/* 骨架屏：表面底 + 微光扫过 */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--color-surface-hover);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(236, 230, 218, 0.06), transparent);
+  animation: shimmer 1.6s infinite;
+}
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* 减少动态效果：全部动效直显 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Markdown 正文排版（暖墨阅读面） */
 .md-body {
-  line-height: 1.75;
-  font-size: 0.95rem;
+  line-height: 1.8;
+  font-size: 0.9375rem;
   word-break: break-word;
 }
 .md-body h1,
 .md-body h2,
 .md-body h3,
 .md-body h4 {
+  font-family: var(--font-display);
   font-weight: 600;
   margin: 1.2em 0 0.5em;
   line-height: 1.4;
+  color: var(--color-primary);
 }
 .md-body h1 { font-size: 1.35rem; }
 .md-body h2 { font-size: 1.2rem; }
@@ -69,7 +213,7 @@ body {
   padding: 0.1em 0.35em;
 }
 .md-body pre {
-  background: #161616;
+  background: var(--color-canvas);
   color: var(--color-primary);
   border: 1px solid var(--color-line);
   border-radius: 8px;
@@ -84,9 +228,11 @@ body {
   font-size: 0.85em;
 }
 .md-body blockquote {
-  border-left: 3px solid var(--color-line);
+  border-left: 3px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
   color: var(--color-muted);
-  padding-left: 1em;
+  background: color-mix(in srgb, var(--color-accent) 4%, transparent);
+  border-radius: 0 6px 6px 0;
+  padding: 0.35em 1em;
   margin: 0.8em 0;
 }
 .md-body table {
@@ -103,12 +249,16 @@ body {
   text-align: left;
 }
 .md-body th {
-  background: var(--color-surface);
+  background: var(--color-surface-hover);
   font-weight: 600;
 }
 .md-body a {
   color: var(--color-accent);
   text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.md-body a:hover {
+  color: var(--color-accent-strong);
 }
 .md-body hr {
   border-color: var(--color-line);

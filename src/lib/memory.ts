@@ -38,6 +38,14 @@ export const TIER_THRESHOLDS = { strong: 0.75, medium: 0.4 } as const;
 
 export const MEMORY_TIER_ORDER: MemoryTier[] = ['unread', 'weak', 'medium', 'strong'];
 
+/** 档位色点（琥珀灯光梯度，未读=熄灭的灰） */
+export const MEMORY_TIER_DOTS: Record<MemoryTier, string> = {
+  unread: '#55504a',
+  weak: '#8a6a33',
+  medium: '#c49144',
+  strong: '#f2c069',
+};
+
 export function memoryTier(memory: number): MemoryTier {
   if (memory <= 0) return 'unread';
   if (memory < TIER_THRESHOLDS.medium) return 'weak';
@@ -98,16 +106,16 @@ export function halfLifeDays(stability: number): number {
 }
 
 /**
- * 记忆度 → 图谱节点颜色（深底）。
- * 未读灰色；已读在紫色系（accent #8b6cef 家族，hue 254）内按 M 单调变亮：
- * lightness 约 30%→68%、saturation 约 40%→75%，亮度即记忆度。
+ * 记忆度 → 图谱节点颜色（暗夜书房：灯光隐喻）。
+ * 未读=熄灭的灰 #55504a；已读在琥珀色系（hue 38）内随 M 单调变亮：
+ * lightness 32%→68%、saturation 45%→70%，亮度即记忆度（灯越来越亮）。
  */
 export function memoryColor(memory: number): string {
   const m = Math.min(1, Math.max(0, memory));
-  if (m <= 0) return '#4b5563';
-  const saturation = Math.round(40 + 35 * m);
-  const lightness = Math.round((30 + 38 * m) * 10) / 10;
-  return `hsl(254, ${saturation}%, ${lightness}%)`;
+  if (m <= 0) return '#55504a';
+  const saturation = Math.round(45 + 25 * m);
+  const lightness = Math.round((32 + 36 * m) * 10) / 10;
+  return `hsl(38, ${saturation}%, ${lightness}%)`;
 }
 
 function round4(v: number): number {
