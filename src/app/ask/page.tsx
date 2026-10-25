@@ -33,6 +33,8 @@ export default function AskPage() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [learner, setLearner] = useState<LearnerProfileView | null>(null);
   const [query, setQuery] = useState('');
+  /** 预设快捷问题的教练意图：点选时置位，手动改词即清除（服务端再由正则兜底） */
+  const [adviceIntent, setAdviceIntent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<AskResult | null>(null);
   const [error, setError] = useState('');
@@ -57,7 +59,7 @@ export default function AskPage() {
       const res = await fetch('/api/ai/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: q }),
+        body: JSON.stringify({ query: q, ...(adviceIntent ? { advice: true } : {}) }),
       });
       if (!res.ok) {
         const d = (await res.json().catch(() => ({}))) as { error?: string };
@@ -107,12 +109,14 @@ export default function AskPage() {
     }
   };
 
-  const presetChips: string[] = [];
+  const presetChips: { text: string; advice: boolean }[] = [];
   if (learner?.profile && learner.profile.totalSegments > 0) {
-    presetChips.push('我接下来该学点什么？');
+    presetChips.push({ text: '我接下来该学点什么？', advice: true });
     const weak = learner.profile.weakSpots[0];
-    if (weak) presetChips.push(`帮我梳理《${weak.title}》`);
-    if (learner.profile.tiers.unread > 0) presetChips.push(`知识库里还有 ${learner.profile.tiers.unread} 篇未读，先看哪个？`);
+    if (weak) presetChips.push({ text: `帮我梳理《${weak.title}》`, advice: false });
+    if (learner.profile.tiers.unread > 0) {
+      presetChips.push({ text: `知识库里还有 ${learner.profile.tiers.unread} 篇未读，先看哪个？`, advice: true });
+    }
   }
 
   return (
@@ -139,16 +143,17 @@ export default function AskPage() {
         <>
           {presetChips.length > 0 && (
             <div className="fade-up flex flex-wrap gap-1.5" style={{ animationDelay: '40ms' }}>
-              {presetChips.map((q) => (
+              {presetChips.map((chip) => (
                 <button
-                  key={q}
+                  key={chip.text}
                   onClick={() => {
-                    setQuery(q);
+                    setQuery(chip.text);
+                    setAdviceIntent(chip.advice);
                     inputRef.current?.focus();
                   }}
                   className="rounded-full border border-line bg-surface px-3 py-1 text-tag text-muted transition-colors duration-150 hover:border-accent/50 hover:text-accent"
                 >
-                  {q}
+                  {chip.text}
                 </button>
               ))}
             </div>
@@ -164,7 +169,10 @@ export default function AskPage() {
             <input
               ref={inputRef}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setAdviceIntent(false);
+              }}
               placeholder="例如：字体布局偏移怎么应对？"
               className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3.5 py-2 text-body text-primary outline-none transition-colors placeholder:text-faint focus:border-accent"
             />

@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
 import { badRequest, guard } from '@/lib/api';
 import { chatCompletionStream, resolveLlmStatus, type ChatMessage } from '@/lib/llm';
-import { retrieveByQuery } from '@/lib/rag';
+import { adviceCandidates, retrieveByQuery } from '@/lib/rag';
 import { deriveLearnerProfileCached, getLearnerDeclaration, profileToPromptBlock } from '@/lib/learner-profile';
 import { cacheKey, getCachedOutput, saveCachedOutput } from '@/lib/llm-cache';
 import { logLlmCall } from '@/lib/llm-calls';
 
-/** 建议类意图：命中则旁路为学习教练模式（画像为主、材料为参考），而非纯材料问答 */
-const ADVICE_RE = /推荐|建议|接下来|下一步|学什么|复习|先学|规划|顺序|薄弱|优先/;
+/**
+ * 建议类意图：预设按钮显式携带 advice:true（可靠路径），自由输入靠正则兜底。
+ * 正则覆盖学习规划/盘点类词汇——这类问题问的是"我的状态"，关键词检索必然落空。
+ */
+const ADVICE_RE = /推荐|建议|接下来|下一步|学什么|复习|先学|先看|规划|顺序|薄弱|优先|哪篇|哪部|哪本|哪节|未读|没读|几篇|多少篇|多少个|盘点|梳理一下/;
 
 /** 上下文预算（L2-1）：材料优先、画像其次，超出裁剪，防 prompt 膨胀 */
 const SNIPPET_MAX = 160;
@@ -48,25 +51,36 @@ export async function POST(req: NextRequest) {
   }
   const model = status.config.model;
 
-  const body = (await req.json().catch(() => ({}))) as { query?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { query?: unknown; advice?: unknown };
   const query = typeof body.query === 'string' ? body.query.trim().slice(0, 500) : '';
   if (!query) return badRequest('请输入问题');
 
-  const materials = await retrieveByQuery(query, 6);
-
-  // 库内无相关内容且非建议类：不调用模型，直接明确告知
-  const isAdvice = ADVICE_RE.test(query);
-  if (materials.length === 0 && !isAdvice) {
-    return NextResponse.json({
-      answer: '知识库中没有找到与这个问题相关的内容，暂时无法回答。可以先在「知识库」导入相关笔记，或换个问法再试。',
-      sources: [],
-    });
-  }
+  // 预设快捷问题显式携带 advice:true；自由输入由正则兜底识别
+  const isAdvice = body.advice === true || ADVICE_RE.test(query);
 
   const [profile, declaration] = await Promise.all([
     deriveLearnerProfileCached().catch(() => null),
     getLearnerDeclaration().catch(() => ''),
   ]);
+
+  let materials = await retrieveByQuery(query, 6);
+  // 教练模式检索落空（如"还有 N 篇未读，先看哪个"）：改用薄弱/未读×中心性候选，
+  // 保证教练拿到具体可推荐的标题，而不是凭画像空谈
+  if (isAdvice && materials.length === 0) {
+    materials = await adviceCandidates(6).catch(() => []);
+  }
+
+  // 纯问答检索落空：不调模型。库非空时不得误劝"去导入"（预设问题就是证据）
+  if (materials.length === 0 && !isAdvice) {
+    const total = profile?.totalSegments ?? 0;
+    return NextResponse.json({
+      answer:
+        total > 0
+          ? `没有检索到与「${query.slice(0, 30)}」直接相关的内容（当前检索基于关键词与标签）。可以换个问法，或点上方快捷问题让我基于你的学习状态给建议。`
+          : '知识库还是空的，暂时没有可问答的内容。先到「知识库」导入一篇笔记，读过的内容会自动成为回答的依据。',
+      sources: [],
+    });
+  }
   const profileBlock = profileToPromptBlock(profile, declaration).slice(0, PROFILE_CHAR_BUDGET);
 
   // L2-1：逐条裁剪材料摘要，总量不超预算（材料优先）

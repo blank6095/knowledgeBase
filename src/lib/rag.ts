@@ -4,7 +4,7 @@
  * → 纯函数评分（命中关键词数×3 + 命中标签数×2）→ 排序取 topK；
  * neighborsOf 走 links 1-hop（wiki×2 + tag×1 + doc×1 加权累加）。
  */
-import { arrayOverlaps, ilike, inArray, or } from 'drizzle-orm';
+import { arrayOverlaps, asc, ilike, inArray, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { links, segments } from '@/db/schema';
 
@@ -91,6 +91,44 @@ export async function retrieveByQuery(query: string, topK = 6): Promise<RagHit[]
 }
 
 const KIND_WEIGHT: Record<string, number> = { wiki: 2, tag: 1, doc: 1 };
+
+/**
+ * 教练模式候选（ask 建议/规划类问题的兜底材料）：未读或薄弱（记忆度 < 0.4）的知识点，
+ * 先按记忆度升序取 50 个候选，再按图谱度数降序取 topK——保证教练"有具体标题可推荐"。
+ * 记忆度表达式与 /api/notes 的 SQL 下推一致（v7 原则：不把全表拉回 JS）。
+ */
+export async function adviceCandidates(topK = 6): Promise<RagHit[]> {
+  const memoryExpr = sql<number>`case when ${segments.lastViewedAt} is null or ${segments.stability} <= 0 then 0
+    else exp(-extract(epoch from (now() - ${segments.lastViewedAt})) / 86400.0 / greatest(${segments.stability}, 0.0001)) end`;
+  const candidates = await db
+    .select({ id: segments.id, title: segments.title, content: segments.content, summary: segments.summary, memory: memoryExpr })
+    .from(segments)
+    .where(sql`${memoryExpr} < 0.4`)
+    .orderBy(asc(memoryExpr))
+    .limit(50);
+  if (candidates.length === 0) return [];
+
+  const ids = candidates.map((c) => c.id);
+  const edges = await db
+    .select({ fromId: links.fromId, toId: links.toId })
+    .from(links)
+    .where(or(inArray(links.fromId, ids), inArray(links.toId, ids)));
+  const degree = new Map<string, number>();
+  for (const e of edges) {
+    degree.set(e.fromId, (degree.get(e.fromId) ?? 0) + 1);
+    degree.set(e.toId, (degree.get(e.toId) ?? 0) + 1);
+  }
+
+  return candidates
+    .map((c) => ({
+      segmentId: c.id,
+      title: c.title,
+      snippet: toSnippet(c.content, c.summary),
+      score: degree.get(c.id) ?? 0,
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topK);
+}
 
 /** 1-hop 图谱邻居：links 加权累加（wiki×2 + tag×1 + doc×1），排除选中集自身，按分排序取 topK */
 export async function neighborsOf(segmentIds: string | string[], topK = 5): Promise<RagHit[]> {

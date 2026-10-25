@@ -66,9 +66,11 @@ const MAX_CONCURRENT = 3;
 const RETRY_BASE_MS = 1_500;
 
 /** 未配置时给前端的指引（指向应用内设置页；不含任何密钥值） */
-export const LLM_SETUP_HINT = '未配置大模型：请到侧边栏「设置」页填写 API Key（也可用环境变量 LLM_API_KEY / LLM_MODEL 配置后重启）。';
+export const LLM_SETUP_HINT =
+  '未配置大模型：请到侧边栏「设置」页填写 API Key（也可配置环境变量 DEEPSEEK_API_KEY，或 LLM_API_KEY + LLM_MODEL 后重启服务）。';
 /** DB 读失败且无 env 回退时的指引（区分于「确实未配置」，避免把网络闪断误报成配置问题） */
-export const LLM_DB_DOWN_HINT = '大模型设置读取失败（数据库暂时不可达）：请稍后重试，或在环境变量配置 LLM_API_KEY / LLM_MODEL 作为回退。';
+export const LLM_DB_DOWN_HINT =
+  '大模型设置读取失败（数据库暂时不可达）：请稍后重试，或在环境变量配置 DEEPSEEK_API_KEY 作为回退。';
 
 export type LlmStatus =
   | { ok: true; config: LlmConfig }
@@ -98,6 +100,11 @@ export async function resolveLlmStatus(): Promise<LlmStatus> {
   }
   if (process.env.LLM_API_KEY && process.env.LLM_MODEL) {
     return { ok: true, config: { apiKey: process.env.LLM_API_KEY, model: process.env.LLM_MODEL, fastModel: process.env.LLM_MODEL } };
+  }
+  // 用户惯例命名：只给 key 时模型缺省 DEFAULT_MODEL（flash），可用 DEEPSEEK_MODEL 覆盖
+  if (process.env.DEEPSEEK_API_KEY) {
+    const model = process.env.DEEPSEEK_MODEL || DEFAULT_MODEL;
+    return { ok: true, config: { apiKey: process.env.DEEPSEEK_API_KEY, model, fastModel: model } };
   }
   if (dbError) return { ok: false, reason: 'db-down', hint: LLM_DB_DOWN_HINT };
   return { ok: false, reason: 'unconfigured', hint: LLM_SETUP_HINT };
