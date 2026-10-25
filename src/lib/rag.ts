@@ -60,7 +60,9 @@ export function scoreSegment(
 }
 
 const SNIPPET_LEN = 120;
-const toSnippet = (content: string) => content.replace(/\s+/g, ' ').trim().slice(0, SNIPPET_LEN);
+/** 摘要优先：有 LLM 摘要取摘要，否则回落渲染近似文本前 120 字 */
+const toSnippet = (content: string, summary?: string | null) =>
+  summary?.trim() ? summary.trim().slice(0, SNIPPET_LEN) : content.replace(/\s+/g, ' ').trim().slice(0, SNIPPET_LEN);
 
 /** 关键词检索：SQL 候选（ILIKE ∪ 标签等值重叠）→ 评分排序取 topK */
 export async function retrieveByQuery(query: string, topK = 6): Promise<RagHit[]> {
@@ -68,7 +70,7 @@ export async function retrieveByQuery(query: string, topK = 6): Promise<RagHit[]
   if (tokens.length === 0) return [];
   const probe = tokens.slice(0, 8);
   const candidates = await db
-    .select({ id: segments.id, title: segments.title, content: segments.content, tags: segments.tags })
+    .select({ id: segments.id, title: segments.title, content: segments.content, tags: segments.tags, summary: segments.summary })
     .from(segments)
     .where(
       or(
@@ -81,7 +83,7 @@ export async function retrieveByQuery(query: string, topK = 6): Promise<RagHit[]
   return candidates
     .map((c) => {
       const { score } = scoreSegment(tokens, { title: c.title, content: c.content, tags: c.tags });
-      return { segmentId: c.id, title: c.title, snippet: toSnippet(c.content), score };
+      return { segmentId: c.id, title: c.title, snippet: toSnippet(c.content, c.summary), score };
     })
     .filter((h) => h.score > 0)
     .sort((a, b) => b.score - a.score)
@@ -110,7 +112,7 @@ export async function neighborsOf(segmentIds: string | string[], topK = 5): Prom
   if (top.length === 0) return [];
 
   const rows = await db
-    .select({ id: segments.id, title: segments.title, content: segments.content })
+    .select({ id: segments.id, title: segments.title, content: segments.content, summary: segments.summary })
     .from(segments)
     .where(inArray(segments.id, top.map(([id]) => id)));
   const byId = new Map(rows.map((r) => [r.id, r] as const));
@@ -119,6 +121,6 @@ export async function neighborsOf(segmentIds: string | string[], topK = 5): Prom
     .filter(([id]) => byId.has(id))
     .map(([id, sc]) => {
       const r = byId.get(id)!;
-      return { segmentId: id, title: r.title, snippet: toSnippet(r.content), score: sc };
+      return { segmentId: id, title: r.title, snippet: toSnippet(r.content, r.summary), score: sc };
     });
 }

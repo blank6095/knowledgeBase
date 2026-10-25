@@ -4,7 +4,9 @@ import { db } from '@/db';
 import { documents, links, segments } from '@/db/schema';
 import { badRequest, guard } from '@/lib/api';
 import { extractInlineTags, extractWikiLinks } from '@/lib/markdown';
-import { splitMarkdown } from '@/lib/splitter';
+import { splitMarkdown, type RawSegment } from '@/lib/splitter';
+import { semanticSplit } from '@/lib/ai-split';
+import { getLlmConfig } from '@/lib/llm';
 import { putOriginal } from '@/lib/r2';
 
 
@@ -62,6 +64,7 @@ interface ImportBody {
   source?: 'paste' | 'file';
   filename?: string;
   maxChars?: number;
+  aiSplit?: boolean;
 }
 
 /** 导入 Markdown：分割为知识点 → 建库 → 建立 wiki/tag/doc 三类关联 → 原文存 R2 */
@@ -77,6 +80,32 @@ export async function POST(req: NextRequest) {
   const { fmTitle, fmTags, segments: rawSegments } = splitMarkdown(content, { maxChars });
   if (rawSegments.length === 0) return badRequest('没有识别到有效内容');
 
+  // 可选 LLM 语义拆分：仅处理 content 超过 maxChars 的段（按长度降序，每篇至多 5 段），
+  // 任一段失败/超时降级保留该段结构拆分结果并计数，绝不阻断导入。
+  let finalSegments: RawSegment[] = rawSegments;
+  let aiSplitApplied = 0;
+  let aiSplitFailed = 0;
+  if (body.aiSplit === true && (await getLlmConfig())) {
+    const eligible = rawSegments
+      .map((s, i) => ({ s, i }))
+      .filter(({ s }) => s.content.length > maxChars)
+      .sort((a, b) => b.s.content.length - a.s.content.length)
+      .slice(0, 5);
+    const replacements = new Map<number, RawSegment[]>();
+    for (const { s, i } of eligible) {
+      try {
+        const { children } = await semanticSplit({ title: s.title, content: s.content });
+        replacements.set(i, children.map((c) => ({ title: c.title, content: c.content, headingPath: s.headingPath })));
+        aiSplitApplied++;
+      } catch {
+        aiSplitFailed++;
+      }
+    }
+    if (replacements.size > 0) {
+      finalSegments = rawSegments.flatMap((s, i) => replacements.get(i) ?? [s]);
+    }
+  }
+
   const docTitle =
     (body.title ?? '').trim() ||
     fmTitle?.trim() ||
@@ -90,13 +119,13 @@ export async function POST(req: NextRequest) {
 
   const [doc] = await db
     .insert(documents)
-    .values({ title: docTitle, source: body.source === 'file' ? 'file' : 'paste', filename: body.filename ?? null, storageKey, tags: docTags, segmentCount: rawSegments.length })
+    .values({ title: docTitle, source: body.source === 'file' ? 'file' : 'paste', filename: body.filename ?? null, storageKey, tags: docTags, segmentCount: finalSegments.length })
     .returning({ id: documents.id });
 
   const inserted = await db
     .insert(segments)
     .values(
-      rawSegments.map((s, i) => ({
+      finalSegments.map((s, i) => ({
         documentId: doc.id,
         title: s.title.slice(0, 200),
         content: s.content,
@@ -107,13 +136,19 @@ export async function POST(req: NextRequest) {
     )
     .returning({ id: segments.id, title: segments.title, tags: segments.tags, orderIndex: segments.orderIndex });
 
-  const linkRows = await buildLinks(doc.id, inserted, rawSegments, docTags);
+  const linkRows = await buildLinks(doc.id, inserted, finalSegments, docTags);
   if (linkRows.length > 0) {
     await db.insert(links).values(linkRows).onConflictDoNothing();
   }
   await db.update(documents).set({ segmentCount: inserted.length }).where(eq(documents.id, doc.id));
 
-  return NextResponse.json({ documentId: doc.id, segmentCount: inserted.length, linkCount: linkRows.length });
+  return NextResponse.json({
+    documentId: doc.id,
+    segmentCount: inserted.length,
+    linkCount: linkRows.length,
+    aiSplitApplied,
+    aiSplitFailed,
+  });
 }
 
 interface NewSeg {

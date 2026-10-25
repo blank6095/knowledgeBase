@@ -10,7 +10,7 @@ interface AiConfig {
   keyTail: string | null;
 }
 
-const MODEL_OPTIONS = ['deepseek-chat', 'deepseek-reasoner'];
+const MODEL_OPTIONS = ['deepseek-v4-flash', 'deepseek-chat', 'deepseek-reasoner'];
 
 /** 应用内设置：LLM API Key（仅存服务端 DB，页面只显示尾 4 位）与模型选择，附连接测试 */
 export default function SettingsPage() {

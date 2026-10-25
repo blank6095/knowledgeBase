@@ -1,13 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/client';
 
 interface ImportResult {
   documentId: string;
   segmentCount: number;
   linkCount: number;
+  aiSplitApplied: number;
+  aiSplitFailed: number;
 }
 
 const GRANULARITY = [
@@ -21,14 +23,33 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export default function ImportPage() {
+
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [filename, setFilename] = useState('');
   const [maxChars, setMaxChars] = useState(1800);
+  const [aiSplit, setAiSplit] = useState(false);
+  const [llmReady, setLlmReady] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<ImportResult | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // LLM 配置探测：未配置时「语义拆分」开关禁用并提示去设置页
+  useEffect(() => {
+    let cancelled = false;
+    api<{ configured: boolean }>('/api/ai/config')
+      .then((c) => {
+        if (!cancelled) setLlmReady(c.configured);
+      })
+      .catch(() => {
+        if (!cancelled) setLlmReady(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -50,7 +71,14 @@ export default function ImportPage() {
     try {
       const res = await api<ImportResult>('/api/notes', {
         method: 'POST',
-        body: JSON.stringify({ title, content, filename: filename || undefined, source: filename ? 'file' : 'paste', maxChars }),
+        body: JSON.stringify({
+          title,
+          content,
+          filename: filename || undefined,
+          source: filename ? 'file' : 'paste',
+          maxChars,
+          aiSplit: aiSplit || undefined,
+        }),
       });
       setResult(res);
       setContent('');
@@ -122,6 +150,25 @@ export default function ImportPage() {
           <p className="mt-2 text-tag text-faint">
             ## 章节为一个阅读单元（### 并入父节，超长才拆）。按标题层级优先拆解，超长内容降级到句子边界，代码块与表格始终保持完整。粗 ≈ 2400 字 · 标准 ≈ 1800 字 · 细 ≈ 1200 字
           </p>
+          <label
+            title={llmReady ? undefined : '未配置大模型：到「设置」页填写 DeepSeek API Key 后可用'}
+            className={`mt-3 flex items-start gap-2 ${llmReady ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+          >
+            <input
+              type="checkbox"
+              checked={aiSplit}
+              disabled={!llmReady || loading}
+              onChange={(e) => setAiSplit(e.target.checked)}
+              className="mt-0.5 accent-accent"
+            />
+            <span className="text-minor text-muted">
+              语义拆分（消耗 token）
+              <span className="block text-tag text-faint">
+                仅处理超长段落（每篇至多 5 段），由大模型按语义重组为更小的知识点；失败自动保留结构拆分结果，不阻断导入。
+                {llmReady === false && <span className="ml-1 text-warn">未配置大模型，到「设置」页启用。</span>}
+              </span>
+            </span>
+          </label>
         </section>
 
         {/* 内容 */}
@@ -150,6 +197,16 @@ export default function ImportPage() {
               拆成 <span className="font-mono tabular-nums text-primary">{result.segmentCount}</span> 个知识点，建立{' '}
               <span className="font-mono tabular-nums text-primary">{result.linkCount}</span> 条关联，等着被逐一点亮。
             </p>
+            {(result.aiSplitApplied > 0 || result.aiSplitFailed > 0) && (
+              <p className="fade-up text-minor text-muted" style={{ animationDelay: '60ms' }}>
+                语义拆分：<span className="font-mono tabular-nums text-primary">{result.aiSplitApplied}</span> 段成功
+                {result.aiSplitFailed > 0 && (
+                  <>
+                    ，<span className="font-mono tabular-nums text-warn">{result.aiSplitFailed}</span> 段失败（已保留结构拆分结果）
+                  </>
+                )}
+              </p>
+            )}
             <p className="fade-up" style={{ animationDelay: '80ms' }}>
               <Link href={`/notes/${result.documentId}`} className="mr-3 text-body text-accent underline underline-offset-2 hover:text-accent-strong">
                 查看文档 →

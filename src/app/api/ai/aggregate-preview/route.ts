@@ -5,6 +5,7 @@ import { segments } from '@/db/schema';
 import { badRequest, guard, isUuid, notFound } from '@/lib/api';
 import { chatCompletion, extractJson, getLlmConfig, LLM_SETUP_HINT } from '@/lib/llm';
 import { neighborsOf } from '@/lib/rag';
+import { cacheKey, getCachedOutput, saveCachedOutput } from '@/lib/llm-cache';
 
 /**
  * 语义聚合预览：同文档多段 → 1 段融合稿（只出 JSON，不落库）。
@@ -30,10 +31,24 @@ export async function POST(req: NextRequest) {
   const docIds = new Set(rows.map((r) => r.documentId));
   if (docIds.size > 1) return badRequest('只能聚合同一文档下的知识点');
 
+  // 输出缓存：指纹 = 按 orderIndex 排序的各段 title+content 拼接
+  const config = await getLlmConfig();
+  if (!config) {
+    return NextResponse.json({ error: LLM_SETUP_HINT }, { status: 503 });
+  }
+  const fingerprint = rows.map((r) => `${r.title}|${r.content}`).join('\n\n');
+  const key = cacheKey('aggregate', config.model, fingerprint);
+  const cached = await getCachedOutput<{ title: string; content: string }>(key);
+
+  // RAG 上下文：选中段集的图谱 1-hop 邻居 top5（命中/未命中都实时计算，随图谱演进）
+  const neighbors = await neighborsOf(ids, 5).catch(() => []);
+
+  if (cached) {
+    return NextResponse.json({ merged: cached, contextUsed: neighbors.map(toContext), cached: true });
+  }
+
   const parts = rows.map((r, i) => `【段落 ${i + 1}】标题：${r.title}\n内容：\n${r.content}`).join('\n\n');
 
-  // RAG 上下文：选中段集的图谱 1-hop 邻居 top5（失败降级为空，不阻断聚合）
-  const neighbors = await neighborsOf(ids, 5).catch(() => []);
   const contextBlock = neighbors.length
     ? `\n\n以下是知识库中与这些段落相关的其他节点（标题 + 摘要）。融合时避免与它们内容重复，专有名词与术语保持一致：\n${neighbors
         .map((n) => `- ${n.title}：${n.snippet}`)
@@ -61,9 +76,16 @@ export async function POST(req: NextRequest) {
   }
   const merged = { title: raw.title.trim().slice(0, 200), content: raw.content.trim() };
   if (!merged.title || !merged.content) return badRequest('模型输出的标题或内容为空');
+  await saveCachedOutput(key, 'aggregate', config.model, merged);
 
   return NextResponse.json({
     merged,
-    contextUsed: neighbors.map((n) => ({ segmentId: n.segmentId, title: n.title, snippet: n.snippet })),
+    contextUsed: neighbors.map(toContext),
+    cached: false,
   });
+}
+
+/** RagHit → contextUsed 项 */
+function toContext(n: { segmentId: string; title: string; snippet: string }) {
+  return { segmentId: n.segmentId, title: n.title, snippet: n.snippet };
 }

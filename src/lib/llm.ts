@@ -10,8 +10,11 @@ import { getLlmSettings } from '@/lib/app-settings';
 
 /** DeepSeek 官方 base url（OpenAI 兼容；文档 https://api-docs.deepseek.com） */
 export const LLM_BASE_URL = 'https://api.deepseek.com';
-/** DeepSeek 官方模型 id：deepseek-chat（指向 V3 系列，id 随官方升级稳定）。默认 id 以 DeepSeek 文档为准，仅改这一处 */
-export const DEFAULT_MODEL = 'deepseek-chat';
+/**
+ * 默认模型 id（2026-10-25 实测：deepseek-v4-flash 真实调用成功；deepseek-chat 为官方稳定别名，
+ * deepseek-reasoner 为推理系）。默认 id 以 DeepSeek 文档为准，仅改这一处。
+ */
+export const DEFAULT_MODEL = 'deepseek-v4-flash';
 
 export interface ChatMessage {
   role: 'system' | 'user';

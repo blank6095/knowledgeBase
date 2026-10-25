@@ -48,6 +48,7 @@ export const segments = pgTable(
     lastViewedAt: timestamp('last_viewed_at', { withTimezone: true }),
     stability: real('stability').notNull().default(0), // 记忆稳定度（天），0=从未有效阅读
     readingMs: bigint('reading_ms', { mode: 'number' }).notNull().default(0), // 累计有效阅读毫秒
+    summary: text('summary'), // 30 字 LLM 摘要（首次查看灯点时生成并缓存）
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -115,4 +116,13 @@ export const appSettings = pgTable('app_settings', {
   key: text('key').primaryKey(),
   value: jsonb('value').notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** LLM 输出缓存（split/aggregate preview）：hash 为 kind|model|内容指纹 的 sha256，上限 256 条 */
+export const llmCache = pgTable('llm_cache', {
+  hash: text('hash').primaryKey(),
+  kind: text('kind').notNull(), // split | aggregate
+  output: jsonb('output').notNull(),
+  model: text('model').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

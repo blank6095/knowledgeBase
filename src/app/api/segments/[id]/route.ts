@@ -97,6 +97,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       stability: seg.stability,
       readingMs: Number(seg.readingMs),
       memory: memoryOf(seg.stability, seg.lastViewedAt, now),
+      summary: seg.summary,
     },
     document: docRows[0] ?? null,
     links: edges,

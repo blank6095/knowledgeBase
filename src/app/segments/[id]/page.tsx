@@ -29,6 +29,7 @@ interface SegmentDetail {
     stability: number;
     readingMs: number;
     memory: number;
+    summary: string | null;
   };
   document: { id: string; title: string } | null;
   links: { fromId: string; toId: string; kind: string; weight: number }[];
@@ -165,6 +166,11 @@ export default function SegmentPage() {
         </div>
         {s.headingPath && s.headingPath !== s.title && (
           <p className="mt-1 text-tag text-faint">{s.headingPath}</p>
+        )}
+        {s.summary && (
+          <p className="mt-2 border-l-2 border-accent/40 pl-2.5 font-display text-minor leading-relaxed text-muted">
+            {s.summary}
+          </p>
         )}
       </div>
 

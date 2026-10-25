@@ -26,7 +26,14 @@ const server = createServer((req, res) => {
   let body = '';
   req.on('data', (c) => (body += c));
   req.on('end', () => {
-    const isMerge = (body.match(/"content":"([^"]*)/) ?? [])[1]?.includes('聚合为') || body.includes('聚合为一个段落');
+    const isSummary = body.includes('概括该知识点');
+    const isMerge = body.includes('聚合为一个段落');
+    if (isSummary) {
+      const content = '字体加载过程中的布局偏移及其应对。';
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content } }] }));
+      return;
+    }
     const content = isMerge
       ? `模型说明：已融合。\n\`\`\`json\n${JSON.stringify(MERGE)}\n\`\`\`\n以上。`
       : `好的，以下是拆解结果：\n\`\`\`json\n${JSON.stringify(SPLIT)}\n\`\`\`\n希望有帮助！`;

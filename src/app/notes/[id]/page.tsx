@@ -32,6 +32,7 @@ interface DocDetail {
     viewCount: number;
     content: string;
     memory: number;
+    summary: string | null;
   }[];
 }
 
@@ -67,13 +68,39 @@ const MdBlock = React.memo(function MdBlock({ content }: { content: string }) {
   return <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>;
 });
 
-/** 节标题旁的灯点：hover 浮出档位名与阅读次数 */
-function SectionLamp({ memory, viewCount }: { memory: number; viewCount: number }) {
+/** 灯点摘要状态：hover 惰性拉取，页面级共享 */
+interface LampSummary {
+  text?: string;
+  loading?: boolean;
+  failed?: boolean;
+}
+
+/** 节标题旁的灯点：hover 浮出档位名、阅读次数与 30 字摘要（首次 hover 触发生成） */
+function SectionLamp({
+  memory,
+  viewCount,
+  segId,
+  summary,
+  onEnsureSummary,
+}: {
+  memory: number;
+  viewCount: number;
+  segId?: string;
+  summary?: LampSummary;
+  onEnsureSummary?: (segId: string) => void;
+}) {
   return (
-    <span className="group/dot relative inline-flex align-middle">
+    <span
+      className="group/dot relative inline-flex align-middle"
+      onMouseEnter={segId && onEnsureSummary ? () => onEnsureSummary(segId) : undefined}
+    >
       <LampDot memory={memory} />
-      <span className="pointer-events-none absolute left-3.5 top-1/2 z-10 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-line bg-elevated px-2 py-0.5 text-tag text-primary group-hover/dot:block">
-        {MEMORY_TIER_LABELS[memoryTier(memory)]} · 阅读 <span className="font-mono tabular-nums">{viewCount}</span> 次
+      <span className="pointer-events-none absolute left-3.5 top-1/2 z-10 hidden -translate-y-1/2 rounded-md border border-line bg-elevated px-2 py-1 text-tag text-primary shadow-lg group-hover/dot:block">
+        <span className="block whitespace-nowrap">
+          {MEMORY_TIER_LABELS[memoryTier(memory)]} · 阅读 <span className="font-mono tabular-nums">{viewCount}</span> 次
+        </span>
+        {summary?.loading && <span className="mt-0.5 block whitespace-nowrap text-faint">摘要生成中…</span>}
+        {summary?.text && <span className="mt-0.5 block max-w-60 whitespace-normal leading-relaxed text-faint">{summary.text}</span>}
       </span>
     </span>
   );
@@ -83,10 +110,14 @@ function SectionLamp({ memory, viewCount }: { memory: number; viewCount: number 
 function TocList({
   sections,
   active,
+  summaries,
+  onEnsureSummary,
   onNavigate,
 }: {
   sections: DocDetail['segments'];
   active: number;
+  summaries: Record<string, LampSummary>;
+  onEnsureSummary: (segId: string) => void;
   onNavigate?: () => void;
 }) {
   return (
@@ -102,7 +133,9 @@ function TocList({
             }`}
           >
             <span className="w-4 shrink-0 text-right font-mono text-tag tabular-nums text-faint">{i + 1}</span>
-            <LampDot memory={s.memory} title={MEMORY_TIER_LABELS[memoryTier(s.memory)]} />
+            <span onMouseEnter={() => onEnsureSummary(s.id)}>
+              <SectionLamp memory={s.memory} viewCount={s.viewCount} segId={s.id} summary={summaries[s.id]} onEnsureSummary={onEnsureSummary} />
+            </span>
             <span className="truncate">{s.title}</span>
           </a>
         </li>
@@ -166,6 +199,16 @@ export default function NoteDetailPage() {
   const reloadAnnotations = async () => {
     const d = await api<{ annotations: AnnotationRow[] }>(`/api/notes/${id}/annotations`);
     setAnnotations(d.annotations);
+  };
+
+  // 灯点摘要缓存：首次 hover 触发生成（服务端 in-flight 去重），成功后页面级记住
+  const [summaries, setSummaries] = useState<Record<string, LampSummary>>({});
+  const ensureSummary = (segId: string) => {
+    if (summaries[segId]?.text || summaries[segId]?.loading) return;
+    setSummaries((prev) => ({ ...prev, [segId]: { ...prev[segId], loading: true } }));
+    api<{ summary: string }>(`/api/segments/${segId}/summary`)
+      .then((d) => setSummaries((prev) => ({ ...prev, [segId]: { text: d.summary } })))
+      .catch(() => setSummaries((prev) => ({ ...prev, [segId]: { failed: true } })));
   };
 
   // 节级笔记（无引文）按段分组：标题旁查看入口用
@@ -527,7 +570,7 @@ export default function NoteDetailPage() {
           style={{ left: 'calc(50% + var(--sidebar-w, 0rem) / 2 + 21rem + 1rem)' }}
         >
           <p className="mb-1.5 px-2 text-tag uppercase text-faint">目录</p>
-          <TocList sections={segments} active={activeSec} />
+          <TocList sections={segments} active={activeSec} summaries={summaries} onEnsureSummary={ensureSummary} />
         </nav>
       )}
 
@@ -551,7 +594,7 @@ export default function NoteDetailPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <p className="mb-1.5 px-1 text-tag uppercase text-faint">目录</p>
-            <TocList sections={segments} active={activeSec} onNavigate={() => setTocOpen(false)} />
+            <TocList sections={segments} active={activeSec} summaries={summaries} onEnsureSummary={ensureSummary} onNavigate={() => setTocOpen(false)} />
           </nav>
         </div>
       )}
@@ -693,7 +736,7 @@ export default function NoteDetailPage() {
                   <h2 className="mb-1 flex items-center gap-2 font-display text-card font-semibold">
                     <span className="w-5 shrink-0 text-right font-mono text-tag tabular-nums text-faint">{i + 1}</span>
                     {s.title}
-                    <SectionLamp memory={s.memory} viewCount={s.viewCount} />
+                    <SectionLamp memory={s.memory} viewCount={s.viewCount} segId={s.id} summary={summaries[s.id]} onEnsureSummary={ensureSummary} />
                     {notes.length > 0 && (
                       <button
                         data-sec-note
