@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { api } from '@/lib/client';
-import { masteryColor, STATUS_META } from '@/components/MasteryBadge';
-import type { SegmentStatus } from '@/lib/sm2';
+import { api, formatDuration } from '@/lib/client';
+import { MEMORY_TIER_META } from '@/components/MemoryBadge';
+import { memoryColor, memoryTier, MEMORY_TIER_ORDER } from '@/lib/memory';
 
 // 力导向图依赖 window，仅浏览器渲染
 const Graph = dynamic(() => import('react-force-graph-2d'), { ssr: false }) as unknown as React.ComponentType<{
@@ -36,10 +36,9 @@ interface FGInstance {
 interface GNode {
   id: string;
   title: string;
-  mastery: number;
-  status: string;
+  memory: number;
   viewCount: number;
-  dueAt: string;
+  readingMs: number;
   documentTitle: string | null;
   degree?: number;
   x?: number;
@@ -65,7 +64,6 @@ interface Forces {
   linkDistance: number;
 }
 
-const STATUS_ORDER: SegmentStatus[] = ['new', 'learning', 'familiar', 'mastered'];
 /** 深底可辨的连线色 */
 const KINDS = [
   { kind: 'wiki', label: '双链', color: '#9d8cff' },
@@ -106,8 +104,8 @@ export default function GraphPage() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [tab, setTab] = useState<(typeof TABS)[number]>('筛选');
   const [searchKw, setSearchKw] = useState('');
-  const [statusOn, setStatusOn] = useState<Record<string, boolean>>(
-    Object.fromEntries(STATUS_ORDER.map((s) => [s, true])),
+  const [tierOn, setTierOn] = useState<Record<string, boolean>>(
+    Object.fromEntries(MEMORY_TIER_ORDER.map((t) => [t, true])),
   );
   const [kindOn, setKindOn] = useState<Record<string, boolean>>(
     Object.fromEntries(KINDS.map((k) => [k.kind, true])),
@@ -185,7 +183,7 @@ export default function GraphPage() {
 
   const graphData = useMemo(() => {
     if (!nodes) return { nodes: [], links: [] };
-    const visible = nodes.filter((n) => statusOn[n.status] ?? false);
+    const visible = nodes.filter((n) => tierOn[memoryTier(n.memory)] ?? false);
     const visIds = new Set(visible.map((n) => n.id));
     const degree = new Map<string, number>();
     const visLinks = links.filter((l) => {
@@ -201,18 +199,18 @@ export default function GraphPage() {
       nodes: visible.map((n) => ({ ...n, degree: degree.get(n.id) ?? 0 })),
       links: visLinks.map((l) => ({ ...l })),
     };
-  }, [nodes, links, statusOn, kindOn]);
+  }, [nodes, links, tierOn, kindOn]);
 
   if (error) return <p className="text-danger">{error}</p>;
   if (!nodes) return <p className="text-muted">加载中…</p>;
 
-  /** 节点着色：自定义关键词分组优先，其次按掌握度 */
+  /** 节点着色：自定义关键词分组优先，其次按记忆度（紫色系亮度渐变） */
   const resolveColor = (n: GNode) => {
     for (const g of groups) {
       const q = g.query.trim().toLowerCase();
       if (q && n.title.toLowerCase().includes(q)) return g.color;
     }
-    return masteryColor(n.status, n.mastery);
+    return memoryColor(n.memory);
   };
 
   const onForce = (patch: Partial<Forces>) => {
@@ -304,13 +302,15 @@ export default function GraphPage() {
           </span>
         )}
         <div className="flex-1" />
-        {/* 掌握度图例 */}
+        {/* 记忆度图例 */}
         <div className="hidden items-center gap-3 text-xs text-muted sm:flex">
-          <span className="text-muted/60">掌握度</span>
-          <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full" style={{ background: '#f87171' }} />低</span>
-          <span className="h-2.5 w-16 rounded-full" style={{ background: 'linear-gradient(to right, #f87171, #fbbf24, #4ade80)' }} />
-          <span className="flex items-center gap-1">高<i className="h-2.5 w-2.5 rounded-full" style={{ background: '#4ade80' }} /></span>
-          <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-neutral" />未学习</span>
+          <span className="text-muted/60">记忆度</span>
+          <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-[#4b5563]" />未读</span>
+          <span
+            className="h-2.5 w-16 rounded-full"
+            style={{ background: `linear-gradient(to right, ${memoryColor(0.05)}, ${memoryColor(0.5)}, ${memoryColor(1)})` }}
+          />
+          <span className="flex items-center gap-1">强<i className="h-2.5 w-2.5 rounded-full" style={{ background: memoryColor(1) }} /></span>
         </div>
         <button
           onClick={() => setPanelOpen((o) => !o)}
@@ -347,18 +347,18 @@ export default function GraphPage() {
                   className="w-full rounded-lg border border-line bg-app px-2.5 py-1.5 text-primary outline-none transition-colors placeholder:text-muted focus:border-accent"
                 />
                 <div>
-                  <p className="mb-1.5 text-muted/60">掌握度状态</p>
+                  <p className="mb-1.5 text-muted/60">记忆程度</p>
                   <div className="flex flex-wrap gap-x-3 gap-y-1.5">
-                    {STATUS_ORDER.map((s) => (
-                      <label key={s} className="flex cursor-pointer items-center gap-1.5">
+                    {MEMORY_TIER_ORDER.map((t) => (
+                      <label key={t} className="flex cursor-pointer items-center gap-1.5">
                         <input
                           type="checkbox"
                           className="accent-accent"
-                          checked={statusOn[s] ?? false}
-                          onChange={(e) => setStatusOn((prev) => ({ ...prev, [s]: e.target.checked }))}
+                          checked={tierOn[t] ?? false}
+                          onChange={(e) => setTierOn((prev) => ({ ...prev, [t]: e.target.checked }))}
                         />
-                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: STATUS_META[s].dot }} />
-                        {STATUS_META[s].label}
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: MEMORY_TIER_META[t].dot }} />
+                        {MEMORY_TIER_META[t].label}
                       </label>
                     ))}
                   </div>
@@ -386,7 +386,7 @@ export default function GraphPage() {
 
             {tab === '分组' && (
               <div className="space-y-2">
-                <p className="text-muted">默认：按掌握度着色。命中关键词分组的节点改用该组颜色（优先于掌握度）。</p>
+                <p className="text-muted">默认：按记忆程度着色（紫色系，越亮记得越牢，灰=未读）。命中关键词分组的节点改用该组颜色（优先于记忆度）。</p>
                 {groups.map((g) => (
                   <div key={g.id} className="flex items-center gap-1.5">
                     <input
@@ -483,7 +483,7 @@ export default function GraphPage() {
               return `<div style="max-width:280px;font:13px sans-serif;padding:6px 9px;background:#262626;color:#dadada;border:1px solid #3f3f3f;border-radius:6px">
                 <b>${d.title}</b><br/>
                 <span style="color:#999">${d.documentTitle ?? ''}</span><br/>
-                掌握 ${Math.round(d.mastery * 100)}% · 查看 ${d.viewCount} 次
+                记忆 ${Math.round(d.memory * 100)}% · 阅读 ${d.viewCount} 次 · 累计 ${formatDuration(d.readingMs)}
               </div>`;
             }}
             nodeCanvasObject={(n, ctx, gs) => drawNode(n as unknown as GNode, ctx, gs)}

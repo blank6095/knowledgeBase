@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { api, formatDate } from '@/lib/client';
+import { memoryColor } from '@/lib/memory';
 
 interface DocRow {
   id: string;
@@ -11,7 +12,7 @@ interface DocRow {
   tags: string[];
   segmentCount: number;
   createdAt: string;
-  avgMastery: number;
+  avgMemory: number;
 }
 
 export default function NotesPage() {
@@ -83,11 +84,11 @@ export default function NotesPage() {
                 <div className="flex shrink-0 items-center gap-3 text-xs text-muted">
                   <span className="h-1 w-14 overflow-hidden rounded-full bg-surface-hover">
                     <span
-                      className="block h-full rounded-full bg-success"
-                      style={{ width: `${Math.round((d.avgMastery ?? 0) * 100)}%` }}
+                      className="block h-full rounded-full"
+                      style={{ width: `${Math.round((d.avgMemory ?? 0) * 100)}%`, background: memoryColor(d.avgMemory ?? 0) }}
                     />
                   </span>
-                  <span className="tabular-nums">掌握 {Math.round((d.avgMastery ?? 0) * 100)}%</span>
+                  <span className="tabular-nums">记忆 {Math.round((d.avgMemory ?? 0) * 100)}%</span>
                   <span className="tabular-nums">{d.segmentCount} 点</span>
                   <span className="hidden tabular-nums sm:inline">{formatDate(d.createdAt)}</span>
                 </div>

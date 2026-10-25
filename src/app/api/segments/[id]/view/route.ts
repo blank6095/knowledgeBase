@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { reviewLogs, segments } from '@/db/schema';
+import { readingEvents, segments } from '@/db/schema';
 import { guard, isUuid, notFound } from '@/lib/api';
-import { touch } from '@/lib/sm2';
+import { applyReading, MEMORY } from '@/lib/memory';
 
 /**
- * 打开即学习：每次打开 viewCount+1 并刷新查看时间；
- * 当日首次打开（更新前 lastViewedAt 不在今日）按 SM-2 grade=2 隐式推进
- * mastery/status/dueAt 并写 review_logs(grade=2) 作为学习事件流水；
- * 当日重复打开只记查看，不推进、不写流水。
+ * 阅读行为上报，两种调用形态：
+ * - 打开 ping（无 body / durationMs 缺失）：仅 viewCount+1、补 firstViewedAt；
+ * - 停留上报（durationMs，页面隐藏/卸载/离开时由 sendBeacon 发出）：
+ *   ≥5 秒写 reading_events 流水并推进 stability、累计 readingMs、刷新 lastViewedAt；
+ *   <5 秒不写事件、不推进（打开 ping 已计过 viewCount）。
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const denied = await guard(req);
@@ -17,51 +18,51 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   if (!isUuid(id)) return notFound();
 
+  const body = (await req.json().catch(() => ({}))) as { durationMs?: unknown };
+  const durationMs = typeof body.durationMs === 'number' && Number.isFinite(body.durationMs)
+    ? Math.max(0, Math.round(body.durationMs))
+    : null;
+
   const [seg] = await db.select().from(segments).where(eq(segments.id, id));
   if (!seg) return notFound('知识点不存在');
 
   const now = new Date();
-  const advanced = touch(
-    { ease: seg.ease, intervalDays: seg.intervalDays, reps: seg.reps, lapses: seg.lapses },
-    seg.lastViewedAt,
-    now,
-  );
 
-  const viewUpdate = {
-    viewCount: sql`${segments.viewCount} + 1`,
-    firstViewedAt: sql`coalesce(${segments.firstViewedAt}, ${now.toISOString()}::timestamptz)`,
-    lastViewedAt: now,
-  };
+  // 停留上报
+  if (durationMs !== null) {
+    const stability = applyReading(
+      { stability: seg.stability, lastReadAt: seg.lastViewedAt },
+      durationMs,
+      now,
+    );
+    if (stability === null) return NextResponse.json({ ok: true, counted: false });
 
-  if (advanced) {
+    const effectiveMs = Math.min(durationMs, MEMORY.MAX_SESSION_MS);
+    await db.insert(readingEvents).values({
+      segmentId: id,
+      startedAt: new Date(now.getTime() - durationMs),
+      durationMs,
+    });
     await db
       .update(segments)
       .set({
-        ...viewUpdate,
-        ease: advanced.ease,
-        intervalDays: advanced.intervalDays,
-        reps: advanced.reps,
-        lapses: advanced.lapses,
-        lastGrade: 2,
-        dueAt: advanced.dueAt,
-        mastery: advanced.mastery,
-        status: advanced.status,
+        stability,
+        readingMs: sql`${segments.readingMs} + ${effectiveMs}`,
+        lastViewedAt: now,
       })
       .where(eq(segments.id, id));
-    await db.insert(reviewLogs).values({
-      segmentId: id,
-      grade: 2,
-      prevIntervalDays: seg.intervalDays,
-      nextIntervalDays: advanced.intervalDays,
-    });
-  } else {
-    await db.update(segments).set(viewUpdate).where(eq(segments.id, id));
+
+    return NextResponse.json({ ok: true, counted: true, stability });
   }
 
-  return NextResponse.json({
-    ok: true,
-    advanced: advanced !== null,
-    mastery: advanced?.mastery ?? seg.mastery,
-    status: advanced?.status ?? seg.status,
-  });
+  // 打开 ping
+  await db
+    .update(segments)
+    .set({
+      viewCount: sql`${segments.viewCount} + 1`,
+      firstViewedAt: sql`coalesce(${segments.firstViewedAt}, ${now.toISOString()}::timestamptz)`,
+    })
+    .where(eq(segments.id, id));
+
+  return NextResponse.json({ ok: true, counted: true });
 }

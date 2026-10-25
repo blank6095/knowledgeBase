@@ -3,13 +3,13 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api, formatDate } from '@/lib/client';
-import { STATUS_META } from '@/components/MasteryBadge';
+import { MEMORY_TIER_META } from '@/components/MemoryBadge';
+import { MEMORY_TIER_ORDER, type MemoryTier } from '@/lib/memory';
 
 interface Stats {
   total: number;
-  byStatus: Record<string, number>;
-  suggestCount: number;
-  learnedToday: number;
+  byTier: Record<string, number>;
+  readToday: number;
   recentDocuments: { id: string; title: string; segmentCount: number; createdAt: string }[];
 }
 
@@ -24,8 +24,11 @@ export default function DashboardPage() {
   if (error) return <p className="text-danger">{error}</p>;
   if (!stats) return <p className="text-muted">加载中…</p>;
 
-  const order: (keyof typeof STATUS_META)[] = ['mastered', 'familiar', 'learning', 'new'];
-  const dist = order.map((k) => ({ key: k, meta: STATUS_META[k], count: stats.byStatus[k] ?? 0 }));
+  const dist = MEMORY_TIER_ORDER.map((t) => ({
+    key: t,
+    meta: MEMORY_TIER_META[t as MemoryTier],
+    count: stats.byTier[t] ?? 0,
+  }));
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -42,13 +45,13 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card label="知识点总数" value={stats.total} />
-        <Card label="建议回看" value={stats.suggestCount} accent="text-danger" />
-        <Card label="已掌握" value={stats.byStatus.mastered ?? 0} accent="text-success" />
-        <Card label="今日已学习" value={stats.learnedToday} />
+        <Card label="未读" value={stats.byTier.unread ?? 0} />
+        <Card label="记忆牢固" value={stats.byTier.strong ?? 0} accent="text-accent" />
+        <Card label="今日阅读" value={stats.readToday} />
       </div>
 
       <section className="rounded-xl border border-line bg-surface p-4">
-        <h2 className="text-xs font-medium uppercase tracking-wide text-muted">掌握程度分布</h2>
+        <h2 className="text-xs font-medium uppercase tracking-wide text-muted">记忆程度分布</h2>
         {stats.total === 0 ? (
           <p className="mt-3 text-sm text-muted">
             还没有知识点，先<Link href="/import" className="text-accent underline">导入一篇 Markdown</Link>试试。

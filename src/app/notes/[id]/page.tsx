@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { api, formatDue } from '@/lib/client';
-import MasteryBadge from '@/components/MasteryBadge';
+import { api } from '@/lib/client';
+import MemoryBadge from '@/components/MemoryBadge';
 
 interface DocDetail {
   document: { id: string; title: string; tags: string[]; segmentCount: number; createdAt: string; storageKey: string | null };
@@ -13,10 +13,8 @@ interface DocDetail {
     title: string;
     headingPath: string;
     tags: string[];
-    mastery: number;
-    status: string;
+    memory: number;
     viewCount: number;
-    dueAt: string;
   }[];
 }
 
@@ -65,11 +63,10 @@ export default function NoteDetailPage() {
                   <p className="truncate text-[11px] text-muted/70">{s.headingPath}</p>
                 )}
               </div>
-              <span className="hidden shrink-0 text-[11px] tabular-nums text-muted sm:block" title="查看次数">
+              <span className="hidden shrink-0 text-[11px] tabular-nums text-muted sm:block" title="阅读次数">
                 {s.viewCount} 次
               </span>
-              <span className="shrink-0 text-[11px] text-muted" title="建议回看">{formatDue(s.dueAt)}</span>
-              <MasteryBadge status={s.status} mastery={s.mastery} />
+              <MemoryBadge memory={s.memory} />
             </Link>
           </li>
         ))}

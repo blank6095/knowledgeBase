@@ -1,6 +1,6 @@
 # 个人知识库
 
-跨设备访问、自动关联、打开即学习的个人知识库。为解决 Obsidian 本地笔记的痛点而生：知识不再锁在本地、不用手动归类关联、关系图谱按**掌握程度**着色，一眼看出哪些内容还没掌握。
+跨设备访问、自动关联、打开即学习的个人知识库。为解决 Obsidian 本地笔记的痛点而生：知识不再锁在本地、不用手动归类关联、关系图谱按**记忆程度**着色，一眼看出哪些内容快忘了。
 
 ## 核心特性
 
@@ -8,8 +8,8 @@
 |---|---|
 | 知识在本地，跨设备要付费同步 | 部署在 Vercel，任何设备浏览器访问 |
 | 不知道如何归类、关联要手动建 | 导入时自动提取标签和 `[[双链]]`，自动建立三类关联（双链/共同标签/同文档） |
-| 关系图谱庞大，看不出哪些没掌握 | 力导向图节点按掌握度从红到绿着色，未学习灰色，可按状态/关联类型过滤 |
-| 掌握程度缺少反馈 | 打开即学习：每日首次打开自动按 SM-2 推进掌握度并给出建议回看时间 |
+| 关系图谱庞大，看不出哪些快忘了 | 力导向图节点按记忆度呈紫色系亮度渐变（灰=未读，越亮记得越牢），可按记忆档位/关联类型过滤 |
+| 记忆保持缺少反馈 | 阅读即学习：详情页自动采集停留时长，按记忆曲线模型推进稳定度，展示记忆度与半衰期 |
 | 长文阅读容易失去耐心 | 导入时按标题层级结构化拆解为合适长度的知识点，绝不在句中截断 |
 
 ## 技术栈
@@ -37,7 +37,7 @@
 ```bash
 cp .env.example .env.local   # 填入 DATABASE_URL、AUTH_PASSCODE，可选填 R2_*
 npm install
-npm run db:push              # 把 schema 推到 Neon 建表
+npm run db:migrate           # 顺序执行迁移建表（Neon HTTP 驱动）
 npm run dev                  # http://localhost:3000
 ```
 
@@ -56,24 +56,28 @@ git remote add origin <你的 GitHub 仓库> && git push -u origin main
 | `AUTH_PASSCODE` | 登录口令（足够长的随机串） |
 | `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | 可选，R2 备份 |
 
-部署完成后先执行一次建表：`DATABASE_URL=<连接串> npm run db:push`。
+部署完成后先执行一次建表：`DATABASE_URL=<连接串> npm run db:migrate`。
 
 ## 使用流程
 
 1. **导入**（`/import`）：上传 `.md` 文件或粘贴内容 → 按 `##`/`###`/`####` 标题层级自动拆解知识点，超长内容按句子边界降级，代码块与表格保持完整
-2. **学习**（知识点详情）：打开即学习——每次打开记录查看，每日首次打开自动推进 SM-2 掌握度；概览的「建议回看」到期后回看对应知识点
-3. **关系图谱**（`/graph`）：节点颜色 = 掌握度（灰=未学习，红→绿=低→高），节点大小 = 关联数，点击进入知识点
-4. **概览**（`/`）：建议回看数、掌握分布、最近导入
+2. **阅读**（知识点详情）：停留时长自动采集（可见时计时、切走/关闭时上报）——单次 ≥5 秒记一次有效阅读并推进记忆稳定度，3 分钟全效、单次封顶 10 分钟；状态卡展示记忆度、半衰期（预计多少天后忘一半）、阅读次数与累计时长
+3. **关系图谱**（`/graph`）：节点颜色 = 记忆度（灰=未读，紫色系亮度随记忆度上升），节点大小 = 关联数，点击进入知识点；支持按记忆档位（未读/弱/中/强）与关联类型筛选
+4. **概览**（`/`）：记忆档位分布、今日阅读数、最近导入
 
-掌握度由 SM-2 状态派生：间隔 ≥ 21 天且无遗忘 ≈ 已掌握；间隔越长、ease 越高、遗忘越少，掌握度越高。详见 `src/lib/sm2.ts`。
+记忆模型（详见 `src/lib/memory.ts`，参数集中在 `MEMORY` 常量表）：记忆度 M(t) = exp(-Δt/S)，Δt 为距最近一次有效阅读的天数，S 为稳定度；每次有效阅读按间隔效应推进 S（间隔越远增幅越大，封顶 1.6 倍），阅读时长决定推进权重。记忆度由 API 读取时现算，不落库。
+
+## 压测
+
+`scripts/gen-graph-data.mjs` 生成与 `/api/graph` 同构的社区结构图数据，`/graph?fixture=graph-small|graph-mid|graph-large` 直接加载 `public/fixtures/` 下的数据集（含 memory/stability/viewCount/readingMs 字段）。
 
 ## 常用脚本
 
 ```bash
 npm run dev          # 开发
 npm run build        # 生产构建
-npm run test         # 单元测试（分割器、SM-2）
-npm run db:push      # 推送 schema 到数据库
+npm run test         # 单元测试（分割器、记忆模型）
+npm run db:migrate   # 顺序执行 src/db/migrations/ 下的迁移（Neon HTTP）
 npm run db:generate  # 生成迁移 SQL（src/db/migrations/）
 npm run db:studio    # Drizzle Studio 查看数据
 ```
@@ -84,16 +88,16 @@ npm run db:studio    # Drizzle Studio 查看数据
 src/
 ├── proxy.ts                 # 认证网关（全站登录门）
 ├── db/
-│   ├── schema.ts            # documents / segments / links / review_logs
+│   ├── schema.ts            # documents / segments / links / reading_events
 │   ├── index.ts             # Neon 连接（惰性初始化）
 │   └── migrations/          # 生成的 SQL 迁移
 ├── lib/
 │   ├── splitter.ts          # Markdown → 知识点结构化拆解
 │   ├── markdown.ts          # frontmatter / 标签 / [[双链]] 提取
-│   ├── sm2.ts               # SM-2 间隔重复 + 掌握度派生
+│   ├── memory.ts            # 记忆曲线模型（稳定度推进 / 记忆度衰减 / 档位与配色）
 │   ├── r2.ts                # R2 原文备份
 │   └── auth.ts / api.ts / client.ts
-├── components/              # AppShell / MasteryBadge / GradeButtons
+├── components/              # AppShell / MemoryBadge
 └── app/
     ├── page.tsx             # 概览
     ├── login/ import/ notes/ segments/ graph/

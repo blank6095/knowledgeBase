@@ -4,29 +4,44 @@ import { db } from '@/db';
 import { documents, links, segments } from '@/db/schema';
 import { badRequest, guard } from '@/lib/api';
 import { extractInlineTags, extractWikiLinks } from '@/lib/markdown';
+import { memoryOf } from '@/lib/memory';
 import { splitMarkdown } from '@/lib/splitter';
 import { putOriginal } from '@/lib/r2';
 
 
-/** 文档列表（含平均掌握度） */
+/** 文档列表（含平均记忆度：memory 读取时现算，故取全量知识点在内存聚合） */
 export async function GET(req: NextRequest) {
   const denied = await guard(req);
   if (denied) return denied;
 
-  const rows = await db
-    .select({
-      id: documents.id,
-      title: documents.title,
-      source: documents.source,
-      tags: documents.tags,
-      segmentCount: documents.segmentCount,
-      createdAt: documents.createdAt,
-      avgMastery: sql<number>`coalesce(avg(${segments.mastery}), 0)::float`,
-    })
-    .from(documents)
-    .leftJoin(segments, eq(segments.documentId, documents.id))
-    .groupBy(documents.id)
-    .orderBy(desc(documents.createdAt));
+  const [docs, segs] = await Promise.all([
+    db.select().from(documents).orderBy(desc(documents.createdAt)),
+    db
+      .select({ documentId: segments.documentId, stability: segments.stability, lastViewedAt: segments.lastViewedAt })
+      .from(segments),
+  ]);
+
+  const memorySum = new Map<string, { sum: number; count: number }>();
+  const now = new Date();
+  for (const s of segs) {
+    const acc = memorySum.get(s.documentId) ?? { sum: 0, count: 0 };
+    acc.sum += memoryOf(s.stability, s.lastViewedAt, now);
+    acc.count += 1;
+    memorySum.set(s.documentId, acc);
+  }
+
+  const rows = docs.map((d) => {
+    const acc = memorySum.get(d.id);
+    return {
+      id: d.id,
+      title: d.title,
+      source: d.source,
+      tags: d.tags,
+      segmentCount: d.segmentCount,
+      createdAt: d.createdAt,
+      avgMemory: acc && acc.count > 0 ? acc.sum / acc.count : 0,
+    };
+  });
   return NextResponse.json({ documents: rows });
 }
 

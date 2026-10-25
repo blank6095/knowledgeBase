@@ -5,6 +5,7 @@ import {
   text,
   integer,
   real,
+  bigint,
   timestamp,
   uniqueIndex,
   index,
@@ -23,9 +24,9 @@ export const documents = pgTable('documents', {
 });
 
 /**
- * 知识点：文档分割后的最小复习单元。
- * 观测字段（view*）记录查看行为，SM-2 字段（ease/intervalDays/reps/lapses/dueAt）
- * 驱动间隔重复，mastery/status 是派生的掌握程度。
+ * 知识点：文档分割后的最小学习单元。
+ * 观测字段记录阅读行为：stability 是记忆曲线的稳定度（天），
+ * readingMs 是累计有效阅读毫秒数；记忆度由 src/lib/memory.ts 在读取时现算，不落库。
  */
 export const segments = pgTable(
   'segments',
@@ -40,29 +41,16 @@ export const segments = pgTable(
     orderIndex: integer('order_index').notNull().default(0),
     tags: text('tags').array().notNull().default(sql`'{}'::text[]`),
 
-    // 查看行为
+    // 阅读行为
     viewCount: integer('view_count').notNull().default(0),
     firstViewedAt: timestamp('first_viewed_at', { withTimezone: true }),
     lastViewedAt: timestamp('last_viewed_at', { withTimezone: true }),
-
-    // SM-2 间隔重复状态
-    ease: real('ease').notNull().default(2.5),
-    intervalDays: real('interval_days').notNull().default(0),
-    reps: integer('reps').notNull().default(0),
-    lapses: integer('lapses').notNull().default(0),
-    lastGrade: integer('last_grade'),
-    dueAt: timestamp('due_at', { withTimezone: true }).notNull().defaultNow(),
-
-    // 掌握程度（由复习结果派生，0~1）
-    mastery: real('mastery').notNull().default(0),
-    status: text('status').notNull().default('new'), // new | learning | familiar | mastered
+    stability: real('stability').notNull().default(0), // 记忆稳定度（天），0=从未有效阅读
+    readingMs: bigint('reading_ms', { mode: 'number' }).notNull().default(0), // 累计有效阅读毫秒
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    index('segments_document_idx').on(t.documentId),
-    index('segments_due_idx').on(t.dueAt),
-  ],
+  (t) => [index('segments_document_idx').on(t.documentId)],
 );
 
 /** 知识点之间的关联边 */
@@ -82,18 +70,16 @@ export const links = pgTable(
   (t) => [uniqueIndex('links_unique').on(t.fromId, t.toId, t.kind)],
 );
 
-/** 复习记录 */
-export const reviewLogs = pgTable(
-  'review_logs',
+/** 有效阅读事件流水（单次停留 ≥5 秒才写入，由 view 路由上报） */
+export const readingEvents = pgTable(
+  'reading_events',
   {
     id: uuid('id').defaultRandom().primaryKey(),
     segmentId: uuid('segment_id')
       .notNull()
       .references(() => segments.id, { onDelete: 'cascade' }),
-    grade: integer('grade').notNull(), // 0 忘记 1 困难 2 良好 3 简单
-    prevIntervalDays: real('prev_interval_days').notNull().default(0),
-    nextIntervalDays: real('next_interval_days').notNull().default(0),
-    reviewedAt: timestamp('reviewed_at', { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+    durationMs: integer('duration_ms').notNull(),
   },
-  (t) => [index('review_logs_segment_idx').on(t.segmentId)],
+  (t) => [index('reading_events_segment_idx').on(t.segmentId), index('reading_events_started_idx').on(t.startedAt)],
 );

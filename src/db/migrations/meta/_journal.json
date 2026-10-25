@@ -8,6 +8,20 @@
       "when": 1792856361788,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792901108424,
+      "tag": "0001_fearless_lightspeed",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792901129003,
+      "tag": "0002_funny_tomorrow_man",
+      "breakpoints": true
     }
   ]
 }

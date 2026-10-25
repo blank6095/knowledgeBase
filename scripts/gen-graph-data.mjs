@@ -21,7 +21,7 @@ const { values: a } = parseArgs({
     'cross-ratio': { type: 'string', default: '0.08' }, // 跨社区边占比
     'hub-ratio': { type: 'string', default: '0.03' }, // 参与跨社区桥接的枢纽比例
     'isolated-ratio': { type: 'string', default: '0.02' }, // 孤立节点比例
-    'new-ratio': { type: 'string', default: '0.3' }, // 强制「未学习」节点比例
+    'new-ratio': { type: 'string', default: '0.3' }, // 强制「未读」节点比例
     seed: { type: 'string', default: '42' },
     out: { type: 'string', default: 'public/fixtures/graph.json' },
   },
@@ -51,23 +51,38 @@ const ri = (n) => Math.floor(rand() * n);
 
 const TOPICS = ['算法', '网络', '数据库', '前端', '后端', '运维', '安全', '数学', '语言', '工程实践', 'AI', '操作系统', '编译原理', '体系结构', '分布式', '测试'];
 
-// ---------- 节点属性（与 /api/graph 字段同构） ----------
-function deriveStatus(mastery) {
-  if (mastery < 0.05) return 'new';
-  if (mastery < 0.4) return 'learning';
-  if (mastery < 0.75) return 'familiar';
-  return 'mastered';
+// ---------- 节点属性（与 /api/graph 字段同构；记忆公式镜像 src/lib/memory.ts 的 memoryOf） ----------
+const TIER_MEDIUM = 0.4;
+const TIER_STRONG = 0.75;
+
+function tierOf(m) {
+  if (m <= 0) return 'unread';
+  if (m < TIER_MEDIUM) return 'weak';
+  if (m < TIER_STRONG) return 'medium';
+  return 'strong';
 }
+
 function mkNode(id, topic, label) {
-  const isNew = rand() < newRatio;
-  const mastery = isNew ? 0 : Math.min(1, Math.max(0.05, (rand() * 0.95) ** 1.4));
+  const isUnread = rand() < newRatio;
+  // 已读节点：先抽目标记忆度，再反解稳定的 stability / 阅读时间组合
+  // （M = exp(-Δt/S)，S = -Δt/ln(M)；S 超 365 天上限时压缩 Δt 保持 M 不变）
+  const targetM = isUnread ? 0 : Math.min(1, Math.max(0.05, (rand() * 0.95) ** 1.4));
+  let daysAgo = isUnread ? 0 : rand() * 90;
+  let stability = 0;
+  if (!isUnread) {
+    stability = -daysAgo / Math.log(targetM);
+    if (stability > 365) {
+      stability = 365;
+      daysAgo = -365 * Math.log(targetM);
+    }
+  }
   return {
     id: `n${id}`,
     title: `${topic}·${label}`,
-    mastery: Math.round(mastery * 100) / 100,
-    status: deriveStatus(mastery),
-    viewCount: isNew ? 0 : 1 + Math.floor(rand() ** 2.5 * 40),
-    dueAt: new Date(Date.now() + rand() * 30 * 86400_000).toISOString(),
+    memory: Math.round(targetM * 100) / 100,
+    stability: Math.round(stability * 100) / 100,
+    viewCount: isUnread ? 0 : 1 + Math.floor(rand() ** 2.5 * 40),
+    readingMs: isUnread ? 0 : Math.round((0.2 + rand() ** 2 * 30) * 60_000),
     tags: rand() < 0.6 ? [topic, TOPICS[ri(TOPICS.length)]] : [topic],
     documentId: `doc-${topic}-${ri(8)}`,
     documentTitle: `${topic}笔记`,
@@ -187,7 +202,7 @@ for (const e of edges) {
 }
 const degrees = nodes.map((n) => finalDeg.get(n.id) ?? 0).sort((x, y) => x - y);
 const p = (q) => degrees[Math.min(degrees.length - 1, Math.floor(degrees.length * q))];
-const byStatus = nodes.reduce((acc, n) => ((acc[n.status] = (acc[n.status] ?? 0) + 1), acc), {});
+const byTier = nodes.reduce((acc, n) => ((acc[tierOf(n.memory)] = (acc[tierOf(n.memory)] ?? 0) + 1), acc), {});
 
 const json = JSON.stringify({ nodes, edges });
 mkdirSync(dirname(a.out), { recursive: true });
@@ -196,7 +211,7 @@ writeFileSync(a.out, json);
 console.log(`数据集已写入 ${a.out}`);
 console.log(`节点: ${nodes.length} | 边: ${edges.length} | 平均度: ${(2 * edges.length / nodes.length).toFixed(1)}`);
 console.log(`度分布: p50=${p(0.5)} p95=${p(0.95)} max=${degrees[degrees.length - 1]} | 孤立节点: ${degrees.filter((d) => d === 0).length} (${(degrees.filter((d) => d === 0).length / nodes.length * 100).toFixed(1)}%)`);
-console.log(`状态分布: ${JSON.stringify(byStatus)}`);
+console.log(`记忆档位分布: ${JSON.stringify(byTier)}`);
 console.log(`文件大小: ${(statSync(a.out).size / 1024 / 1024).toFixed(2)} MB`);
 
 function int(v, name) {
