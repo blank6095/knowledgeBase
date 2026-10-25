@@ -11,6 +11,7 @@ interface Stats {
   byTier: Record<string, number>;
   readToday: number;
   recentDocuments: { id: string; title: string; segmentCount: number; createdAt: string }[];
+  suggestion?: { segmentId: string; title: string; memory: number; degree: number } | null;
 }
 
 export default function DashboardPage() {
@@ -42,6 +43,21 @@ export default function DashboardPage() {
           导入知识
         </Link>
       </div>
+
+      {/* L3-4 今日首推：薄弱 × 图谱中心性 top1，纯规则零调用 */}
+      {stats.suggestion && (
+        <Link
+          href={`/segments/${stats.suggestion.segmentId}`}
+          className="card card-hover fade-up flex items-center gap-3 px-4 py-3"
+          style={{ animationDelay: '40ms' }}
+        >
+          <span className="shrink-0 rounded-full bg-accent/15 px-2 py-0.5 text-tag text-accent">今日先看</span>
+          <span className="min-w-0 flex-1 truncate text-body">{stats.suggestion.title}</span>
+          <span className="shrink-0 font-mono text-tag tabular-nums text-faint">
+            记忆 {Math.round(stats.suggestion.memory * 100)}% · 关联 {stats.suggestion.degree}
+          </span>
+        </Link>
+      )}
 
       {/* hero 统计带：36px mono 大数字 + 12px 区块标签 */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

@@ -6,6 +6,8 @@ import { badRequest, guard, isUuid, notFound } from '@/lib/api';
 import { chatCompletion, extractJson, getLlmConfig, LLM_SETUP_HINT } from '@/lib/llm';
 import { neighborsOf } from '@/lib/rag';
 import { cacheKey, getCachedOutput, saveCachedOutput } from '@/lib/llm-cache';
+import { logLlmCall } from '@/lib/llm-calls';
+import { deriveLearnerProfileCached, getLearnerDeclaration, profileToPromptBlock } from '@/lib/learner-profile';
 
 /**
  * 语义聚合预览：同文档多段 → 1 段融合稿（只出 JSON，不落库）。
@@ -44,8 +46,19 @@ export async function POST(req: NextRequest) {
   const neighbors = await neighborsOf(ids, 5).catch(() => []);
 
   if (cached) {
+    await logLlmCall({ kind: 'aggregate', model: config.model, cached: true });
     return NextResponse.json({ merged: cached, contextUsed: neighbors.map(toContext), cached: true });
   }
+
+  // 学习者画像（60s TTL 缓存）：融合稿兼顾薄弱主题
+  const [profile, declaration] = await Promise.all([
+    deriveLearnerProfileCached().catch(() => null),
+    getLearnerDeclaration().catch(() => ''),
+  ]);
+  const profileBlock = profileToPromptBlock(profile, declaration);
+  const profileNote = profileBlock
+    ? '\n\n' + profileBlock + '\n（融合命名与术语取舍时兼顾学习者水平：其记忆薄弱主题的术语首次出现时可附一句简要解释。）'
+    : '';
 
   const parts = rows.map((r, i) => `【段落 ${i + 1}】标题：${r.title}\n内容：\n${r.content}`).join('\n\n');
 
@@ -65,12 +78,15 @@ export async function POST(req: NextRequest) {
   ].join('\n');
   const user = `以下是需要聚合的 ${rows.length} 个段落：\n\n${parts}`;
 
-  const output = await chatCompletion([
-    { role: 'system', content: system + contextBlock },
-    { role: 'user', content: user },
-  ]);
+  const result = await chatCompletion(
+    [
+      { role: 'system', content: system + contextBlock + profileNote },
+      { role: 'user', content: user },
+    ],
+    { kind: 'aggregate', maxTokens: 4096 },
+  );
 
-  const raw = extractJson<{ title?: unknown; content?: unknown }>(output);
+  const raw = extractJson<{ title?: unknown; content?: unknown }>(result.text);
   if (!raw || typeof raw !== 'object' || typeof raw.title !== 'string' || typeof raw.content !== 'string') {
     return badRequest('模型输出形状不符：期望 {"title":"...","content":"..."}');
   }

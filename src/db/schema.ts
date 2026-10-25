@@ -118,11 +118,32 @@ export const appSettings = pgTable('app_settings', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-/** LLM 输出缓存（split/aggregate preview）：hash 为 kind|model|内容指纹 的 sha256，上限 256 条 */
+/** LLM 输出缓存（split/aggregate preview + ask）：hash 为 kind|model|内容指纹 的 sha256，上限 256 条；expiresAt 过期视为未命中 */
 export const llmCache = pgTable('llm_cache', {
   hash: text('hash').primaryKey(),
-  kind: text('kind').notNull(), // split | aggregate
+  kind: text('kind').notNull(), // split | aggregate | ask
   output: jsonb('output').notNull(),
   model: text('model').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * LLM 调用流水（可观测）：每次真实调用/缓存命中一行。
+ * 隐私铁律：只记维度与用量（kind/model/token/耗时/缓存/错误摘要），绝不记 prompt 与画像文本。
+ */
+export const llmCalls = pgTable(
+  'llm_calls',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    kind: text('kind').notNull(), // ask | split | aggregate | import-split | summary | test
+    model: text('model').notNull(),
+    inTok: integer('in_tok').notNull().default(0),
+    outTok: integer('out_tok').notNull().default(0),
+    ms: integer('ms').notNull().default(0),
+    cached: integer('cached').notNull().default(0), // sqlite 风格 0/1（pg 无布尔便捷默认）
+    error: text('error'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('llm_calls_created_idx').on(t.createdAt), index('llm_calls_kind_idx').on(t.kind)],
+);

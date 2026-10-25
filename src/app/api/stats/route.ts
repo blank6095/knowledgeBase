@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { desc, gte, sql } from 'drizzle-orm';
+import { desc, eq, gte, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { documents, readingEvents, segments } from '@/db/schema';
+import { documents, links, readingEvents, segments } from '@/db/schema';
 import { guard } from '@/lib/api';
 import { MEMORY_TIER_ORDER } from '@/lib/memory';
 
 
-/** 概览统计：总数/记忆档位分布（SQL CASE 下推，单行返回）/今日阅读数/最近导入 */
+/** 概览统计：总数/记忆档位分布（SQL CASE 下推，单行返回）/今日阅读数/最近导入/今日首推（薄弱×中心性，纯规则不调 LLM） */
 export async function GET(req: NextRequest) {
   const denied = await guard(req);
   if (denied) return denied;
@@ -19,7 +19,23 @@ export async function GET(req: NextRequest) {
   const m = sql`exp(-extract(epoch from (now() - ${segments.lastViewedAt})) / 86400.0 / greatest(${segments.stability}, 1e-9))`;
   const read = sql`${segments.stability} > 0 and ${segments.lastViewedAt} is not null`;
 
-  const [tierRow, todayRow, recentDocs] = await Promise.all([
+  // L3-4 今日首推：已读但记忆薄弱（m<0.4）的段里，按 薄弱程度(1-m) × 图谱中心性(度数+1) 取 top1
+  const suggestPromise = db
+    .select({
+      id: segments.id,
+      title: segments.title,
+      memory: sql<number>`(${m})::float`,
+      degree: sql<number>`count(${links.id})::int`,
+    })
+    .from(segments)
+    .leftJoin(links, or(eq(links.fromId, segments.id), eq(links.toId, segments.id)))
+    .where(sql`${read} and (${m}) < 0.4`)
+    .groupBy(segments.id, segments.title, segments.lastViewedAt, segments.stability)
+    .orderBy(desc(sql`(1 - (${m})) * (count(${links.id}) + 1)`))
+    .limit(1)
+    .catch(() => []);
+
+  const [tierRow, todayRow, recentDocs, suggestRows] = await Promise.all([
     db
       .select({
         total: sql<number>`count(*)::int`,
@@ -38,8 +54,13 @@ export async function GET(req: NextRequest) {
       .from(documents)
       .orderBy(desc(documents.createdAt))
       .limit(5),
+    suggestPromise,
   ]);
   const tDb = performance.now();
+
+  const suggest = suggestRows[0]
+    ? { segmentId: suggestRows[0].id, title: suggestRows[0].title, memory: Math.round(suggestRows[0].memory * 100) / 100, degree: suggestRows[0].degree }
+    : null;
 
   const payload = {
     total: tierRow[0]?.total ?? 0,
@@ -52,6 +73,7 @@ export async function GET(req: NextRequest) {
     tierOrder: MEMORY_TIER_ORDER,
     readToday: todayRow[0]?.count ?? 0,
     recentDocuments: recentDocs,
+    suggestion: suggest,
   };
   const t1 = performance.now();
   console.log(

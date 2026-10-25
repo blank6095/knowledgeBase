@@ -26,6 +26,13 @@ const server = createServer((req, res) => {
   let body = '';
   req.on('data', (c) => (body += c));
   req.on('end', () => {
+    // 验收辅助：记录最近一次请求的 messages（画像注入断言用）
+    try {
+      const parsed = JSON.parse(body);
+      import('node:fs').then(({ writeFileSync }) => {
+        writeFileSync('mock-last-request.json', JSON.stringify(parsed, null, 1));
+      });
+    } catch {}
     const isSummary = body.includes('概括该知识点');
     const isMerge = body.includes('聚合为一个段落');
     if (isSummary) {

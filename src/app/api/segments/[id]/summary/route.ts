@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { segments } from '@/db/schema';
 import { guard, isUuid, notFound } from '@/lib/api';
-import { chatCompletion, getLlmConfig, LLM_SETUP_HINT } from '@/lib/llm';
+import { chatCompletion, resolveLlmStatus } from '@/lib/llm';
 
 /** 同段并发请求去重：进行中的摘要 Promise 复用，避免重复模型调用与写覆盖 */
 const inflight = new Map<string, Promise<string>>();
@@ -12,14 +12,17 @@ async function generateSummary(seg: { id: string; title: string; content: string
   const existing = inflight.get(seg.id);
   if (existing) return existing;
   const p = (async () => {
-    const output = await chatCompletion([
-      {
-        role: 'system',
-        content: '用一句不超过 30 字的中文概括该知识点。只输出摘要正文，不要解释、不要引号、不要任何前后缀。',
-      },
-      { role: 'user', content: `标题：${seg.title}\n\n内容：\n${seg.content}` },
-    ]);
-    const summary = output
+    const result = await chatCompletion(
+      [
+        {
+          role: 'system',
+          content: '用一句不超过 30 字的中文概括该知识点。只输出摘要正文，不要解释、不要引号、不要任何前后缀。',
+        },
+        { role: 'user', content: `标题：${seg.title}\n\n内容：\n${seg.content}` },
+      ],
+      { kind: 'summary', tier: 'fast', maxTokens: 120 },
+    );
+    const summary = result.text
       .trim()
       .replace(/^["'「『]+|["'」』]+$/g, '')
       .slice(0, 60); // 30 字约束靠 prompt，硬截 60 容错
@@ -49,8 +52,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (seg.summary) return NextResponse.json({ summary: seg.summary, cached: true });
 
-  if (!(await getLlmConfig())) {
-    return NextResponse.json({ error: LLM_SETUP_HINT }, { status: 503 });
+  const status = await resolveLlmStatus();
+  if (!status.ok) {
+    return NextResponse.json({ error: status.hint }, { status: 503 });
   }
 
   try {

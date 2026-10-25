@@ -6,6 +6,7 @@
  */
 import { chatCompletion, extractJson } from '@/lib/llm';
 import { neighborsOf, retrieveByQuery, type RagHit } from '@/lib/rag';
+import { deriveLearnerProfileCached, getLearnerDeclaration, profileToPromptBlock } from '@/lib/learner-profile';
 
 export interface SplitChild {
   title: string;
@@ -44,10 +45,24 @@ export async function splitContext(seg: { id?: string; title: string }): Promise
 /**
  * 语义拆分一个段落。
  * - seg.id 存在（编辑态）：RAG 上下文取图谱 1-hop 邻居 top5；
- * - 无 id（导入态）：按标题检索库内相关节点 top5。
+ * - 无 id（导入态）：按标题检索库内相关节点 top5；
+ * - kind 写 llm_calls 流水（编辑态 'split'，导入态 'import-split'）。
  */
-export async function semanticSplit(seg: { id?: string; title: string; content: string }): Promise<SplitResult> {
+export async function semanticSplit(
+  seg: { id?: string; title: string; content: string },
+  kind: 'split' | 'import-split' = 'split',
+): Promise<SplitResult> {
   const context = await splitContext(seg);
+
+  // 学习者画像（60s TTL 缓存，导入逐段调用时只推导一次）：薄弱主题的术语首现可附简要解释
+  const [profile, declaration] = await Promise.all([
+    deriveLearnerProfileCached().catch(() => null),
+    getLearnerDeclaration().catch(() => ''),
+  ]);
+  const profileBlock = profileToPromptBlock(profile, declaration);
+  const profileNote = profileBlock
+    ? '\n\n' + profileBlock + '\n（拆解/命名时兼顾学习者水平：其记忆薄弱主题的术语首次出现时，可在该子段内用一句话简要解释。）'
+    : '';
 
   const contextBlock = context.length
     ? `\n\n以下是知识库中与该段相关的其他节点（标题 + 摘要）。拆解时避免与它们内容重复，专有名词与术语保持一致：\n${context
@@ -64,10 +79,13 @@ export async function semanticSplit(seg: { id?: string; title: string; content: 
     '只输出 JSON 数组，格式：[{"title":"...","content":"..."}]，不要输出任何其他文字或解释。',
   ].join('\n');
 
-  const output = await chatCompletion([
-    { role: 'system', content: system + contextBlock },
-    { role: 'user', content: `标题：${seg.title}\n\n内容：\n${seg.content}` },
-  ]);
+  const result = await chatCompletion(
+    [
+      { role: 'system', content: system + contextBlock + profileNote },
+      { role: 'user', content: `标题：${seg.title}\n\n内容：\n${seg.content}` },
+    ],
+    { kind, maxTokens: 4096 },
+  );
 
-  return { children: parseSplitChildren(extractJson<unknown>(output)), contextUsed: context };
+  return { children: parseSplitChildren(extractJson<unknown>(result.text)), contextUsed: context };
 }

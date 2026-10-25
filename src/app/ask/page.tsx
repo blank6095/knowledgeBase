@@ -12,14 +12,26 @@ interface Source {
   title: string;
 }
 
+interface LearnerProfileView {
+  profile: {
+    totalSegments: number;
+    tiers: { unread: number; weak: number; medium: number; strong: number };
+    weakSpots: { segmentId: string; title: string; memory: number }[];
+  } | null;
+  declaration: string;
+}
+
 interface AskResult {
   answer: string;
   sources: Source[];
+  cached?: boolean;
+  streaming?: boolean;
 }
 
-/** 问知识库：RAG 检索 top6 注入材料，仅基于材料作答并附来源跳转 */
+/** 问知识库：RAG 检索 top6 注入材料，仅基于材料作答并附来源；SSE 流式逐字渲染，缓存命中秒回 */
 export default function AskPage() {
   const [configured, setConfigured] = useState<boolean | null>(null);
+  const [learner, setLearner] = useState<LearnerProfileView | null>(null);
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<AskResult | null>(null);
@@ -30,6 +42,9 @@ export default function AskPage() {
     api<{ configured: boolean }>('/api/ai/config')
       .then((c) => setConfigured(c.configured))
       .catch(() => setConfigured(false));
+    api<LearnerProfileView>('/api/learner-profile')
+      .then(setLearner)
+      .catch(() => setLearner(null));
   }, []);
 
   const ask = async () => {
@@ -39,14 +54,66 @@ export default function AskPage() {
     setError('');
     setResult(null);
     try {
-      const r = await api<AskResult>('/api/ai/ask', { method: 'POST', body: JSON.stringify({ query: q }) });
-      setResult(r);
+      const res = await fetch('/api/ai/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q }),
+      });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(d.error ?? `请求失败（${res.status}）`);
+      }
+      const ct = res.headers.get('content-type') ?? '';
+      if (ct.includes('text/event-stream') && res.body) {
+        // 流式：逐字渲染，末包带来源
+        setResult({ answer: '', sources: [], streaming: true });
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+        let acc = '';
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const parts = buf.split('\n\n');
+          buf = parts.pop() ?? '';
+          for (const part of parts) {
+            const line = part.trim();
+            if (!line.startsWith('data:')) continue;
+            let payload: { delta?: string; done?: boolean; sources?: Source[]; cached?: boolean; error?: string };
+            try {
+              payload = JSON.parse(line.slice(5).trim());
+            } catch {
+              continue;
+            }
+            if (payload.error) throw new Error(payload.error);
+            if (payload.done) {
+              setResult({ answer: acc, sources: payload.sources ?? [], cached: payload.cached });
+            } else if (typeof payload.delta === 'string' && payload.delta) {
+              acc += payload.delta;
+              setResult({ answer: acc, sources: [], streaming: true });
+            }
+          }
+        }
+      } else {
+        // 降级路径：非流式 JSON（如库内无相关材料的早退）
+        const r = (await res.json()) as AskResult;
+        setResult(r);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : '提问失败');
     } finally {
       setBusy(false);
     }
   };
+
+  const presetChips: string[] = [];
+  if (learner?.profile && learner.profile.totalSegments > 0) {
+    presetChips.push('我接下来该学点什么？');
+    const weak = learner.profile.weakSpots[0];
+    if (weak) presetChips.push(`帮我梳理《${weak.title}》`);
+    if (learner.profile.tiers.unread > 0) presetChips.push(`知识库里还有 ${learner.profile.tiers.unread} 篇未读，先看哪个？`);
+  }
 
   return (
     <div className="mx-auto max-w-[42rem] space-y-4">
@@ -70,6 +137,22 @@ export default function AskPage() {
         </div>
       ) : (
         <>
+          {presetChips.length > 0 && (
+            <div className="fade-up flex flex-wrap gap-1.5" style={{ animationDelay: '40ms' }}>
+              {presetChips.map((q) => (
+                <button
+                  key={q}
+                  onClick={() => {
+                    setQuery(q);
+                    inputRef.current?.focus();
+                  }}
+                  className="rounded-full border border-line bg-surface px-3 py-1 text-tag text-muted transition-colors duration-150 hover:border-accent/50 hover:text-accent"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
           <form
             className="fade-up flex gap-2"
             style={{ animationDelay: '40ms' }}
@@ -94,7 +177,7 @@ export default function AskPage() {
             </button>
           </form>
 
-          {busy && (
+          {busy && (!result || !result.answer) && (
             <div className="card fade-up px-5 py-4" role="status" aria-label="回答生成中">
               <Skeleton className="h-4 w-2/3" />
               <Skeleton className="mt-3 h-4 w-full" />
@@ -103,12 +186,16 @@ export default function AskPage() {
           )}
           {error && <p className="text-minor text-danger">{error}</p>}
 
-          {result && (
+          {result && result.answer && (
             <section className="card fade-up px-5 py-4">
+              {result.cached && (
+                <span className="mb-2 inline-block rounded-full bg-accent/15 px-2 py-0.5 text-tag text-accent">缓存命中 · 零调用</span>
+              )}
               <div className="md-body text-body">
                 <Markdown remarkPlugins={[remarkGfm]}>{result.answer}</Markdown>
+                {result.streaming && <span className="ml-0.5 inline-block h-4 w-2 animate-pulse bg-accent/70 align-middle" aria-label="生成中" />}
               </div>
-              {result.sources.length > 0 && (
+              {!result.streaming && result.sources.length > 0 && (
                 <div className="mt-4 border-t border-line pt-3">
                   <p className="text-tag uppercase text-faint">来源（{result.sources.length}）</p>
                   <ul className="mt-2 space-y-1.5">

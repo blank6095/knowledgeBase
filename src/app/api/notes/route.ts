@@ -92,15 +92,25 @@ export async function POST(req: NextRequest) {
       .sort((a, b) => b.s.content.length - a.s.content.length)
       .slice(0, 5);
     const replacements = new Map<number, RawSegment[]>();
-    for (const { s, i } of eligible) {
-      try {
-        const { children } = await semanticSplit({ title: s.title, content: s.content });
-        replacements.set(i, children.map((c) => ({ title: c.title, content: c.content, headingPath: s.headingPath })));
-        aiSplitApplied++;
-      } catch {
-        aiSplitFailed++;
+    // L1-4：并发 ≤2 的池化执行（导入总时长 ≈ ceil(n/2)×单次时延），失败降级语义不变
+    const queue = [...eligible];
+    const worker = async () => {
+      for (;;) {
+        const item = queue.shift();
+        if (!item) return;
+        try {
+          const { children } = await semanticSplit({ title: item.s.title, content: item.s.content }, 'import-split');
+          replacements.set(
+            item.i,
+            children.map((c) => ({ title: c.title, content: c.content, headingPath: item.s.headingPath })),
+          );
+          aiSplitApplied++;
+        } catch {
+          aiSplitFailed++;
+        }
       }
-    }
+    };
+    await Promise.all([worker(), worker()]);
     if (replacements.size > 0) {
       finalSegments = rawSegments.flatMap((s, i) => replacements.get(i) ?? [s]);
     }

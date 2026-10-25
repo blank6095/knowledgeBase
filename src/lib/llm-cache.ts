@@ -1,7 +1,8 @@
 /**
  * LLM preview 输出缓存（llm_cache 表）：hash = sha256(kind|model|内容指纹)。
- * split 指纹为段 title+content；aggregate 为按 orderIndex 排序的各段 title+content 拼接。
- * ask 不缓存。上限 256 条，超限按 created_at 最旧删除。缓存内容不含敏感信息。
+ * split 指纹为段 title+content；aggregate 为按 orderIndex 排序的各段 title+content 拼接；
+ * ask 为 query+材料指纹+声明文本。上限 256 条，超限按 created_at 最旧删除。
+ * expiresAt（ask 的 24h TTL）到期视为未命中。缓存内容不含敏感信息。
  */
 import { createHash } from 'node:crypto';
 import { asc, eq, sql } from 'drizzle-orm';
@@ -16,12 +17,26 @@ export function cacheKey(kind: string, model: string, fingerprint: string): stri
 }
 
 export async function getCachedOutput<T>(key: string): Promise<T | null> {
-  const [row] = await db.select({ output: llmCache.output }).from(llmCache).where(eq(llmCache.hash, key));
-  return row ? (row.output as T) : null;
+  const [row] = await db
+    .select({ output: llmCache.output, expiresAt: llmCache.expiresAt })
+    .from(llmCache)
+    .where(eq(llmCache.hash, key));
+  if (!row) return null;
+  if (row.expiresAt && new Date(row.expiresAt).getTime() <= Date.now()) return null;
+  return row.output as T;
 }
 
-export async function saveCachedOutput(key: string, kind: string, model: string, output: unknown): Promise<void> {
-  await db.insert(llmCache).values({ hash: key, kind, output, model }).onConflictDoNothing();
+export async function saveCachedOutput(
+  key: string,
+  kind: string,
+  model: string,
+  output: unknown,
+  expiresAt?: Date,
+): Promise<void> {
+  await db
+    .insert(llmCache)
+    .values({ hash: key, kind, output, model, expiresAt: expiresAt ?? null })
+    .onConflictDoNothing();
   // 上限治理：超出 256 条时按最旧删除溢出部分
   await db.execute(sql`
     delete from llm_cache where hash in (

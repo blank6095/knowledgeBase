@@ -6,6 +6,7 @@ import { badRequest, guard, isUuid, notFound } from '@/lib/api';
 import { getLlmConfig, LLM_SETUP_HINT } from '@/lib/llm';
 import { semanticSplit, splitContext } from '@/lib/ai-split';
 import { cacheKey, getCachedOutput, saveCachedOutput } from '@/lib/llm-cache';
+import { logLlmCall } from '@/lib/llm-calls';
 
 /**
  * 语义拆解预览：单段 → 2–8 个子段（只出 JSON，不落业务表）。
@@ -32,7 +33,8 @@ export async function POST(req: NextRequest) {
   const key = cacheKey('split', config.model, `${seg.title}|${seg.content}`);
   const cached = await getCachedOutput<{ children: { title: string; content: string }[] }>(key);
   if (cached) {
-    // 命中：children 来自缓存（省一次模型调用），contextUsed 仍实时计算（随图谱演进）
+    // 命中：children 来自缓存（省一次模型调用，记一行 cached 流水），contextUsed 仍实时计算（随图谱演进）
+    await logLlmCall({ kind: 'split', model: config.model, cached: true });
     const contextUsed = await splitContext(contextArgs);
     return NextResponse.json({ children: cached.children, contextUsed, cached: true });
   }

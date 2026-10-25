@@ -7,7 +7,25 @@ import { api } from '@/lib/client';
 interface AiConfig {
   configured: boolean;
   model: string | null;
+  fastModel?: string | null;
   keyTail: string | null;
+  learnerDeclaration?: string;
+}
+
+interface UsageDay {
+  day: string;
+  calls: number;
+  cachedHits: number;
+  inTok: number;
+  outTok: number;
+  errors: number;
+  avgMs: number;
+}
+
+interface Usage {
+  days: UsageDay[];
+  today: { calls: number; tokens: number; guardrail: number };
+  previewHitRate: number | null;
 }
 
 const MODEL_OPTIONS = ['deepseek-v4-flash', 'deepseek-chat', 'deepseek-reasoner'];
@@ -18,20 +36,25 @@ export default function SettingsPage() {
   const [apiKey, setApiKey] = useState('');
   const [modelChoice, setModelChoice] = useState<string>(MODEL_OPTIONS[0]);
   const [customModel, setCustomModel] = useState('');
+  const [fastChoice, setFastChoice] = useState<string>('');
+  const [customFast, setCustomFast] = useState('');
+  const [usage, setUsage] = useState<Usage | null>(null);
   const [saveMsg, setSaveMsg] = useState('');
   const [saveErr, setSaveErr] = useState('');
   const [testMsg, setTestMsg] = useState('');
   const [testErr, setTestErr] = useState('');
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [declaration, setDeclaration] = useState('');
 
   const reload = async () => {
-    const c = await api<AiConfig>('/api/ai/config');
+    const c = await api<AiConfig & { learnerDeclaration?: string }>('/api/ai/config');
     applyConfig(c);
   };
 
-  const applyConfig = (c: AiConfig) => {
+  const applyConfig = (c: AiConfig & { learnerDeclaration?: string }) => {
     setConfig(c);
+    if (typeof c.learnerDeclaration === 'string') setDeclaration(c.learnerDeclaration);
     if (c.model) {
       if (MODEL_OPTIONS.includes(c.model)) setModelChoice(c.model);
       else {
@@ -39,17 +62,29 @@ export default function SettingsPage() {
         setCustomModel(c.model);
       }
     }
+    const fast = typeof c.fastModel === 'string' && c.fastModel ? c.fastModel : '';
+    if (!fast) setFastChoice('');
+    else if (MODEL_OPTIONS.includes(fast)) setFastChoice(fast);
+    else {
+      setFastChoice('custom');
+      setCustomFast(fast);
+    }
   };
 
   useEffect(() => {
     let cancelled = false;
-    api<AiConfig>('/api/ai/config')
+    api<AiConfig & { learnerDeclaration?: string }>('/api/ai/config')
       .then((c) => {
         if (!cancelled) applyConfig(c);
       })
       .catch(() => {
         if (!cancelled) setConfig({ configured: false, model: null, keyTail: null });
       });
+    api<Usage>('/api/ai/usage')
+      .then((u) => {
+        if (!cancelled) setUsage(u);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -63,12 +98,13 @@ export default function SettingsPage() {
     setTestErr('');
     try {
       const model = modelChoice === 'custom' ? customModel.trim() : modelChoice;
-      const r = await api<{ model: string; keyTail: string | null }>('/api/settings', {
+      const fastModel = fastChoice === 'custom' ? customFast.trim() : fastChoice;
+      const r = await api<{ model: string; fastModel?: string; keyTail: string | null }>('/api/settings', {
         method: 'POST',
-        body: JSON.stringify({ apiKey: apiKey.trim(), model }),
+        body: JSON.stringify({ apiKey: apiKey.trim(), model, fastModel, learnerDeclaration: declaration }),
       });
       setApiKey('');
-      setSaveMsg(`已保存（模型 ${r.model}${r.keyTail ? ` · Key 尾号 ****${r.keyTail}` : ''}）`);
+      setSaveMsg(`已保存（模型 ${r.model}${r.fastModel ? ` · fast 档 ${r.fastModel}` : ''}${r.keyTail ? ` · Key 尾号 ****${r.keyTail}` : ''}）`);
       await reload();
     } catch (e) {
       setSaveErr(e instanceof Error ? e.message : '保存失败');
@@ -142,6 +178,42 @@ export default function SettingsPage() {
               />
             )}
           </div>
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <span className="text-tag text-faint">fast 档（摘要/测试连接）</span>
+            <select
+              value={fastChoice}
+              onChange={(e) => setFastChoice(e.target.value)}
+              className="min-w-48 rounded-lg border border-line bg-app px-3 py-1.5 text-tag text-primary outline-none transition-colors focus:border-accent"
+            >
+              <option value="">同主模型</option>
+              {MODEL_OPTIONS.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+              <option value="custom">自定义…</option>
+            </select>
+            {fastChoice === 'custom' && (
+              <input
+                value={customFast}
+                onChange={(e) => setCustomFast(e.target.value)}
+                placeholder="fast 档模型 id"
+                className="min-w-40 flex-1 rounded-lg border border-line bg-app px-3 py-1.5 font-mono text-tag text-primary outline-none transition-colors focus:border-accent"
+              />
+            )}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-tag uppercase text-faint">学习者自述（可选，供 AI 个性化）</p>
+          <textarea
+            value={declaration}
+            onChange={(e) => setDeclaration(e.target.value)}
+            rows={3}
+            maxLength={500}
+            placeholder="如：后端方向求职，正在补计算机网络与 Node.js；喜欢先看结论再看细节。会随「问知识库」与 AI 拆解/聚合注入，使回答与拆解粒度贴合你的目标。"
+            className="mt-1.5 w-full resize-y rounded-lg border border-line bg-app px-3 py-2 text-minor leading-relaxed text-primary outline-none transition-colors placeholder:text-faint focus:border-accent"
+          />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -171,6 +243,57 @@ export default function SettingsPage() {
           api-docs.deepseek.com 申请 API Key。
           {config && !config.configured && ' 当前未配置——「问知识库」与编辑态的 AI 拆解/聚合暂不可用。'}
         </p>
+      </section>
+
+      <section className="card fade-up px-5 py-4" style={{ animationDelay: '120ms' }}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-tag uppercase text-faint">大模型用量 · 近 7 天</p>
+          {usage?.previewHitRate != null && (
+            <span className="rounded-full bg-surface-hover px-2 py-0.5 text-tag text-muted">预览缓存命中 {usage.previewHitRate}%</span>
+          )}
+        </div>
+        {usage && usage.today.calls > 0 && (
+          <p className="mt-2 text-tag text-muted">
+            今日 {usage.today.calls} 次调用 · {usage.today.tokens.toLocaleString()} token
+            {usage.today.tokens > usage.today.guardrail ? (
+              <span className="text-danger">（已超 {usage.today.guardrail.toLocaleString()} 护栏）</span>
+            ) : (
+              <span className="text-faint"> / 护栏 {usage.today.guardrail.toLocaleString()}</span>
+            )}
+          </p>
+        )}
+        {usage && usage.days.length > 0 ? (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-left text-tag">
+              <thead>
+                <tr className="text-faint">
+                  <th className="py-1 pr-3 font-normal">日期</th>
+                  <th className="py-1 pr-3 font-normal">调用</th>
+                  <th className="py-1 pr-3 font-normal">缓存命中</th>
+                  <th className="py-1 pr-3 font-normal">输入 tok</th>
+                  <th className="py-1 pr-3 font-normal">输出 tok</th>
+                  <th className="py-1 pr-3 font-normal">均耗时</th>
+                  <th className="py-1 font-normal">失败</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {usage.days.map((d) => (
+                  <tr key={d.day} className="text-muted">
+                    <td className="py-1.5 pr-3 tabular-nums">{d.day.slice(5)}</td>
+                    <td className="py-1.5 pr-3 tabular-nums">{d.calls}</td>
+                    <td className="py-1.5 pr-3 tabular-nums">{d.cachedHits}</td>
+                    <td className="py-1.5 pr-3 tabular-nums">{d.inTok.toLocaleString()}</td>
+                    <td className="py-1.5 pr-3 tabular-nums">{d.outTok.toLocaleString()}</td>
+                    <td className="py-1.5 pr-3 tabular-nums">{d.avgMs}ms</td>
+                    <td className="py-1.5 tabular-nums">{d.errors > 0 ? <span className="text-danger">{d.errors}</span> : 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="mt-3 text-tag text-faint">还没有调用记录——配置后使用「问知识库」或 AI 拆解/聚合，这里会逐日累计。</p>
+        )}
       </section>
 
       <Link href="/" className="fade-up inline-block text-tag text-faint transition-colors hover:text-accent hover:underline" style={{ animationDelay: '160ms' }}>

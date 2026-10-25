@@ -17,10 +17,17 @@ if (!process.env.DATABASE_URL) {
 
 const sql = neon(process.env.DATABASE_URL);
 const dir = join(process.cwd(), 'src/db/migrations');
-const files = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
+// --only <文件名>：只执行指定迁移。已知陷阱：全量重放会卡死在早期迁移
+// （后续迁移删过列，旧迁移不可重放），因此新增迁移后必须单独执行。
+const onlyIdx = process.argv.indexOf('--only');
+const only = onlyIdx >= 0 ? process.argv[onlyIdx + 1] : null;
+const files = readdirSync(dir)
+  .filter((f) => f.endsWith('.sql'))
+  .filter((f) => !only || f === only)
+  .sort();
 
 if (files.length === 0) {
-  console.error('src/db/migrations 下没有迁移文件，先运行 npm run db:generate');
+  console.error(only ? `没有匹配 --only ${only} 的迁移文件` : 'src/db/migrations 下没有迁移文件，先运行 npm run db:generate');
   process.exit(1);
 }
 

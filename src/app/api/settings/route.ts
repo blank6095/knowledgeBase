@@ -1,21 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { badRequest, guard } from '@/lib/api';
 import { DEFAULT_MODEL, getLlmConfig } from '@/lib/llm';
+import { getLearnerDeclaration, saveLearnerDeclaration } from '@/lib/learner-profile';
 import { getLlmSettings, saveLlmSettings } from '@/lib/app-settings';
 
 /**
- * 保存 LLM 应用内配置（key='llm'）：
- * - apiKey 非空字符串 → 覆盖；留空/缺省 → 保留已存 key（GET 不回明文，故留空=不修改）；
- *   DB 无已存 key 且未提供时报错（env 回退形态也必须先在设置页落一个 key）。
- * - model 缺省 → DEFAULT_MODEL。
- * 响应不含明文 key。
+ * 保存设置：LLM 配置（key='llm'）+ 学习者自述声明（key='learner'）。
+ * - apiKey 非空 → 覆盖；留空 → 保留已存 key（GET 不回明文，故留空=不修改）；
+ * - model 缺省 → DEFAULT_MODEL；
+ * - fastModel 可选（摘要/测试连接等轻任务的 fast 档），空串 → 清除（同主模型）；
+ * - learnerDeclaration 存在 → 覆盖自述（空串=清除）。
  */
 export async function POST(req: NextRequest) {
   const denied = await guard(req);
   if (denied) return denied;
 
-  const body = (await req.json().catch(() => ({}))) as { apiKey?: unknown; model?: unknown };
+  const body = (await req.json().catch(() => ({}))) as {
+    apiKey?: unknown;
+    model?: unknown;
+    fastModel?: unknown;
+    learnerDeclaration?: unknown;
+  };
   const model = typeof body.model === 'string' && body.model.trim() ? body.model.trim().slice(0, 100) : DEFAULT_MODEL;
+  const fastModel = typeof body.fastModel === 'string' ? body.fastModel.trim().slice(0, 100) : '';
 
   const existing = await getLlmSettings();
   let apiKey: string;
@@ -30,16 +37,24 @@ export async function POST(req: NextRequest) {
     return badRequest('API Key 不能为空：请输入 DeepSeek API Key');
   }
 
-  await saveLlmSettings({ apiKey, model });
+  await saveLlmSettings({ apiKey, model, fastModel: fastModel || undefined });
+
+  if (typeof body.learnerDeclaration === 'string') {
+    await saveLearnerDeclaration(body.learnerDeclaration.slice(0, 500));
+  }
+
   const current = await getLlmConfig();
+  const declaration = await getLearnerDeclaration();
   return NextResponse.json({
     ok: true,
     model: current?.model ?? model,
+    fastModel: current?.fastModel ?? '',
     keyTail: current ? current.apiKey.slice(-4) : null,
+    learnerDeclaration: declaration,
   });
 }
 
-/** 设置页回显当前配置（model + keyTail），不回明文 */
+/** 设置页回显当前配置（model + fastModel + keyTail + 学习者自述），不回明文 */
 export async function GET(req: Request) {
   const denied = await guard(req);
   if (denied) return denied;
@@ -47,6 +62,8 @@ export async function GET(req: Request) {
   return NextResponse.json({
     configured: Boolean(config),
     model: config?.model ?? DEFAULT_MODEL,
+    fastModel: config ? (config.fastModel === config.model ? '' : config.fastModel) : '',
     keyTail: config ? config.apiKey.slice(-4) : null,
+    learnerDeclaration: await getLearnerDeclaration(),
   });
 }
