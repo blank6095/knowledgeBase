@@ -6,8 +6,15 @@ import { useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api, formatDuration } from '@/lib/client';
-import { MEMORY_TIER_LABELS, memoryColor, memoryTier } from '@/lib/memory';
+import { MEMORY_TIER_LABELS, memoryTier } from '@/lib/memory';
+import { LampDot } from '@/components/MemoryBadge';
 import { Skeleton } from '@/components/Skeleton';
+
+interface RefItem {
+  id: string;
+  title: string;
+  memory: number;
+}
 
 interface SegmentDetail {
   segment: {
@@ -24,7 +31,14 @@ interface SegmentDetail {
     memory: number;
   };
   document: { id: string; title: string } | null;
-  neighbors: { id: string; title: string; memory: number }[];
+  links: { fromId: string; toId: string; kind: string; weight: number }[];
+  refs: {
+    outgoing: RefItem[];
+    incoming: RefItem[];
+    prev: RefItem | null;
+    next: RefItem | null;
+    relatedTags: RefItem[];
+  };
 }
 
 /** 停留时长会话：随组件实例存续，跨 StrictMode 二次挂载与同页参数切换保持 */
@@ -37,6 +51,13 @@ interface ReadingSession {
 
 /** SPA 内导航卸载时冲刷的最小时长，低于它视为误触（也过滤 StrictMode 同步二次挂载） */
 const MIN_FLUSH_MS = 250;
+
+interface LinkGroup {
+  key: string;
+  title: string;
+  hint: string | null;
+  items: RefItem[];
+}
 
 export default function SegmentPage() {
   const { id } = useParams<{ id: string }>();
@@ -118,8 +139,15 @@ export default function SegmentPage() {
     );
 
   const s = data.segment;
+  const { outgoing, incoming, relatedTags, prev, next } = data.refs;
   const tier = MEMORY_TIER_LABELS[memoryTier(s.memory)];
-  const lampColor = memoryColor(s.memory);
+
+  // 链接分组：出链/入链/共同标签，空组不渲染
+  const groups: LinkGroup[] = [];
+  if (outgoing.length > 0) groups.push({ key: 'out', title: `出链（${outgoing.length}）`, hint: '本文提及', items: outgoing });
+  if (incoming.length > 0) groups.push({ key: 'in', title: `入链（${incoming.length}）`, hint: '提及本文', items: incoming });
+  if (relatedTags.length > 0)
+    groups.push({ key: 'tag', title: `共同标签（${relatedTags.length}）`, hint: null, items: relatedTags });
 
   return (
     <div className="mx-auto max-w-[42rem]">
@@ -133,14 +161,7 @@ export default function SegmentPage() {
         </Link>
         <div className="mt-2 flex items-center gap-2.5">
           <h1 className="font-display text-subtitle font-semibold">{s.title}</h1>
-          <span
-            role="img"
-            aria-label={`记忆程度：${tier}`}
-            title={tier}
-            className="inline-flex h-2 w-2 shrink-0 items-center justify-center"
-          >
-            <span className="h-2 w-2 rounded-full" style={{ background: lampColor, boxShadow: `0 0 6px 1px ${lampColor}` }} />
-          </span>
+          <LampDot memory={s.memory} title={tier} />
         </div>
         {s.headingPath && s.headingPath !== s.title && (
           <p className="mt-1 text-tag text-faint">{s.headingPath}</p>
@@ -154,9 +175,12 @@ export default function SegmentPage() {
       </article>
 
       {/* 记忆状态：页脚一行（灯点 + 档位名 + 客观数字），无卡片无进度条 */}
-      <p className="fade-up mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-minor text-muted" style={{ animationDelay: '160ms' }}>
+      <p
+        className="fade-up mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-minor text-muted"
+        style={{ animationDelay: '160ms' }}
+      >
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full" style={{ background: lampColor, boxShadow: `0 0 6px 1px ${lampColor}` }} />
+          <LampDot memory={s.memory} />
           {tier}
         </span>
         <span className="text-faint">·</span>
@@ -169,47 +193,81 @@ export default function SegmentPage() {
         </span>
       </p>
 
-      {/* 相关知识点与标签：折叠区，默认收起 */}
-      {(data.neighbors.length > 0 || s.tags.length > 0) && (
+      {/* 页脚极简导航：上一节 ←/→ 下一节（doc 边），无则隐藏对应侧 */}
+      {(prev || next) && (
+        <nav
+          aria-label="相邻章节"
+          className="fade-up mt-3 flex items-baseline justify-between gap-4 px-1 text-minor"
+          style={{ animationDelay: '200ms' }}
+        >
+          {prev ? (
+            <Link
+              href={`/segments/${prev.id}`}
+              title={prev.title}
+              className="min-w-0 truncate text-muted transition-colors duration-150 hover:text-accent"
+            >
+              <span className="text-faint">← </span>
+              {prev.title}
+            </Link>
+          ) : (
+            <span />
+          )}
+          {next ? (
+            <Link
+              href={`/segments/${next.id}`}
+              title={next.title}
+              className="min-w-0 truncate text-right text-muted transition-colors duration-150 hover:text-accent"
+            >
+              {next.title}
+              <span className="text-faint"> →</span>
+            </Link>
+          ) : (
+            <span />
+          )}
+        </nav>
+      )}
+
+      {/* 链接区：出链/入链/共同标签分组，默认收起；无链接且无标签时不渲染 */}
+      {(groups.length > 0 || s.tags.length > 0) && (
         <details className="group/rel fade-up mt-4" style={{ animationDelay: '240ms' }}>
           <summary className="cursor-pointer list-none px-1 text-tag uppercase text-faint transition-colors hover:text-muted">
-            相关知识点与标签
+            {groups.length > 0 ? `链接 · ${groups.map((g) => g.title).join(' · ')}` : '标签'}
             <span className="ml-1 inline-block transition-transform duration-200 group-open/rel:rotate-90">▸</span>
           </summary>
           <div className="card mt-2 px-4 py-3">
             {s.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 border-b border-line pb-3">
+              <div className={groups.length > 0 ? 'flex flex-wrap gap-1.5 border-b border-line pb-3' : 'flex flex-wrap gap-1.5'}>
                 {s.tags.map((t) => (
-                  <span key={t} className="rounded bg-surface-hover px-1.5 py-0.5 text-tag text-muted">#{t}</span>
+                  <span key={t} className="rounded bg-surface-hover px-1.5 py-0.5 text-tag text-muted">
+                    #{t}
+                  </span>
                 ))}
               </div>
             )}
-            {data.neighbors.length > 0 && (
-              <ul className={s.tags.length > 0 ? 'space-y-1.5 pt-3' : 'space-y-1.5'}>
-                {data.neighbors.map((n) => {
-                  const nColor = memoryColor(n.memory);
-                  const nTier = MEMORY_TIER_LABELS[memoryTier(n.memory)];
-                  return (
+            {groups.map((g, gi) => (
+              <div
+                key={g.key}
+                className={`${gi > 0 ? 'mt-3 border-t border-line pt-3' : ''} ${s.tags.length > 0 && gi === 0 ? 'pt-3' : ''}`}
+              >
+                <p className="mb-1.5 text-tag text-muted">
+                  {g.title}
+                  {g.hint && <span className="ml-1.5 text-faint">{g.hint}</span>}
+                </p>
+                <ul className="space-y-1.5">
+                  {g.items.map((n) => (
                     <li key={n.id}>
                       <Link
                         href={`/segments/${n.id}`}
                         className="group flex items-center justify-between gap-3 text-body transition-colors duration-150 hover:text-accent"
                       >
                         <span className="min-w-0 flex-1 truncate">{n.title}</span>
-                        <span
-                          role="img"
-                          aria-label={`记忆程度：${nTier}`}
-                          title={nTier}
-                          className="inline-flex h-2 w-2 shrink-0 items-center justify-center"
-                        >
-                          <span className="h-2 w-2 rounded-full" style={{ background: nColor, boxShadow: `0 0 6px 1px ${nColor}` }} />
-                        </span>
+                        <LampDot memory={n.memory} title={MEMORY_TIER_LABELS[memoryTier(n.memory)]} />
                       </Link>
                     </li>
-                  );
-                })}
-              </ul>
-            )}
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         </details>
       )}

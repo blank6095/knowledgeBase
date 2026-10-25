@@ -55,6 +55,7 @@ git remote add origin <你的 GitHub 仓库> && git push -u origin main
 | `DATABASE_URL` | Neon Pooled 连接串 |
 | `AUTH_PASSCODE` | 登录口令（足够长的随机串） |
 | `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | 可选，R2 备份 |
+| `LLM_API_KEY` / `LLM_MODEL` | 可选回退——推荐在应用内「设置」页配置 DeepSeek API Key（存服务端 DB，即存即用），启用 AI 拆解/聚合/问答 |
 
 部署完成后先执行一次建表：`DATABASE_URL=<连接串> npm run db:migrate`。
 
@@ -113,7 +114,9 @@ src/
 ## Roadmap
 
 - [ ] 测验模式：由知识点自动生成选择题/填空题，替代自评
-- [ ] LLM 智能分割：语义级拆分长文，替代标题+段落启发式
+- [x] LLM 语义拆解/聚合（编辑态）：preview → 确认 → apply 两步，RAG 上下文注入，导入默认仍用启发式拆分
+- [x] 应用内设置页（DeepSeek API Key 存服务端 DB）与「问知识库」RAG 问答
+- [ ] LLM 语义分割（导入态）：导入长文时按语义切分并起标题
 - [ ] 更多导入格式（PDF / DOCX / 网页剪藏）
 - [ ] 附件与图片上传到 R2 并在知识点内渲染
 - [ ] 学习热力图与学习统计报表

@@ -8,6 +8,8 @@ import { api, formatDuration } from '@/lib/client';
 import { MEMORY_TIER_META } from '@/components/MemoryBadge';
 import { memoryColor, memoryTier, MEMORY_TIER_LABELS, MEMORY_TIER_ORDER } from '@/lib/memory';
 import { Skeleton } from '@/components/Skeleton';
+import { colorBucketKey, shade } from './color-utils';
+import { drawSprite, getNodeSprite, glowBucket, radiusBucket, type NodePaint } from './node-sprites';
 
 // 力导向图依赖 window，仅浏览器渲染
 const Graph = dynamic(() => import('react-force-graph-2d'), { ssr: false }) as unknown as React.ComponentType<{
@@ -24,6 +26,7 @@ const Graph = dynamic(() => import('react-force-graph-2d'), { ssr: false }) as u
   linkDirectionalArrowRelPos?: number;
   onNodeClick?: (n: never) => void;
   onNodeHover?: (n: never, prev: never) => void;
+  maxZoom?: number;
   ref?: React.RefObject<FGInstance | null>;
 }>;
 
@@ -67,12 +70,12 @@ interface Forces {
 
 /*
  * Canvas 内绘制的色值：canvas API 无法解析 CSS 变量，与 globals.css @theme 同步维护。
- * bg = --color-canvas #0f0d0b｜label = --color-muted #a49b8c｜hoverRing = --color-accent-strong #f2c069
+ * bg = --color-canvas #0f0d0b｜label = --color-muted #a49b8c｜hoverLabel = --color-primary #ece6da
  */
 const CANVAS = {
   bg: '#0f0d0b',
   label: '#a49b8c',
-  hoverRing: '#f2c069',
+  hoverLabel: '#ece6da',
 };
 /** 深底低饱和连线色（不抢节点）：canvas 绘制用，同上同步维护 */
 const KINDS = [
@@ -212,16 +215,41 @@ export default function GraphPage() {
     };
   }, [nodes, links, tierOn, kindOn]);
 
-  if (error) return <p className="text-body text-danger">{error}</p>;
-
-  /** 节点着色：自定义关键词分组优先，其次按记忆度（琥珀灯光梯度） */
-  const resolveColor = (n: GNode) => {
-    for (const g of groups) {
-      const q = g.query.trim().toLowerCase();
-      if (q && n.title.toLowerCase().includes(q)) return g.color;
+  // 节点绘制预计算：分组关键词优先，其次记忆度（琥珀灯光梯度）。
+  // shade/色桶量化只在可见节点或分组变化时重算，绘制帧内零正则解析。
+  const nodePaints = useMemo(() => {
+    const m = new Map<string, NodePaint>();
+    for (const n of graphData.nodes) {
+      let color = memoryColor(n.memory);
+      for (const g of groups) {
+        const q = g.query.trim().toLowerCase();
+        if (q && n.title.toLowerCase().includes(q)) {
+          color = g.color;
+          break;
+        }
+      }
+      m.set(n.id, { bucket: colorBucketKey(color), base: color, hi: shade(color, 0.18), lo: shade(color, -0.22) });
     }
-    return memoryColor(n.memory);
-  };
+    return m;
+  }, [graphData.nodes, groups]);
+
+  // 悬停高度数枢纽（>12 邻接）时，邻接标签只显示按度排序的前 12 个，避免糊屏
+  const labelIds = useMemo(() => {
+    if (!hoverId) return null;
+    const neigh = adjacency.get(hoverId);
+    if (!neigh || neigh.size <= 12) return null;
+    const ranked = graphData.nodes
+      .filter((n) => neigh.has(n.id))
+      .sort((a, b) => (b.degree ?? 0) - (a.degree ?? 0))
+      .slice(0, 12);
+    return new Set(ranked.map((n) => n.id));
+  }, [hoverId, adjacency, graphData.nodes]);
+
+  // 接触悬停节点的连线提亮 / 非接触淡化（按类型预计算，避免逐边逐帧解析与拼串）
+  const liftedLinks = useMemo(() => new Map(KINDS.map((k) => [k.kind, shade(k.color, 0.3)])), []);
+  const dimLinks = useMemo(() => new Map(KINDS.map((k) => [k.kind, `${k.color}20`])), []);
+
+  if (error) return <p className="text-body text-danger">{error}</p>;
 
   const onForce = (patch: Partial<Forces>) => {
     const next = { ...forces, ...patch };
@@ -254,34 +282,33 @@ export default function GraphPage() {
     const inHover = !hoverSet || hoverSet.has(node.id);
     const alpha = (inSearch ? 1 : 0.15) * (inHover ? 1 : 0.15);
 
+    const isHover = hoverId === node.id;
+    const paint = nodePaints.get(node.id);
+    if (!paint) return;
     const r = Math.max(2.2, (1.6 + Math.sqrt(node.degree ?? 0)) * sizeMult);
-    const color = resolveColor(node);
-    ctx.globalAlpha = alpha;
-    // 灯光隐喻：光晕半径∝记忆度，越记得牢的节点晕染越亮
-    ctx.shadowBlur = (2 + 10 * node.memory) * Math.min(1.5, sizeMult);
-    ctx.shadowColor = color;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, 2 * Math.PI);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    if (hoverId === node.id) {
-      ctx.lineWidth = 1.2;
-      ctx.strokeStyle = CANVAS.hoverRing;
-      ctx.stroke();
-    }
+    // 悬停视觉放大 1.15×（命中半径 paintPointerArea 不变）
+    const drawR = isHover ? r * 1.15 : r;
+    // 灯光隐喻：光晕半径∝记忆度；悬停白热加倍
+    const glow = (2 + 10 * node.memory) * Math.min(1.5, sizeMult) * (isHover ? 2 : 1);
 
-    // 节点标签：缩放超过褪色阈值后渐显
-    const labelAlpha = Math.max(0, Math.min(1, (globalScale - fadeThreshold) * 1.6)) * alpha;
+    // 径向渐变光球（中心亮→边缘暗）：离屏 sprite 命中则仅 drawImage
+    const sprite = getNodeSprite(paint, radiusBucket(drawR), glowBucket(glow), isHover);
+    ctx.globalAlpha = alpha;
+    drawSprite(ctx, sprite, x, y);
+
+    // 标签：悬停常显；邻接固定 0.85（高度数枢纽限前 12）；其余按褪色阈值渐显
+    let labelAlpha = Math.max(0, Math.min(1, (globalScale - fadeThreshold) * 1.6)) * alpha;
+    if (isHover) labelAlpha = alpha;
+    else if (hoverId && inHover && (!labelIds || labelIds.has(node.id))) labelAlpha = 0.85;
     if (labelAlpha > 0.02) {
       const fontSize = Math.max(10 / globalScale, 3);
       ctx.globalAlpha = labelAlpha;
       ctx.font = `${fontSize}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillStyle = CANVAS.label;
+      ctx.fillStyle = isHover ? CANVAS.hoverLabel : CANVAS.label;
       const label = node.title.length > 14 ? `${node.title.slice(0, 13)}…` : node.title;
-      ctx.fillText(label, x, y + r + 1);
+      ctx.fillText(label, x, y + drawR + 1);
     }
     ctx.globalAlpha = 1;
   };
@@ -295,11 +322,15 @@ export default function GraphPage() {
   };
 
   const linkColorOf = (l: GLink) => {
-    const base = KINDS.find((k) => k.kind === l.kind)?.color ?? KINDS[2].color;
+    const kindMeta = KINDS.find((k) => k.kind === l.kind);
+    const base = kindMeta?.color ?? KINDS[2].color;
     const [s, t] = ends(l);
     const searchOk = !matchedIds || (matchedIds.has(s) && matchedIds.has(t));
     const hoverOk = !hoverSet || hoverId === s || hoverId === t;
-    return searchOk && hoverOk ? base : `${base}40`;
+    // 非接触（含搜索未命中叠加）：近乎隐没（约 12%）；接触悬停线提亮 30% 并保留 1.8× 粗
+    if (!searchOk || !hoverOk) return (kindMeta && dimLinks.get(l.kind)) || `${base}20`;
+    if (hoverId && (hoverId === s || hoverId === t)) return liftedLinks.get(l.kind) ?? base;
+    return base;
   };
   const linkWidthOf = (l: GLink) => {
     const [s, t] = ends(l);
@@ -525,6 +556,7 @@ export default function GraphPage() {
             width={size.w}
             height={size.h}
             backgroundColor={CANVAS.bg}
+            maxZoom={4}
             nodeLabel={(n) => {
               const d = n as unknown as GNode;
               const tier = MEMORY_TIER_LABELS[memoryTier(d.memory)];

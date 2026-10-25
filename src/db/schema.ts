@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  jsonb,
   pgTable,
   uuid,
   text,
@@ -70,6 +71,31 @@ export const links = pgTable(
   (t) => [uniqueIndex('links_unique').on(t.fromId, t.toId, t.kind)],
 );
 
+/**
+ * 阅读标注：划线与笔记。锚定在知识点（段）的渲染文本上——
+ * quote 为渲染文本引文，occurrence 为段内第几次出现，prefix/suffix 为前后文快照，
+ * 段内容编辑后按 精确 → 前后文模糊 → 失效 三级重定位（见 src/lib/annotations.ts）。
+ */
+export const annotations = pgTable(
+  'annotations',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    segmentId: uuid('segment_id')
+      .notNull()
+      .references(() => segments.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(), // highlight（仅划线） | note（笔记；quote 为空 = 节级笔记）
+    quote: text('quote'),
+    occurrence: integer('occurrence').notNull().default(1),
+    prefix: text('prefix'),
+    suffix: text('suffix'),
+    note: text('note'),
+    color: text('color').notNull().default('amber'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('annotations_segment_idx').on(t.segmentId)],
+);
+
 /** 有效阅读事件流水（单次停留 ≥5 秒才写入，由 view 路由上报） */
 export const readingEvents = pgTable(
   'reading_events',
@@ -83,3 +109,10 @@ export const readingEvents = pgTable(
   },
   (t) => [index('reading_events_segment_idx').on(t.segmentId), index('reading_events_started_idx').on(t.startedAt)],
 );
+
+/** 应用级键值设置（key text pk, value jsonb）：key='llm' 存 {apiKey, model}；API key 只在服务端使用 */
+export const appSettings = pgTable('app_settings', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

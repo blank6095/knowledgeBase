@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { asc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { documents, segments } from '@/db/schema';
-import { guard, isUuid, notFound } from '@/lib/api';
+import { badRequest, guard, isUuid, notFound } from '@/lib/api';
 import { memoryOf } from '@/lib/memory';
 
 
@@ -60,4 +60,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     `db;dur=${(tDb - t0).toFixed(1)}, transform;dur=${(t1 - tDb).toFixed(1)}, total;dur=${(t1 - t0).toFixed(1)}`,
   );
   return res;
+}
+
+/** 编辑文档元信息（标题/标签）。知识点内容编辑见 PATCH /api/segments/[id] */
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await guard(req);
+  if (denied) return denied;
+  const { id } = await params;
+  if (!isUuid(id)) return notFound();
+
+  const body = (await req.json().catch(() => ({}))) as { title?: string; tags?: string[] };
+  const patch: { title?: string; tags?: string[] } = {};
+  if (body.title !== undefined) {
+    const t = body.title.trim();
+    if (!t) return badRequest('标题不能为空');
+    patch.title = t.slice(0, 300);
+  }
+  if (Array.isArray(body.tags)) {
+    patch.tags = body.tags.map((t) => String(t).trim()).filter(Boolean).slice(0, 30);
+  }
+  if (Object.keys(patch).length === 0) return badRequest('没有可更新的字段');
+
+  const [doc] = await db.update(documents).set(patch).where(eq(documents.id, id)).returning();
+  if (!doc) return notFound('文档不存在');
+  return NextResponse.json({ document: doc });
 }

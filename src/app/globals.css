@@ -275,3 +275,29 @@ body::after {
   max-width: 100%;
   border-radius: 8px;
 }
+
+/* ---------- 阅读标注（划线与笔记，注入于渲染 DOM，见 lib/highlight.ts） ---------- */
+mark.hl-mark {
+  background: transparent;
+  color: inherit;
+  border-radius: 2px;
+  padding: 0.05em 0.1em;
+  cursor: pointer;
+}
+mark.hl-mark[data-color='amber'] { background: rgba(232, 176, 75, 0.3); }
+mark.hl-mark[data-color='amberDeep'] { background: rgba(217, 145, 92, 0.34); }
+mark.hl-mark[data-color='neutral'] { background: rgba(164, 155, 140, 0.28); }
+mark.hl-mark.hl-note::after {
+  content: '✎';
+  font-size: 0.7em;
+  vertical-align: super;
+  margin-left: 1px;
+  color: var(--color-accent-strong);
+}
+mark.hl-flash {
+  animation: hl-flash 1.4s ease-out;
+}
+@keyframes hl-flash {
+  0%, 60% { box-shadow: 0 0 0 3px rgba(232, 176, 75, 0.45); }
+  100% { box-shadow: 0 0 0 3px transparent; }
+}

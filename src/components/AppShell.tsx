@@ -35,6 +35,19 @@ const IcGraph = (p: IconProps) => (
     <path d="M7 5h10M6.6 6.5l4.2 10.8M17.4 6.5l-4.2 10.8" />
   </svg>
 );
+const IcAsk = (p: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <path d="M21 12a8.5 8.5 0 0 1-8.5 8.5c-1.3 0-2.6-.28-3.7-.8L3 21l1.3-5.8A8.5 8.5 0 1 1 21 12Z" />
+    <path d="M9.6 9.3a2.5 2.5 0 0 1 4.9.6c0 1.6-2.4 1.9-2.4 3.3" />
+    <circle cx="12" cy="16.2" r="0.2" fill="currentColor" />
+  </svg>
+);
+const IcSettings = (p: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1.03Z" />
+  </svg>
+);
 const IcLogout = (p: IconProps) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -57,6 +70,7 @@ const NAV = [
   { href: '/', label: '概览', icon: IcOverview },
   { href: '/notes', label: '知识库', icon: IcLibrary },
   { href: '/graph', label: '关系图谱', icon: IcGraph },
+  { href: '/ask', label: '问答', icon: IcAsk },
 ] as const;
 
 /**
@@ -108,15 +122,18 @@ function Shell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="flex min-h-screen">
+    <div
+      className="flex min-h-screen"
+      style={{ '--sidebar-w': collapsed ? '3rem' : '15rem' } as React.CSSProperties}
+    >
       {/* 移动端抽屉遮罩 */}
       {drawerOpen && (
         <div className="fixed inset-0 z-30 bg-black/50 md:hidden" onClick={() => setDrawerOpen(false)} />
       )}
 
-      {/* 侧边栏：桌面常驻（可折叠成图标栏），<768px 抽屉 */}
+      {/* 侧边栏：桌面常驻（可折叠成图标栏），<768px 抽屉；md:top-0 使 sticky 真正吸附 */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-line bg-surface transition-[transform,width] duration-200 ease-out md:sticky md:z-20 md:h-screen md:translate-x-0 md:inset-y-auto ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-line bg-surface transition-[transform,width] duration-200 ease-out md:sticky md:top-0 md:z-20 md:h-screen md:translate-x-0 md:inset-y-auto ${
           drawerOpen ? 'translate-x-0' : '-translate-x-full'
         } ${collapsed ? 'md:w-12' : 'md:w-60'}`}
       >
@@ -130,6 +147,17 @@ function Shell({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">{NAV.map((item) => navItem(item))}</nav>
 
         <div className="space-y-0.5 border-t border-line p-2">
+          <Link
+            href="/settings"
+            title={collapsed ? '设置' : undefined}
+            onClick={() => setDrawerOpen(false)}
+            className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-body text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary ${
+              pathname.startsWith('/settings') ? 'text-accent' : ''
+            } ${collapsed ? 'md:justify-center md:px-0' : ''}`}
+          >
+            <IcSettings className="h-4 w-4 shrink-0" />
+            <span className={collapsed ? 'md:hidden' : ''}>设置</span>
+          </Link>
           <button
             onClick={logout}
             title={collapsed ? '退出' : undefined}
