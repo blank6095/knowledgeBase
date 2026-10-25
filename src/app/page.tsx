@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api, formatDate } from '@/lib/client';
 import { MEMORY_TIER_META } from '@/components/MemoryBadge';
-import { MEMORY_TIER_ORDER, type MemoryTier } from '@/lib/memory';
+import { MEMORY_TIER_LABELS, MEMORY_TIER_ORDER, type MemoryTier } from '@/lib/memory';
 
 interface Stats {
   total: number;
@@ -47,7 +47,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="知识点总数" value={stats.total} delay={0} />
         <StatCard label="未读" value={stats.byTier.unread ?? 0} delay={1} />
-        <StatCard label="记忆牢固" value={stats.byTier.strong ?? 0} delay={2} accent />
+        <StatCard label={MEMORY_TIER_LABELS.strong} value={stats.byTier.strong ?? 0} delay={2} accent />
         <StatCard label="今日阅读" value={stats.readToday} delay={3} />
       </div>
 

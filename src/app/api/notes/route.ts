@@ -4,45 +4,56 @@ import { db } from '@/db';
 import { documents, links, segments } from '@/db/schema';
 import { badRequest, guard } from '@/lib/api';
 import { extractInlineTags, extractWikiLinks } from '@/lib/markdown';
-import { memoryOf } from '@/lib/memory';
 import { splitMarkdown } from '@/lib/splitter';
 import { putOriginal } from '@/lib/r2';
 
 
-/** 文档列表（含平均记忆度：memory 读取时现算，故取全量知识点在内存聚合） */
+/** 记忆度 SQL 表达式：与 src/lib/memory.ts memoryOf 公式一致 exp(-Δt天/S)，ε 防除零 */
+const MEMORY_SQL = (stability: typeof segments.stability, lastViewedAt: typeof segments.lastViewedAt) =>
+  sql`exp(-extract(epoch from (now() - ${lastViewedAt})) / 86400.0 / greatest(${stability}, 1e-9))`;
+
+/** 文档列表（含平均记忆度：SQL 聚合下推，按文档分组返回，不拉全表行） */
 export async function GET(req: NextRequest) {
   const denied = await guard(req);
   if (denied) return denied;
 
-  const [docs, segs] = await Promise.all([
+  const t0 = performance.now();
+  const [docs, memAgg] = await Promise.all([
     db.select().from(documents).orderBy(desc(documents.createdAt)),
     db
-      .select({ documentId: segments.documentId, stability: segments.stability, lastViewedAt: segments.lastViewedAt })
-      .from(segments),
+      .select({
+        documentId: segments.documentId,
+        avgMemory: sql<number>`coalesce(avg(
+          case when ${segments.stability} <= 0 or ${segments.lastViewedAt} is null then 0
+          else ${MEMORY_SQL(segments.stability, segments.lastViewedAt)} end
+        ), 0)::float8`,
+      })
+      .from(segments)
+      .groupBy(segments.documentId),
   ]);
+  const tDb = performance.now();
 
-  const memorySum = new Map<string, { sum: number; count: number }>();
-  const now = new Date();
-  for (const s of segs) {
-    const acc = memorySum.get(s.documentId) ?? { sum: 0, count: 0 };
-    acc.sum += memoryOf(s.stability, s.lastViewedAt, now);
-    acc.count += 1;
-    memorySum.set(s.documentId, acc);
-  }
+  const memoryByDoc = new Map(memAgg.map((r) => [r.documentId, r.avgMemory]));
+  const rows = docs.map((d) => ({
+    id: d.id,
+    title: d.title,
+    source: d.source,
+    tags: d.tags,
+    segmentCount: d.segmentCount,
+    createdAt: d.createdAt,
+    avgMemory: memoryByDoc.get(d.id) ?? 0,
+  }));
+  const t1 = performance.now();
+  console.log(
+    `[perf] GET /api/notes db=${(tDb - t0).toFixed(1)}ms transform=${(t1 - tDb).toFixed(1)}ms total=${(t1 - t0).toFixed(1)}ms docRows=${docs.length} aggRows=${memAgg.length}`,
+  );
 
-  const rows = docs.map((d) => {
-    const acc = memorySum.get(d.id);
-    return {
-      id: d.id,
-      title: d.title,
-      source: d.source,
-      tags: d.tags,
-      segmentCount: d.segmentCount,
-      createdAt: d.createdAt,
-      avgMemory: acc && acc.count > 0 ? acc.sum / acc.count : 0,
-    };
-  });
-  return NextResponse.json({ documents: rows });
+  const res = NextResponse.json({ documents: rows });
+  res.headers.set(
+    'Server-Timing',
+    `db;dur=${(tDb - t0).toFixed(1)}, transform;dur=${(t1 - tDb).toFixed(1)}, total;dur=${(t1 - t0).toFixed(1)}`,
+  );
+  return res;
 }
 
 interface ImportBody {
@@ -61,7 +72,7 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as ImportBody;
   const content = (body.content ?? '').trim();
   if (!content) return badRequest('内容为空');
-  const maxChars = Math.min(Math.max(body.maxChars ?? 1200, 300), 4000);
+  const maxChars = Math.min(Math.max(body.maxChars ?? 1800, 300), 4000);
 
   const { fmTitle, fmTags, segments: rawSegments } = splitMarkdown(content, { maxChars });
   if (rawSegments.length === 0) return badRequest('没有识别到有效内容');

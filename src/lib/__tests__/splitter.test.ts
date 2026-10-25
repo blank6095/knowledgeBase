@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { splitMarkdown } from '../splitter';
 
 const doc = (s: string) => s.trim().replace(/\n{8}/g, '\n\n\n\n\n\n\n');
+const norm = (s: string) => s.replace(/\s+/g, '');
+/** 生成指定长度的单句段落（句号收尾，无句中边界） */
+const para = (n: number) => '内容句'.repeat(Math.ceil(n / 3)).slice(0, n - 1) + '。';
 
-describe('splitMarkdown', () => {
+describe('splitMarkdown 基本结构', () => {
   it('按二级标题切分知识点', () => {
     const md = doc(`
 # React 学习笔记
@@ -36,7 +39,7 @@ tags: [数据库, 性能]
   });
 
   it('超长章节按段落组块并标注（续）', () => {
-    const para = '这是一段很长的内容。'.repeat(60); // ~660 字符
+    const para = '这是一段很长的内容。'.repeat(60); // ~600 字符
     const md = `## 长章节\n\n${para}\n\n${para}\n\n${para}`;
     const { segments } = splitMarkdown(md, { maxChars: 800, minChars: 50 });
     expect(segments.length).toBeGreaterThan(1);
@@ -45,7 +48,7 @@ tags: [数据库, 性能]
     segments.forEach((s) => expect(s.content.length).toBeLessThanOrEqual(900));
   });
 
-  it('短小的标题章节保留为独立知识点，不与其他章节合并', () => {
+  it('## 章节保持独立（即使内容很短），不被跨节合并', () => {
     const md = doc(`
 ## 正常章节
 
@@ -80,7 +83,7 @@ tags: [数据库, 性能]
     expect(segments).toHaveLength(1);
   });
 
-  it('headingPath 记录章节路径', () => {
+  it('headingPath 记录到节级；折叠的子标题保留在内容中', () => {
     const md = doc(`
 ## 基础篇
 
@@ -89,12 +92,15 @@ tags: [数据库, 性能]
 B+ 树是数据库索引的常见结构。
 `);
     const { segments } = splitMarkdown(md);
-    expect(segments[0].headingPath).toBe('基础篇 > 索引原理');
+    expect(segments).toHaveLength(1);
+    expect(segments[0].headingPath).toBe('基础篇');
+    expect(segments[0].content).toContain('### 索引原理');
+    expect(segments[0].content).toContain('B+ 树');
   });
 });
 
-describe('结构化拆解', () => {
-  it('### / #### 均独立成块，headingPath 逐级拼接', () => {
+describe('粒度调粗：### / #### 折入父节', () => {
+  it('含多个 ### 的 ## 章节默认产出 1 个知识点，内容含子标题文本', () => {
     const md = doc(`
 ## 传输层
 
@@ -111,12 +117,78 @@ describe('结构化拆解', () => {
 基于 UDP 的可靠传输。
 `);
     const { segments } = splitMarkdown(md);
-    expect(segments.map((s) => s.title)).toEqual(['TCP', 'UDP', 'QUIC']);
-    expect(segments[0].headingPath).toBe('传输层 > TCP');
-    expect(segments[1].headingPath).toBe('传输层 > UDP');
-    expect(segments[2].headingPath).toBe('传输层 > UDP > QUIC');
+    expect(segments).toHaveLength(1);
+    expect(segments[0].title).toBe('传输层');
+    expect(segments[0].headingPath).toBe('传输层');
+    expect(segments[0].content).toContain('### TCP');
+    expect(segments[0].content).toContain('面向连接。');
+    expect(segments[0].content).toContain('### UDP');
+    expect(segments[0].content).toContain('#### QUIC');
+    expect(segments[0].content).toContain('基于 UDP 的可靠传输。');
   });
 
+  it('章节超 maxChars 时在 ### 边界二次拆分：标题与 headingPath 落到拆分段', () => {
+    const md = [
+      '## 传输层',
+      '',
+      para(400),
+      '',
+      '### TCP',
+      '',
+      para(400),
+      '',
+      '### UDP',
+      '',
+      para(150), // 短小节
+      '',
+      '### QUIC',
+      '',
+      para(400),
+    ].join('\n');
+    const { segments } = splitMarkdown(md, { maxChars: 600 });
+    expect(segments.map((s) => s.title)).toEqual(['传输层', 'TCP', 'QUIC']);
+    expect(segments[1].headingPath).toBe('传输层 > TCP');
+    expect(segments[2].headingPath).toBe('传输层 > QUIC');
+    // 拆分边界在子标题处：段内容以 ### 标题行开头
+    expect(segments[1].content.startsWith('### TCP')).toBe(true);
+    expect(segments[2].content.startsWith('### QUIC')).toBe(true);
+    // 短小节 UDP（<300）并入前一拆分段，不独立成段
+    expect(segments[1].content).toContain('### UDP');
+    expect(segments.filter((s) => s.title === 'UDP')).toHaveLength(0);
+  });
+
+  it('二次拆分后内容不丢失（含折叠的子标题行）', () => {
+    const a = para(400);
+    const b = para(400);
+    const c = para(150);
+    const d = para(400);
+    const md = ['## 传输层', '', a, '', '### TCP', '', b, '', '### UDP', '', c, '', '### QUIC', '', d].join('\n');
+    const { segments } = splitMarkdown(md, { maxChars: 600 });
+    const original = norm([a, '### TCP', b, '### UDP', c, '### QUIC', d].join(''));
+    expect(norm(segments.map((s) => s.content).join(''))).toBe(original);
+  });
+
+  it('折叠单段情形下内容不丢失（导语、子标题、深层标题均在）', () => {
+    const md = doc(`
+## 传输层
+
+引言一段。
+
+### TCP
+
+面向连接。
+
+#### QUIC
+
+基于 UDP。
+`);
+    const { segments } = splitMarkdown(md);
+    const original = norm(['引言一段。', '### TCP', '面向连接。', '#### QUIC', '基于 UDP。'].join(''));
+    expect(norm(segments.map((s) => s.content).join(''))).toBe(original);
+  });
+});
+
+describe('结构化拆解', () => {
   it('2000+ 字无标题单段按句子边界拆分，无句中截断', () => {
     const sentence = (i: number) => `这是第${i}句用来检验句子边界拆分行为的内容，长度适中。`;
     const text = Array.from({ length: 100 }, (_, i) => sentence(i + 1)).join('');
@@ -171,7 +243,6 @@ const b = 2;
     ];
     const md = `## A\n\n${parts[0]}\n\n## B\n\n${parts[1]}\n\n${parts[2]}\n\n${parts[3]}`;
     const { segments } = splitMarkdown(md, { maxChars: 120 });
-    const norm = (s: string) => s.replace(/\s+/g, '');
     expect(norm(segments.map((s) => s.content).join(''))).toBe(norm(parts.join('')));
   });
 });

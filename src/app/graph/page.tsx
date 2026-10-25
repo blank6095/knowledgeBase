@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, formatDuration } from '@/lib/client';
 import { MEMORY_TIER_META } from '@/components/MemoryBadge';
-import { memoryColor, memoryTier, MEMORY_TIER_ORDER } from '@/lib/memory';
+import { memoryColor, memoryTier, MEMORY_TIER_LABELS, MEMORY_TIER_ORDER } from '@/lib/memory';
 import { Skeleton } from '@/components/Skeleton';
 
 // 力导向图依赖 window，仅浏览器渲染
@@ -328,10 +328,9 @@ export default function GraphPage() {
           style={{ background: `linear-gradient(to right, ${memoryColor(0.05)}, ${memoryColor(0.5)}, ${memoryColor(1)})` }}
         />
         <span className="flex items-center gap-1">
-          强
+          {MEMORY_TIER_LABELS.strong}
           <i className="h-2.5 w-2.5 rounded-full" style={{ background: memoryColor(1) }} />
-        </span>
-      </div>
+        </span>      </div>
       <button
         onClick={() => setPanelOpen((o) => !o)}
         aria-label="关系图谱设置"
@@ -528,10 +527,11 @@ export default function GraphPage() {
             backgroundColor={CANVAS.bg}
             nodeLabel={(n) => {
               const d = n as unknown as GNode;
+              const tier = MEMORY_TIER_LABELS[memoryTier(d.memory)];
               return `<div style="max-width:280px;padding:6px 9px;background:var(--color-elevated);color:var(--color-primary);border:1px solid var(--color-line-strong);border-radius:6px;font:13px var(--font-geist-sans),sans-serif">
                 <b>${d.title}</b><br/>
                 <span style="color:var(--color-faint)">${d.documentTitle ?? ''}</span><br/>
-                <span style="font-family:var(--font-geist-mono),monospace">记忆 ${Math.round(d.memory * 100)}% · 阅读 ${d.viewCount} 次 · 累计 ${formatDuration(d.readingMs)}</span>
+                <span style="font-family:var(--font-geist-mono),monospace">${tier} · 阅读 ${d.viewCount} 次 · 累计 ${formatDuration(d.readingMs)}</span>
               </div>`;
             }}
             nodeCanvasObject={(n, ctx, gs) => drawNode(n as unknown as GNode, ctx, gs)}

@@ -38,6 +38,14 @@ export const TIER_THRESHOLDS = { strong: 0.75, medium: 0.4 } as const;
 
 export const MEMORY_TIER_ORDER: MemoryTier[] = ['unread', 'weak', 'medium', 'strong'];
 
+/** 档位中文名（灯光隐喻：未读/微光/明亮/长明），去数字化呈现统一取用 */
+export const MEMORY_TIER_LABELS: Record<MemoryTier, string> = {
+  unread: '未读',
+  weak: '微光',
+  medium: '明亮',
+  strong: '长明',
+};
+
 /** 档位色点（琥珀灯光梯度，未读=熄灭的灰） */
 export const MEMORY_TIER_DOTS: Record<MemoryTier, string> = {
   unread: '#55504a',

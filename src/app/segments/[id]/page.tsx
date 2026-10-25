@@ -5,9 +5,8 @@ import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { api, formatDate, formatDuration } from '@/lib/client';
-import MemoryBadge from '@/components/MemoryBadge';
-import { memoryColor } from '@/lib/memory';
+import { api, formatDuration } from '@/lib/client';
+import { MEMORY_TIER_LABELS, memoryColor, memoryTier } from '@/lib/memory';
 import { Skeleton } from '@/components/Skeleton';
 
 interface SegmentDetail {
@@ -23,7 +22,6 @@ interface SegmentDetail {
     stability: number;
     readingMs: number;
     memory: number;
-    halfLifeDays: number;
   };
   document: { id: string; title: string } | null;
   neighbors: { id: string; title: string; memory: number }[];
@@ -108,29 +106,24 @@ export default function SegmentPage() {
   if (error) return <p className="text-body text-danger">{error}</p>;
   if (!data)
     return (
-      <div className="mx-auto max-w-3xl space-y-4" role="status" aria-label="加载中">
+      <div className="mx-auto max-w-[42rem] space-y-4" role="status" aria-label="加载中">
         <Skeleton className="h-4 w-24" />
         <Skeleton className="h-8 w-2/3" />
-        <div className="card px-5 py-6">
-          {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className={`mb-3 h-4 ${i === 4 ? 'w-1/2' : 'w-full'}`} />
+        <div className="card px-6 py-8">
+          {Array.from({ length: 6 }, (_, i) => (
+            <Skeleton key={i} className={`mb-4 h-4 ${i === 5 ? 'w-1/2' : 'w-full'}`} />
           ))}
-        </div>
-        <div className="card px-4 py-3">
-          <div className="skeleton h-3 w-16" />
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {Array.from({ length: 5 }, (_, i) => (
-              <div key={i} className="skeleton h-4 w-20" />
-            ))}
-          </div>
         </div>
       </div>
     );
 
   const s = data.segment;
+  const tier = MEMORY_TIER_LABELS[memoryTier(s.memory)];
+  const lampColor = memoryColor(s.memory);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="mx-auto max-w-[42rem]">
+      {/* 正文优先：精简标题区（面包屑 + 衬线标题 + 单枚灯点） */}
       <div className="fade-up">
         <Link
           href={`/notes/${data.document?.id ?? ''}`}
@@ -138,91 +131,88 @@ export default function SegmentPage() {
         >
           ← {data.document?.title ?? '文档'}
         </Link>
-        <div className="mt-2 flex flex-wrap items-center gap-2.5">
+        <div className="mt-2 flex items-center gap-2.5">
           <h1 className="font-display text-subtitle font-semibold">{s.title}</h1>
-          <MemoryBadge memory={s.memory} />
+          <span
+            role="img"
+            aria-label={`记忆程度：${tier}`}
+            title={tier}
+            className="inline-flex h-2 w-2 shrink-0 items-center justify-center"
+          >
+            <span className="h-2 w-2 rounded-full" style={{ background: lampColor, boxShadow: `0 0 6px 1px ${lampColor}` }} />
+          </span>
         </div>
         {s.headingPath && s.headingPath !== s.title && (
           <p className="mt-1 text-tag text-faint">{s.headingPath}</p>
         )}
-        {s.tags.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {s.tags.map((t) => (
-              <span key={t} className="rounded bg-surface-hover px-1.5 py-0.5 text-tag text-muted">#{t}</span>
-            ))}
-          </div>
-        )}
       </div>
 
-      <article className="card fade-up px-5 py-4" style={{ animationDelay: '80ms' }}>
+      <article className="card fade-up mt-4 px-6 py-5" style={{ animationDelay: '80ms' }}>
         <div className="md-body">
           <Markdown remarkPlugins={[remarkGfm]}>{s.content}</Markdown>
         </div>
       </article>
 
-      <div className="card fade-up px-4 py-3" style={{ animationDelay: '160ms' }}>
-        <h2 className="mb-3 text-tag uppercase text-muted">记忆状态</h2>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
-          <Row k="记忆度">
-            <div className="flex items-center justify-end gap-2">
-              <div className="h-1 w-16 overflow-hidden rounded-full bg-surface-hover">
-                <div
-                  className="h-full rounded-full transition-[width] duration-500"
-                  style={{ width: `${Math.round(s.memory * 100)}%`, background: memoryColor(s.memory) }}
-                />
+      {/* 记忆状态：页脚一行（灯点 + 档位名 + 客观数字），无卡片无进度条 */}
+      <p className="fade-up mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-minor text-muted" style={{ animationDelay: '160ms' }}>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full" style={{ background: lampColor, boxShadow: `0 0 6px 1px ${lampColor}` }} />
+          {tier}
+        </span>
+        <span className="text-faint">·</span>
+        <span>
+          阅读 <span className="font-mono tabular-nums">{s.viewCount}</span> 次
+        </span>
+        <span className="text-faint">·</span>
+        <span>
+          累计 <span className="font-mono tabular-nums">{formatDuration(s.readingMs)}</span>
+        </span>
+      </p>
+
+      {/* 相关知识点与标签：折叠区，默认收起 */}
+      {(data.neighbors.length > 0 || s.tags.length > 0) && (
+        <details className="group/rel fade-up mt-4" style={{ animationDelay: '240ms' }}>
+          <summary className="cursor-pointer list-none px-1 text-tag uppercase text-faint transition-colors hover:text-muted">
+            相关知识点与标签
+            <span className="ml-1 inline-block transition-transform duration-200 group-open/rel:rotate-90">▸</span>
+          </summary>
+          <div className="card mt-2 px-4 py-3">
+            {s.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 border-b border-line pb-3">
+                {s.tags.map((t) => (
+                  <span key={t} className="rounded bg-surface-hover px-1.5 py-0.5 text-tag text-muted">#{t}</span>
+                ))}
               </div>
-              <span className="font-mono text-body tabular-nums">{Math.round(s.memory * 100)}%</span>
-            </div>
-          </Row>
-          <Row k="半衰期">
-            <span title="记忆曲线稳定度 S×ln2" className="text-minor">
-              {s.stability > 0 ? `预计 ${formatHalfLife(s.halfLifeDays)}后忘一半` : '—'}
-            </span>
-          </Row>
-          <Row k="阅读次数">
-            <span className="font-mono tabular-nums">{s.viewCount}</span> 次
-          </Row>
-          <Row k="累计时长">
-            <span className="font-mono tabular-nums">{formatDuration(s.readingMs)}</span>
-          </Row>
-          <Row k="最近阅读">
-            <span className="font-mono tabular-nums">{formatDate(s.lastViewedAt)}</span>
-          </Row>
-        </dl>
-      </div>
-
-      {data.neighbors.length > 0 && (
-        <section className="card fade-up px-4 py-3" style={{ animationDelay: '240ms' }}>
-          <h2 className="mb-2 text-tag uppercase text-muted">相关知识点</h2>
-          <ul className="space-y-1.5">
-            {data.neighbors.map((n) => (
-              <li key={n.id}>
-                <Link
-                  href={`/segments/${n.id}`}
-                  className="group flex items-center justify-between gap-3 text-body transition-colors duration-150 hover:text-accent"
-                >
-                  <span className="min-w-0 flex-1 truncate">{n.title}</span>
-                  <MemoryBadge memory={n.memory} />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
+            )}
+            {data.neighbors.length > 0 && (
+              <ul className={s.tags.length > 0 ? 'space-y-1.5 pt-3' : 'space-y-1.5'}>
+                {data.neighbors.map((n) => {
+                  const nColor = memoryColor(n.memory);
+                  const nTier = MEMORY_TIER_LABELS[memoryTier(n.memory)];
+                  return (
+                    <li key={n.id}>
+                      <Link
+                        href={`/segments/${n.id}`}
+                        className="group flex items-center justify-between gap-3 text-body transition-colors duration-150 hover:text-accent"
+                      >
+                        <span className="min-w-0 flex-1 truncate">{n.title}</span>
+                        <span
+                          role="img"
+                          aria-label={`记忆程度：${nTier}`}
+                          title={nTier}
+                          className="inline-flex h-2 w-2 shrink-0 items-center justify-center"
+                        >
+                          <span className="h-2 w-2 rounded-full" style={{ background: nColor, boxShadow: `0 0 6px 1px ${nColor}` }} />
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </details>
       )}
-    </div>
-  );
-}
-
-function formatHalfLife(days: number): string {
-  if (days < 1) return `${Math.max(1, Math.round(days * 24))} 小时`;
-  return `${Math.round(days)} 天`;
-}
-
-function Row({ k, children }: { k: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <dt className="text-tag text-muted">{k}</dt>
-      <dd className="text-right text-body text-primary">{children}</dd>
     </div>
   );
 }

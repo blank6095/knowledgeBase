@@ -12,8 +12,8 @@ interface ImportResult {
 
 const GRANULARITY = [
   { label: '粗', value: 2400 },
-  { label: '中', value: 1200 },
-  { label: '细', value: 600 },
+  { label: '标准', value: 1800 },
+  { label: '细', value: 1200 },
 ] as const;
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -24,7 +24,7 @@ export default function ImportPage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [filename, setFilename] = useState('');
-  const [maxChars, setMaxChars] = useState(1200);
+  const [maxChars, setMaxChars] = useState(1800);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -120,7 +120,7 @@ export default function ImportPage() {
             ))}
           </div>
           <p className="mt-2 text-tag text-faint">
-            按标题层级优先拆解，超长内容降级到句子边界，代码块与表格始终保持完整。粗 ≈ 2400 字 · 中 ≈ 1200 字 · 细 ≈ 600 字
+            ## 章节为一个阅读单元（### 并入父节，超长才拆）。按标题层级优先拆解，超长内容降级到句子边界，代码块与表格始终保持完整。粗 ≈ 2400 字 · 标准 ≈ 1800 字 · 细 ≈ 1200 字
           </p>
         </section>
 

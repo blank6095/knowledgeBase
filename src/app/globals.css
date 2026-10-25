@@ -52,6 +52,13 @@ html {
   color-scheme: dark;
 }
 
+/* 锚点跳转平滑滚动；减少动态效果时直跳 */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 body {
   background: var(--color-app);
   color: var(--color-primary);

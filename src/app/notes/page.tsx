@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { api, formatDate } from '@/lib/client';
-import { memoryColor } from '@/lib/memory';
+import MemoryBadge from '@/components/MemoryBadge';
 import { Skeleton } from '@/components/Skeleton';
 
 interface DocRow {
@@ -104,15 +104,9 @@ export default function NotesPage() {
                     </span>
                   )}
                 </div>
-                {/* mono 元数据列 + 记忆微条 */}
+                {/* mono 元数据列 + 记忆灯点 */}
                 <div className="flex shrink-0 items-center gap-3 font-mono text-tag tabular-nums text-muted">
-                  <span className="h-1 w-14 overflow-hidden rounded-full bg-surface-hover" title={`平均记忆 ${Math.round((d.avgMemory ?? 0) * 100)}%`}>
-                    <span
-                      className="block h-full rounded-full transition-[width] duration-500"
-                      style={{ width: `${Math.round((d.avgMemory ?? 0) * 100)}%`, background: memoryColor(d.avgMemory ?? 0) }}
-                    />
-                  </span>
-                  <span className="w-16 whitespace-nowrap text-right">记忆 {Math.round((d.avgMemory ?? 0) * 100)}%</span>
+                  <MemoryBadge memory={d.avgMemory ?? 0} />
                   <span className="w-10 whitespace-nowrap text-right">{d.segmentCount} 点</span>
                   <span className="hidden sm:inline">{formatDate(d.createdAt)}</span>
                 </div>
