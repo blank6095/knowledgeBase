@@ -1,29 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createHash } from 'node:crypto';
+import { eq, inArray, sql } from 'drizzle-orm';
+import { db } from '@/db';
+import { documents, segments } from '@/db/schema';
 import { badRequest, guard } from '@/lib/api';
-import { chatCompletionStream, resolveLlmStatus, type ChatMessage } from '@/lib/llm';
-import { adviceCandidates, retrieveByQuery } from '@/lib/rag';
+import { chatCompletionStream, extractJson, resolveLlmStatus, type ChatMessage, type ToolCallRef } from '@/lib/llm';
+import { retrieveByQuery } from '@/lib/rag';
 import { deriveLearnerProfileCached, getLearnerDeclaration, profileToPromptBlock } from '@/lib/learner-profile';
-import { cacheKey, getCachedOutput, saveCachedOutput } from '@/lib/llm-cache';
+import { buildKbOverview } from '@/lib/kb-overview';
+import { AGENT_TOOLS, mergeToolCallDelta, validateActions, type AgentAction } from '@/lib/agent-tools';
 import { logLlmCall } from '@/lib/llm-calls';
 
 /**
- * 建议类意图：预设按钮显式携带 advice:true（可靠路径），自由输入靠正则兜底。
- * 正则覆盖学习规划/盘点类词汇——这类问题问的是"我的状态"，关键词检索必然落空。
+ * 知识库助手 Agent（v15 范式替换：检索式问答 → 自主决定何时检索的对话 Agent）。
+ *
+ * - 常驻上下文：知识库概览块（kb-overview ≤600 字）+ 学习者画像块（≤400 字）每轮注入 system；
+ * - 工具集（服务端执行，OpenAI tools）：search_knowledge / read_segment / propose_actions。
+ *   propose_actions 只提议不执行——LLM 输出永不直接写库，由前端确认卡走 v10 端点；
+ * - 循环上限 3 轮工具调用，超限直答收尾；每轮写 llm_calls(kind='ask-agent')；
+ * - 多轮对话：客户端携 history（≤10 条），服务端无状态；
+ * - 本版移除：ask 缓存（多轮+工具下 fingerprint 语义不成立，成本由 llm_calls 观测）、
+ *   ADVICE_RE/advice 路由与教练 prompt、材料不足死胡同文案（Agent 凭常驻上下文如实回答取代）；
+ * - Step 0 说明：deepseek-v4-flash 的 function calling 未实测（本环境无 API Key 无法验证）；
+ *   若上游对 tools 参数返回 400，自动降级为无工具直答（mode:'agent-notools'），行为不中断。
  */
-const ADVICE_RE = /推荐|建议|接下来|下一步|学什么|复习|先学|先看|规划|顺序|薄弱|优先|哪篇|哪部|哪本|哪节|未读|没读|几篇|多少篇|多少个|盘点|梳理一下/;
 
-/** 上下文预算（L2-1）：材料优先、画像其次，超出裁剪，防 prompt 膨胀 */
-const SNIPPET_MAX = 160;
-const CONTEXT_CHAR_BUDGET = 3600;
-const PROFILE_CHAR_BUDGET = 400;
-/** ask 结果缓存 TTL（L2-2）：画像不参与 key（单用户取舍，与 preview 缓存口径一致） */
-const ASK_TTL_HOURS = 24;
+const MAX_TOOL_ROUNDS = 3;
+const HISTORY_LIMIT = 10;
 
-interface AskCached {
-  answer: string;
-  sources: { segmentId: string; title: string }[];
+interface SourceItem {
+  segmentId: string;
+  title: string;
 }
+
+type EnrichedAction = AgentAction & {
+  current?: { title?: string; tags?: string[]; contentPreview?: string };
+};
 
 const sseHeaders = {
   'Content-Type': 'text/event-stream; charset=utf-8',
@@ -35,12 +46,14 @@ function sse(payload: unknown): string {
   return `data: ${JSON.stringify(payload)}\n\n`;
 }
 
-/**
- * 问知识库（流式）：retrieveByQuery(top 6) 取材料 → 约束式 prompt → SSE 逐字返回，
- * 末包附来源与缓存标记。注入学习者画像；建议类问题切换为教练模式。
- * 命中 ask 缓存（query+材料指纹+声明文本，24h）直接秒回，不调模型。
- * 库内无相关内容且非建议类：不调模型，返回 JSON 明确告知（杜绝编造）。
- */
+function parseArgs(raw: string): Record<string, unknown> {
+  try {
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return extractJson<Record<string, unknown>>(raw);
+  }
+}
+
 export async function POST(req: NextRequest) {
   const denied = await guard(req);
   if (denied) return denied;
@@ -49,123 +62,104 @@ export async function POST(req: NextRequest) {
   if (!status.ok) {
     return NextResponse.json({ error: status.hint }, { status: 503 });
   }
-  const model = status.config.model;
 
-  const body = (await req.json().catch(() => ({}))) as { query?: unknown; advice?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { query?: unknown; history?: unknown };
   const query = typeof body.query === 'string' ? body.query.trim().slice(0, 500) : '';
   if (!query) return badRequest('请输入问题');
+  const history: ChatMessage[] = Array.isArray(body.history)
+    ? body.history
+        .filter(
+          (m): m is { role: 'user' | 'assistant'; content: string } =>
+            !!m &&
+            typeof m === 'object' &&
+            (m.role === 'user' || m.role === 'assistant') &&
+            typeof m.content === 'string',
+        )
+        .slice(-HISTORY_LIMIT)
+        .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }))
+    : [];
 
-  // 预设快捷问题显式携带 advice:true；自由输入由正则兜底识别
-  const isAdvice = body.advice === true || ADVICE_RE.test(query);
-
-  const [profile, declaration] = await Promise.all([
-    deriveLearnerProfileCached().catch(() => null),
-    getLearnerDeclaration().catch(() => ''),
-  ]);
-
-  let materials = await retrieveByQuery(query, 6);
-  // 教练模式检索落空（如"还有 N 篇未读，先看哪个"）：改用薄弱/未读×中心性候选，
-  // 保证教练拿到具体可推荐的标题，而不是凭画像空谈
-  if (isAdvice && materials.length === 0) {
-    materials = await adviceCandidates(6).catch(() => []);
-  }
-
-  // 纯问答检索落空：不调模型。库非空时不得误劝"去导入"（预设问题就是证据）
-  if (materials.length === 0 && !isAdvice) {
-    const total = profile?.totalSegments ?? 0;
+  // 空库静态早退：导入引导（Agent 无从答起，不调模型）
+  const [{ total }] = await db.select({ total: sql<number>`count(*)::int` }).from(segments);
+  if (total === 0) {
     return NextResponse.json({
       answer:
-        total > 0
-          ? `没有检索到与「${query.slice(0, 30)}」直接相关的内容（当前检索基于关键词与标签）。可以换个问法，或点上方快捷问题让我基于你的学习状态给建议。`
-          : '知识库还是空的，暂时没有可问答的内容。先到「知识库」导入一篇笔记，读过的内容会自动成为回答的依据。',
+        '知识库还是空的——先到「导入」页放入第一篇 Markdown，我才能基于你的内容问答、帮你整理段落。\n\n导入后可以问我「你能帮我做什么」，或直接让我改标题、拆段落。',
       sources: [],
+      mode: 'agent',
     });
   }
-  const profileBlock = profileToPromptBlock(profile, declaration).slice(0, PROFILE_CHAR_BUDGET);
 
-  // L2-1：逐条裁剪材料摘要，总量不超预算（材料优先）
-  let used = 0;
-  const trimmed = materials.map((m) => {
-    const snippet = m.snippet.slice(0, SNIPPET_MAX);
-    used += snippet.length + m.title.length + 8;
-    return { ...m, snippet };
-  });
-  while (used > CONTEXT_CHAR_BUDGET && trimmed.length > 1) {
-    const drop = trimmed.pop()!;
-    used -= drop.snippet.length + drop.title.length + 8;
-  }
+  // 常驻上下文两块（任一失败置空串，不阻断）
+  const [overviewBlock, profileBlock] = await Promise.all([
+    buildKbOverview().catch(() => ''),
+    (async () =>
+      profileToPromptBlock(
+        await deriveLearnerProfileCached().catch(() => null),
+        await getLearnerDeclaration().catch(() => ''),
+      ))().catch(() => ''),
+  ]);
 
-  const context = trimmed
-    .map((m, i) => `【材料 ${i + 1}】《${m.title}》\n${m.snippet}`)
-    .join('\n\n');
-  const sources = trimmed.map((m) => ({ segmentId: m.segmentId, title: m.title }));
+  const system = [
+    '你是个人知识库「暗夜书房」的助手，常驻了解下面的知识库概览与学习者画像。',
+    overviewBlock,
+    profileBlock,
+    '',
+    '行为规则：',
+    '1. 凭上下文能答的直接答；需要库内具体细节（某知识点全文、精确表述）时，先调 search_knowledge / read_segment 再回答；',
+    '2. 管理类请求（改标题/内容/标签、删除知识点、插入知识点、改文档信息）必须通过 propose_actions 提议，并在回答中逐项说明将要改什么；segmentId/documentId 只能来自工具返回，绝不虚构；',
+    '3. 知识库中不存在的内容要如实说明，可从概览给出最接近的主题，不得编造；',
+    '4. 回答用简洁中文 Markdown；引用了某知识点时可附《标题》。',
+  ].join('\n');
 
-  let system: string;
-  if (isAdvice) {
-    system = [
-      '你是个人知识库「暗夜书房」的学习教练。学习者的问题是：' + query,
-      '',
-      profileBlock ? '学习者画像：\n' + profileBlock : '（暂无学习者画像数据。）',
-      '',
-      '知识库检索到的相关材料（供参考，可与画像结合）：',
-      context || '（无直接相关材料）',
-      '',
-      '任务：结合学习者画像（记忆薄弱点、未读主题、阅读节奏）与材料，给出具体的下一步学习建议。',
-      '要求：1) 建议要可执行（指明先看哪个主题/知识点、为什么）；2) 引用材料或画像时可标注（来源 n）；',
-      '3) 信息不足时明确说明依据的是画像推断还是库内材料，不得编造库中不存在的内容。',
-    ].join('\n');
-  } else {
-    system = [
-      '你是个人知识库「暗夜书房」的问答助手。回答规则：',
-      '1. 仅基于下面给定的知识库材料回答，不得使用材料之外的知识，不得编造；',
-      '2. 材料不足以完整回答问题时，明确说明材料中只有哪些相关信息、缺什么，不要强行下结论；',
-      '3. 用 Markdown 简洁作答（可列表），语气与知识库一致；引用了某段材料可在句末标注（来源 n）。',
-      profileBlock ? '\n' + profileBlock + '\n（回答时兼顾学习者水平：对其记忆薄弱的主题，术语首次出现可附一句简要解释。）' : '',
-      '',
-      '知识库材料：',
-      context,
-    ].join('\n');
-  }
-  const messages: ChatMessage[] = [
-    { role: 'system', content: system },
-    { role: 'user', content: query },
-  ];
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
 
-  // L2-2 ask 缓存：query + 材料指纹 + 声明文本 + 模式 → 命中秒回（记 cached 一行流水）
-  const fingerprint = createHash('sha256')
-    .update([query, isAdvice ? 'advice' : 'qa', declaration, sources.map((s) => `${s.segmentId}|${s.title}`).join(',')].join('\u0000'))
-    .digest('hex');
-  const key = cacheKey('ask', model, fingerprint);
-  const cached = await getCachedOutput<AskCached>(key).catch(() => null);
-  if (cached?.answer) {
-    await logLlmCall({ kind: 'ask', model, cached: true });
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode(sse({ delta: cached.answer })));
-        controller.enqueue(
-          new TextEncoder().encode(sse({ done: true, sources: cached.sources ?? [], cached: true, adviceMode: isAdvice })),
-        );
-        controller.close();
-      },
-    });
-    return new Response(stream, { headers: sseHeaders });
-  }
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (payload: unknown) => controller.enqueue(encoder.encode(sse(payload)));
+      const messages: ChatMessage[] = [{ role: 'system', content: system }, ...history, { role: 'user', content: query }];
 
-  // 流式调用：逐 delta 转发，末包带来源；成功后写缓存与流水
-  const started = Date.now();
-  try {
-    const handle = await chatCompletionStream(messages, { kind: 'ask', maxTokens: 2048 });
-    const upstream = handle.response;
-    const decoder = new TextDecoder();
-    const encoder = new TextEncoder();
+      const sources: SourceItem[] = [];
+      const seenSources = new Set<string>();
+      let proposed: AgentAction[] = [];
+      let degraded = false; // 上游不支持 tools → 无工具直答
+      let finalAnswer = '';
 
-    const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        let answer = '';
-        let inTok = 0;
-        let outTok = 0;
-        try {
-          const reader = upstream.body!.getReader();
+      try {
+        for (let iter = 0; iter <= MAX_TOOL_ROUNDS + 1; iter++) {
+          const allowTools = !degraded && iter < MAX_TOOL_ROUNDS;
+          const started = Date.now();
+          let handle: Awaited<ReturnType<typeof chatCompletionStream>>;
+          try {
+            handle = await chatCompletionStream(messages, {
+              kind: 'ask-agent',
+              maxTokens: 2048,
+              ...(allowTools ? { tools: AGENT_TOOLS as unknown as unknown[] } : {}),
+            });
+          } catch (e) {
+            const err = e as { status?: number; message: string };
+            // Step 0 降级：上游对 tools 参数报 400（不支持 function calling）→ 去掉 tools 重试本轮
+            if (err.status === 400 && allowTools) {
+              degraded = true;
+              await logLlmCall({
+                kind: 'ask-agent',
+                model: status.config.model,
+                ms: Date.now() - started,
+                error: `tools 不可用，降级直答：${err.message.slice(0, 120)}`,
+              });
+              iter--;
+              continue;
+            }
+            throw e;
+          }
+
+          // 解析上游 SSE：转发 content delta、累积 tool_call 分片、捕获 usage
+          let acc = '';
+          const calls = new Map<number, { id: string; name: string; args: string }>();
+          let inTok = 0;
+          let outTok = 0;
+          const reader = handle.response.body!.getReader();
           let buf = '';
           for (;;) {
             const { done, value } = await reader.read();
@@ -179,7 +173,12 @@ export async function POST(req: NextRequest) {
               const data = t.slice(5).trim();
               if (data === '[DONE]') continue;
               let payload: {
-                choices?: { delta?: { content?: string } }[];
+                choices?: {
+                  delta?: {
+                    content?: string;
+                    tool_calls?: { index?: number; id?: string; function?: { name?: string; arguments?: string } }[];
+                  };
+                }[];
                 usage?: { prompt_tokens?: number; completion_tokens?: number };
               };
               try {
@@ -187,35 +186,183 @@ export async function POST(req: NextRequest) {
               } catch {
                 continue;
               }
-              const delta = payload.choices?.[0]?.delta?.content;
-              if (typeof delta === 'string' && delta) {
-                answer += delta;
-                controller.enqueue(encoder.encode(sse({ delta })));
+              const delta = payload.choices?.[0]?.delta;
+              if (typeof delta?.content === 'string' && delta.content) {
+                acc += delta.content;
+                send({ delta: delta.content });
               }
+              for (const tc of delta?.tool_calls ?? []) mergeToolCallDelta(calls, tc);
               if (payload.usage) {
                 inTok = payload.usage.prompt_tokens ?? inTok;
                 outTok = payload.usage.completion_tokens ?? outTok;
               }
             }
           }
-          if (!answer.trim()) throw new Error('大模型流式返回为空');
-          await saveCachedOutput(key, 'ask', model, { answer, sources }, new Date(Date.now() + ASK_TTL_HOURS * 3600_000)).catch(() => {});
-          await logLlmCall({ kind: 'ask', model, inTok, outTok, ms: Date.now() - started });
-          controller.enqueue(encoder.encode(sse({ done: true, sources, cached: false, adviceMode: isAdvice })));
-        } catch (e) {
-          await logLlmCall({ kind: 'ask', model, ms: Date.now() - started, error: e instanceof Error ? e.message : String(e) });
-          controller.enqueue(encoder.encode(sse({ error: e instanceof Error ? e.message : '流式生成失败' })));
-        } finally {
           handle.release();
-          controller.close();
+          await logLlmCall({ kind: 'ask-agent', model: handle.model, inTok, outTok, ms: Date.now() - started });
+
+          const toolCalls: ToolCallRef[] = [...calls.values()]
+            .filter((c) => c.name)
+            .map((c) => ({
+              id: c.id || `call_${Math.random().toString(36).slice(2)}`,
+              type: 'function' as const,
+              function: { name: c.name, arguments: c.args || '{}' },
+            }));
+
+          if (toolCalls.length === 0) {
+            finalAnswer = acc;
+            break;
+          }
+
+          // 工具轮：执行并回填（OpenAI 要求每个 tool_call 都有 tool 消息响应）
+          messages.push({ role: 'assistant', content: acc, tool_calls: toolCalls });
+          for (const call of toolCalls) {
+            let resultText: string;
+            try {
+              resultText = await executeTool(call.function.name, parseArgs(call.function.arguments), {
+                send,
+                sources,
+                seenSources,
+                onPropose: (actions) => {
+                  proposed = actions;
+                },
+              });
+            } catch (e) {
+              resultText = `工具执行失败：${e instanceof Error ? e.message : String(e)}（请基于已有信息回答，不要虚构）`;
+            }
+            messages.push({ role: 'tool', tool_call_id: call.id, content: resultText });
+          }
         }
-      },
-    });
-    return new Response(stream, { headers: sseHeaders });
-  } catch (e) {
-    // 请求未建立（配置/网络/重试耗尽）：整体 JSON 错误，前端走既有错误路径
-    const message = e instanceof Error ? e.message : '问答失败';
-    await logLlmCall({ kind: 'ask', model, error: message });
-    return NextResponse.json({ error: message }, { status: 502 });
+
+        if (!finalAnswer.trim()) {
+          finalAnswer = proposed.length ? '以上是我建议的改动，请在下方确认卡逐项确认。' : '（这轮没有生成内容，请重试或换个问法。）';
+        }
+
+        // 给确认卡补充「改动前」信息（update/delete 的对照需要）
+        const enriched = await enrichActions(proposed).catch(() => proposed.map((a) => ({ ...a }) as EnrichedAction));
+
+        send({
+          done: true,
+          sources: sources.slice(0, 8),
+          actions: enriched,
+          mode: degraded ? 'agent-notools' : 'agent',
+        });
+      } catch (e) {
+        await logLlmCall({ kind: 'ask-agent', model: status.config.model, error: e instanceof Error ? e.message : String(e) });
+        send({ error: e instanceof Error ? e.message : '助手暂时不可用' });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, { headers: sseHeaders });
+}
+
+/** 执行单次工具调用（仅检索/读取/收集提议，零写库） */
+async function executeTool(
+  name: string,
+  args: Record<string, unknown>,
+  ctx: {
+    send: (p: unknown) => void;
+    sources: SourceItem[];
+    seenSources: Set<string>;
+    onPropose: (actions: AgentAction[]) => void;
+  },
+): Promise<string> {
+  if (name === 'search_knowledge') {
+    ctx.send({ status: '查阅知识库…' });
+    const query = typeof args.query === 'string' ? args.query.trim().slice(0, 200) : '';
+    if (!query) return 'query 为空';
+    const topK = Math.min(Math.max(Number(args.top_k) || 6, 1), 8);
+    const hits = await retrieveByQuery(query, topK);
+    const memoryById = new Map<string, number>();
+    if (hits.length) {
+      const m = sql`exp(-extract(epoch from (now() - ${segments.lastViewedAt})) / 86400.0 / greatest(${segments.stability}, 1e-9))`;
+      const rows = await db
+        .select({ id: segments.id, memory: sql<number>`(${m})::float` })
+        .from(segments)
+        .where(inArray(segments.id, hits.map((h) => h.segmentId)));
+      rows.forEach((r) => memoryById.set(r.id, Math.round(r.memory * 100) / 100));
+    }
+    for (const h of hits) {
+      if (!ctx.seenSources.has(h.segmentId)) {
+        ctx.seenSources.add(h.segmentId);
+        ctx.sources.push({ segmentId: h.segmentId, title: h.title });
+      }
+    }
+    if (hits.length === 0) return '没有检索到相关知识点。可换关键词，或基于概览如实告知库内没有。';
+    return JSON.stringify(
+      hits.map((h) => ({ segmentId: h.segmentId, title: h.title, snippet: h.snippet, memory: memoryById.get(h.segmentId) ?? null })),
+    );
   }
+
+  if (name === 'read_segment') {
+    ctx.send({ status: '读取知识点…' });
+    const id = String(args.segmentId ?? '').trim();
+    const m = sql`exp(-extract(epoch from (now() - ${segments.lastViewedAt})) / 86400.0 / greatest(${segments.stability}, 1e-9))`;
+    const [seg] = await db
+      .select({
+        id: segments.id,
+        title: segments.title,
+        content: segments.content,
+        tags: segments.tags,
+        memory: sql<number>`(${m})::float`,
+        documentId: segments.documentId,
+      })
+      .from(segments)
+      .where(eq(segments.id, id));
+    if (!seg) return '未找到该知识点（segmentId 无效）。请先 search_knowledge 获取有效 id。';
+    if (!ctx.seenSources.has(seg.id)) {
+      ctx.seenSources.add(seg.id);
+      ctx.sources.push({ segmentId: seg.id, title: seg.title });
+    }
+    return JSON.stringify({ ...seg, memory: Math.round(seg.memory * 100) / 100, content: seg.content.slice(0, 3000) });
+  }
+
+  if (name === 'propose_actions') {
+    ctx.send({ status: '整理改动提议…' });
+    const { actions, errors } = validateActions(args.actions);
+    if (actions.length === 0) {
+      return `提议全部无效：${errors.join('；')}。请修正后重发，或放弃提议直接回答。`;
+    }
+    ctx.onPropose(actions);
+    const errNote = errors.length ? `（${errors.length} 项无效已忽略）` : '';
+    return `已收到 ${actions.length} 项提议${errNote}。系统会向用户展示确认卡；请在最终回答中逐项说明将改动什么。`;
+  }
+
+  return `未知工具 ${name}`;
+}
+
+/** 为确认卡补充改动前信息：segment 的现标题/标签/内容预览，document 的现标题 */
+async function enrichActions(actions: AgentAction[]): Promise<EnrichedAction[]> {
+  const segIds = actions
+    .filter((a) => a.type === 'update_segment' || a.type === 'delete_segment')
+    .map((a) => (a as { segmentId: string }).segmentId);
+  const docIds = actions
+    .filter((a) => a.type === 'create_segment' || a.type === 'update_document')
+    .map((a) => (a as { documentId: string }).documentId);
+
+  const [segRows, docRows] = await Promise.all([
+    segIds.length
+      ? db
+          .select({ id: segments.id, title: segments.title, tags: segments.tags, content: segments.content })
+          .from(segments)
+          .where(inArray(segments.id, segIds))
+      : Promise.resolve([] as { id: string; title: string; tags: string[]; content: string }[]),
+    docIds.length
+      ? db.select({ id: documents.id, title: documents.title, tags: documents.tags }).from(documents).where(inArray(documents.id, docIds))
+      : Promise.resolve([] as { id: string; title: string; tags: string[] }[]),
+  ]);
+  const segMap = new Map(segRows.map((r) => [r.id, r]));
+  const docMap = new Map(docRows.map((r) => [r.id, r]));
+
+  return actions.map((a) => {
+    if (a.type === 'update_segment' || a.type === 'delete_segment') {
+      const cur = segMap.get(a.segmentId);
+      return cur ? { ...a, current: { title: cur.title, tags: cur.tags, contentPreview: cur.content.slice(0, 120) } } : ({ ...a } as EnrichedAction);
+    }
+    const cur = docMap.get(a.documentId);
+    return cur ? { ...a, current: { title: cur.title, tags: cur.tags } } : ({ ...a } as EnrichedAction);
+  });
 }

@@ -24,9 +24,21 @@ export const LLM_BASE_URL = 'https://api.deepseek.com';
  */
 export const DEFAULT_MODEL = 'deepseek-v4-flash';
 
+export interface ToolCallRef {
+  id: string;
+  type?: 'function';
+  function: { name: string; arguments: string };
+}
+
+/**
+ * 消息类型：system/user 为既有问答用；assistant/tool 供 Agent 工具循环
+ * （assistant 携带 tool_calls 发起调用，tool 回填结果，均 OpenAI 兼容格式）。
+ */
 export interface ChatMessage {
-  role: 'system' | 'user';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  tool_calls?: ToolCallRef[];
+  tool_call_id?: string;
 }
 
 export interface LlmConfig {
@@ -39,7 +51,7 @@ export interface LlmConfig {
 export type LlmTier = 'fast' | 'default';
 
 export interface ChatOptions {
-  /** 调用点标识，写 llm_calls（ask / split / aggregate / import-split / summary / test） */
+  /** 调用点标识，写 llm_calls（ask / ask-agent / split / aggregate / import-split / summary / test） */
   kind: string;
   /** 输出 token 上限，默认 2048；拆解类建议 4096 */
   maxTokens?: number;
@@ -48,6 +60,8 @@ export interface ChatOptions {
   temperature?: number;
   /** 429/5xx/网络错误的重试次数，默认 1 */
   retries?: number;
+  /** OpenAI tools 参数（function calling）；Agent 循环用，普通调用不传 */
+  tools?: unknown[];
 }
 
 export interface ChatUsage {
@@ -157,13 +171,14 @@ async function requestOnce(
   messages: ChatMessage[],
   temperature: number,
   maxTokens: number,
+  tools?: unknown[],
 ): Promise<Response> {
   let res: Response;
   try {
     res = await fetch(`${LLM_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens }),
+      body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens, ...(tools?.length ? { tools } : {}) }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (e) {
@@ -197,7 +212,7 @@ export async function chatCompletion(messages: ChatMessage[], opts: ChatOptions)
   for (let attempt = 0; ; attempt++) {
     await acquireSlot();
     try {
-      const res = await requestOnce(cfg.apiKey, model, messages, temperature, maxTokens);
+      const res = await requestOnce(cfg.apiKey, model, messages, temperature, maxTokens, opts.tools);
       const data = (await res.json().catch(() => null)) as UpstreamPayload | null;
       if (data?.error?.message) throw new Error(`大模型返回错误：${data.error.message.slice(0, 200)}`);
       const content = data?.choices?.[0]?.message?.content;
@@ -262,6 +277,7 @@ export async function chatCompletionStream(messages: ChatMessage[], opts: ChatOp
             max_tokens: maxTokens,
             stream: true,
             stream_options: { include_usage: true },
+            ...(opts.tools?.length ? { tools: opts.tools } : {}),
           }),
           signal: AbortSignal.timeout(TIMEOUT_MS),
         });

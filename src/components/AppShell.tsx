@@ -70,7 +70,7 @@ const NAV = [
   { href: '/', label: '概览', icon: IcOverview },
   { href: '/notes', label: '知识库', icon: IcLibrary },
   { href: '/graph', label: '关系图谱', icon: IcGraph },
-  { href: '/ask', label: '问答', icon: IcAsk },
+  { href: '/ask', label: '助手', icon: IcAsk },
 ] as const;
 
 /**
