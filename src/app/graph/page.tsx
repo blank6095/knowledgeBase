@@ -112,6 +112,12 @@ export default function GraphPage() {
   // 在 effect 里读取 URL，避免渲染期依赖 window 造成 SSR/客户端水合不匹配。
   const [fixture, setFixture] = useState<string | null>(null);
 
+  // TEMP-FLASH-PROBE（归因用，修复后删除）
+  useEffect(() => {
+    const w = window as unknown as { __flashProbe?: { t: number; ev: string; extra?: string }[] };
+    (w.__flashProbe ??= []).push({ t: Math.round(performance.now()), ev: 'page-effect-mount' });
+  }, []);
+
   // 设置面板
   const [panelOpen, setPanelOpen] = useState(false);
   const [tab, setTab] = useState<(typeof TABS)[number]>('筛选');
@@ -144,6 +150,11 @@ export default function GraphPage() {
     const f = new URLSearchParams(window.location.search).get('fixture');
     api<{ nodes: GNode[]; edges: GLink[] }>(f ? `/fixtures/${f}.json` : '/api/graph')
       .then((d) => {
+        (window as unknown as { __flashProbe?: { t: number; ev: string; extra?: string }[] }).__flashProbe?.push({
+          t: Math.round(performance.now()),
+          ev: 'data-arrived',
+          extra: `${d.nodes.length} nodes`,
+        });
         setFixture(f);
         setNodes(d.nodes);
         setLinks(d.edges);
@@ -154,10 +165,27 @@ export default function GraphPage() {
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
+    const ro = new ResizeObserver(() => {
+      (window as unknown as { __flashProbe?: { t: number; ev: string; extra?: string }[] }).__flashProbe?.push({
+        t: Math.round(performance.now()),
+        ev: 'measure',
+        extra: `${el.clientWidth}x${el.clientHeight}`,
+      });
+      setSize({ w: el.clientWidth, h: el.clientHeight });
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, [nodes]);
+
+  // TEMP-FLASH-PROBE：Graph 首次挂载时的 size 状态
+  const graphMountedProbe = useRef(false);
+  useEffect(() => {
+    if (nodes && !graphMountedProbe.current) {
+      graphMountedProbe.current = true;
+      const w = window as unknown as { __flashProbe?: { t: number; ev: string; extra?: string }[] };
+      w.__flashProbe?.push({ t: Math.round(performance.now()), ev: 'graph-first-commit', extra: `size=${size.w}x${size.h}` });
+    }
+  });
 
   // 引擎随 graphData 变更重建后，恢复用户已调整的力参数与暂停态
   useEffect(() => {
