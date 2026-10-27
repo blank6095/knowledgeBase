@@ -3,7 +3,7 @@ import { TICK_COST_WORST, WARMUP_BUDGET_MS, sizeChanged, warmupTicksFor } from '
 
 /**
  * 每 tick 成本：由 `node artifacts/measure-tick-cost.mjs` 实测产出
- * （artifacts/tick-cost-worst.json），每规模 4 次取最坏值。
+ * （artifacts/tick-cost-worst.json）：每轮每规模 4 次、共 3 轮，跨轮取最坏值。
  * cost(ticks) = 首个 tick + (ticks-1) × 中位 tick，用于校验预热预算。
  */
 const cost = (firstMs: number, medianMs: number, ticks: number) => firstMs + Math.max(0, ticks - 1) * medianMs;
@@ -14,10 +14,11 @@ describe('warmupTicksFor：按节点规模自适应预热', () => {
   });
 
   it('小图用小档成本上界反推，且不超过预热上限', () => {
-    expect(warmupTicksFor(1)).toBe(120);
-    expect(warmupTicksFor(500)).toBe(120);
-    // 600 节点按 1000 行（保守上界）计算，不再沿用 500 行
+    expect(warmupTicksFor(1)).toBe(108);
+    expect(warmupTicksFor(500)).toBe(108);
+    // 600 节点按 1000 行（保守上界）计算，不沿用 500 行
     expect(warmupTicksFor(600)).toBe(warmupTicksFor(1000));
+    expect(warmupTicksFor(600)).toBe(44);
   });
 
   it('规模越大预热越少，且单调不增', () => {
@@ -42,8 +43,8 @@ describe('warmupTicksFor：按节点规模自适应预热', () => {
   });
 
   it('大图只保留最低预热，不会退化为 0', () => {
-    expect(warmupTicksFor(8000)).toBeGreaterThan(0);
-    expect(warmupTicksFor(20000)).toBeGreaterThan(0);
+    expect(warmupTicksFor(8000)).toBe(2);
+    expect(warmupTicksFor(20000)).toBe(2);
   });
 });
 

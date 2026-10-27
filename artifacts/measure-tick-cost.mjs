@@ -3,13 +3,23 @@
  *
  * 与 force-graph 默认 force 配置对齐：forceLink(默认 distance 30)、
  * forceManyBody(默认 strength -30)、forceCenter(0,0)。
- * 每个规模跑 4 次，取「首个 tick」与「中位 tick」的最坏值（首 tick 含四叉树构建）。
+ * 每个规模每轮跑 4 次、共 REPEATS 轮；每个规模取所有轮次里的最坏值。
+ * 单次运行的耗时波动可达 1.5 倍以上，所以必须跨轮取最坏值，不能只跑一轮。
  *
- * 用法：node artifacts/measure-tick-cost.mjs > artifacts/tick-cost-worst.json
+ * 用法：node artifacts/measure-tick-cost.mjs [输出路径]
+ * 默认直接以 UTF-8 写入 artifacts/tick-cost-worst.json —— 不要用 PowerShell 的
+ * `>` 重定向，那会写成 UTF-16，让 git 把文件识别成二进制、程序也无法按 UTF-8 解析。
  */
+import { writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import { forceCenter, forceLink, forceManyBody, forceSimulation } from 'd3-force-3d';
 
+const HERE = dirname(fileURLToPath(import.meta.url));
+const OUT = resolve(process.argv[2] ?? resolve(HERE, 'tick-cost-worst.json'));
+
 const SIZES = [500, 1000, 2000, 3000, 5000, 8000];
+const REPEATS = 3;
 const TRIALS = 4;
 const TICKS = 150;
 
@@ -27,8 +37,7 @@ function mulberry32(seed) {
 function build(n, seed) {
   const rand = mulberry32(seed);
   const nodes = Array.from({ length: n }, (_, i) => ({ id: i }));
-  const linkCount = Math.round(n * 3);
-  const links = Array.from({ length: linkCount }, () => ({
+  const links = Array.from({ length: Math.round(n * 3) }, () => ({
     source: Math.floor(rand() * n),
     target: Math.floor(rand() * n),
   }));
@@ -62,36 +71,40 @@ function measure(n, seed) {
   return { firstMs, medianMs };
 }
 
-const rows = [];
-for (const nodes of SIZES) {
-  let worstFirst = 0;
-  let worstMedian = 0;
-  const trials = [];
-  for (let t = 0; t < TRIALS; t += 1) {
-    const r = measure(nodes, 1000 + nodes + t);
-    trials.push({ firstMs: +r.firstMs.toFixed(2), medianMs: +r.medianMs.toFixed(2) });
-    worstFirst = Math.max(worstFirst, r.firstMs);
-    worstMedian = Math.max(worstMedian, r.medianMs);
+/** 一轮完整采样：每个规模 4 次，返回该轮每个规模的最坏值 */
+function runRound(round) {
+  const rows = [];
+  for (const nodes of SIZES) {
+    let worstFirst = 0;
+    let worstMedian = 0;
+    for (let t = 0; t < TRIALS; t += 1) {
+      const r = measure(nodes, 1000 + nodes + t + round * 100);
+      worstFirst = Math.max(worstFirst, r.firstMs);
+      worstMedian = Math.max(worstMedian, r.medianMs);
+    }
+    rows.push({ nodes, firstMs: +worstFirst.toFixed(2), medianMs: +worstMedian.toFixed(2) });
   }
-  rows.push({
-    nodes,
-    firstMs: +worstFirst.toFixed(2),
-    medianMs: +worstMedian.toFixed(2),
-    trials,
-  });
-  process.stderr.write(`nodes=${nodes} first=${worstFirst.toFixed(1)}ms median=${worstMedian.toFixed(2)}ms\n`);
+  process.stderr.write(`round ${round + 1}/${REPEATS} done\n`);
+  return rows;
 }
 
-console.log(
-  JSON.stringify(
-    {
-      measuredAt: new Date().toISOString(),
-      method: 'node artifacts/measure-tick-cost.mjs，d3-force-3d 3.0.6，forceLink/forceManyBody/forceCenter 默认参数，每规模 4 次取最坏值',
-      ticksPerTrial: TICKS,
-      note: '首 tick 含四叉树构建；中位 tick 为第 2..150 次采样的中位数。8000 以上未实测。',
-      worstCase: rows,
-    },
-    null,
-    2,
-  ),
-);
+const runs = Array.from({ length: REPEATS }, (_, round) => runRound(round));
+const worstCase = SIZES.map((nodes, i) => ({
+  nodes,
+  firstMs: +Math.max(...runs.map((r) => r[i].firstMs)).toFixed(2),
+  medianMs: +Math.max(...runs.map((r) => r[i].medianMs)).toFixed(2),
+}));
+
+const payload = {
+  measuredAt: new Date().toISOString(),
+  method:
+    'node artifacts/measure-tick-cost.mjs，d3-force-3d 3.0.6，forceLink/forceManyBody/forceCenter 默认参数，每轮每规模 4 次、共 3 轮，跨轮取最坏值',
+  trialsPerSizePerRun: TRIALS,
+  runs,
+  worstCase,
+  note: '首 tick 含四叉树构建；中位 tick 为第 2..150 次采样的中位数。8000 以上未实测。worstCase 为跨轮最坏值，即预算计算所用数据。',
+};
+
+writeFileSync(OUT, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+process.stdout.write(`wrote ${OUT}\n`);
+for (const row of worstCase) process.stdout.write(`${row.nodes}\t${row.firstMs}\t${row.medianMs}\n`);
