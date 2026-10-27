@@ -9,6 +9,7 @@ import { MEMORY_TIER_META } from '@/components/MemoryBadge';
 import { memoryColor, memoryTier, MEMORY_TIER_LABELS, MEMORY_TIER_ORDER } from '@/lib/memory';
 import { Skeleton } from '@/components/Skeleton';
 import { colorBucketKey, shade } from './color-utils';
+import { sizeChanged, warmupTicksFor } from './mount-utils';
 import { drawSprite, getNodeSprite, glowBucket, radiusBucket, type NodePaint } from './node-sprites';
 
 // 力导向图依赖 window，仅浏览器渲染
@@ -27,6 +28,10 @@ const Graph = dynamic(() => import('react-force-graph-2d'), { ssr: false }) as u
   onNodeClick?: (n: never) => void;
   onNodeHover?: (n: never, prev: never) => void;
   maxZoom?: number;
+  /** 首帧前预热的迭代次数：让首次可见即为收敛布局，避免“开屏爆炸” */
+  warmupTicks?: number;
+  /** 预热后剩余冷却迭代数：收敛后再画，减少可见的持续运动 */
+  cooldownTicks?: number;
   ref?: React.RefObject<FGInstance | null>;
 }>;
 
@@ -85,6 +90,9 @@ const KINDS = [
 ];
 const TABS = ['筛选', '分组', '显示', '力'] as const;
 
+/** 预热后的剩余冷却迭代：布局收敛后只保留极少后续运动 */
+const COOLDOWN_TICKS = 60;
+
 function ends(l: GLink): [string, string] {
   const s = typeof l.source === 'object' ? l.source.id : l.source;
   const t = typeof l.target === 'object' ? l.target.id : l.target;
@@ -112,12 +120,6 @@ export default function GraphPage() {
   // 在 effect 里读取 URL，避免渲染期依赖 window 造成 SSR/客户端水合不匹配。
   const [fixture, setFixture] = useState<string | null>(null);
 
-  // TEMP-FLASH-PROBE（归因用，修复后删除）
-  useEffect(() => {
-    const w = window as unknown as { __flashProbe?: { t: number; ev: string; extra?: string }[] };
-    (w.__flashProbe ??= []).push({ t: Math.round(performance.now()), ev: 'page-effect-mount' });
-  }, []);
-
   // 设置面板
   const [panelOpen, setPanelOpen] = useState(false);
   const [tab, setTab] = useState<(typeof TABS)[number]>('筛选');
@@ -144,17 +146,15 @@ export default function GraphPage() {
   const groupId = useRef(0);
 
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ w: 900, h: 560 });
+  /** 容器实测尺寸：null = 尚未测量；此时不挂载 Graph，避免先用硬编码尺寸画一遍再重设 */
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  /** 放行挂载 Graph：测量完成后再等一帧，dev 下 StrictMode 的双次挂载会在此合并 */
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const f = new URLSearchParams(window.location.search).get('fixture');
     api<{ nodes: GNode[]; edges: GLink[] }>(f ? `/fixtures/${f}.json` : '/api/graph')
       .then((d) => {
-        (window as unknown as { __flashProbe?: { t: number; ev: string; extra?: string }[] }).__flashProbe?.push({
-          t: Math.round(performance.now()),
-          ev: 'data-arrived',
-          extra: `${d.nodes.length} nodes`,
-        });
         setFixture(f);
         setNodes(d.nodes);
         setLinks(d.edges);
@@ -162,30 +162,31 @@ export default function GraphPage() {
       .catch((e) => setError(e.message));
   }, []);
 
+  // 尺寸先行：容器挂载后先量真实尺寸，再放行 Graph——首帧即为最终尺寸，不再经历
+  // “默认尺寸 → 实测尺寸”的画布重设（原双闪动之一）。
   useEffect(() => {
+    if (!nodes || nodes.length === 0) return;
     const el = wrapRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => {
-      (window as unknown as { __flashProbe?: { t: number; ev: string; extra?: string }[] }).__flashProbe?.push({
-        t: Math.round(performance.now()),
-        ev: 'measure',
-        extra: `${el.clientWidth}x${el.clientHeight}`,
-      });
-      setSize({ w: el.clientWidth, h: el.clientHeight });
-    });
+    const apply = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (!w || !h) return;
+      // ±1~2px 的滚动条/亚像素抖动不触发重渲染，避免画布反复重设（见 layout.sizeChanged）
+      setSize((prev) => (sizeChanged(prev, { w, h }) ? { w, h } : prev));
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
     ro.observe(el);
     return () => ro.disconnect();
   }, [nodes]);
 
-  // TEMP-FLASH-PROBE：Graph 首次挂载时的 size 状态
-  const graphMountedProbe = useRef(false);
+  // 测量落定后再等一帧放行：把 dev StrictMode 的双次 effect 合并，引擎只初始化一次。
   useEffect(() => {
-    if (nodes && !graphMountedProbe.current) {
-      graphMountedProbe.current = true;
-      const w = window as unknown as { __flashProbe?: { t: number; ev: string; extra?: string }[] };
-      w.__flashProbe?.push({ t: Math.round(performance.now()), ev: 'graph-first-commit', extra: `size=${size.w}x${size.h}` });
-    }
-  });
+    if (ready || !size) return;
+    const raf = requestAnimationFrame(() => setReady(true));
+    return () => cancelAnimationFrame(raf);
+  }, [ready, size]);
 
   // 引擎随 graphData 变更重建后，恢复用户已调整的力参数与暂停态
   useEffect(() => {
@@ -578,35 +579,46 @@ export default function GraphPage() {
           ref={wrapRef}
           className="relative h-[calc(100vh-11rem)] min-h-[420px] overflow-hidden rounded-xl border border-line bg-canvas"
         >
-          <Graph
-            ref={fgRef}
-            graphData={graphData}
-            width={size.w}
-            height={size.h}
-            backgroundColor={CANVAS.bg}
-            maxZoom={4}
-            nodeLabel={(n) => {
-              const d = n as unknown as GNode;
-              const tier = MEMORY_TIER_LABELS[memoryTier(d.memory)];
-              return `<div style="max-width:280px;padding:6px 9px;background:var(--color-elevated);color:var(--color-primary);border:1px solid var(--color-line-strong);border-radius:6px;font:13px var(--font-geist-sans),sans-serif">
+          {!ready && (
+            <div className="absolute inset-0" role="status" aria-label="布局中">
+              <div className="skeleton absolute inset-0 rounded-none bg-transparent opacity-40" />
+            </div>
+          )}
+          {ready && size && (
+            <div className="fade-up h-full w-full">
+              <Graph
+                ref={fgRef}
+                graphData={graphData}
+                width={size.w}
+                height={size.h}
+                warmupTicks={warmupTicksFor(graphData.nodes.length)}
+                cooldownTicks={COOLDOWN_TICKS}
+                backgroundColor={CANVAS.bg}
+                maxZoom={4}
+                nodeLabel={(n) => {
+                  const d = n as unknown as GNode;
+                  const tier = MEMORY_TIER_LABELS[memoryTier(d.memory)];
+                  return `<div style="max-width:280px;padding:6px 9px;background:var(--color-elevated);color:var(--color-primary);border:1px solid var(--color-line-strong);border-radius:6px;font:13px var(--font-geist-sans),sans-serif">
                 <b>${d.title}</b><br/>
                 <span style="color:var(--color-faint)">${d.documentTitle ?? ''}</span><br/>
                 <span style="font-family:var(--font-geist-mono),monospace">${tier} · 阅读 ${d.viewCount} 次 · 累计 ${formatDuration(d.readingMs)}</span>
               </div>`;
-            }}
-            nodeCanvasObject={(n, ctx, gs) => drawNode(n as unknown as GNode, ctx, gs)}
-            nodePointerAreaPaint={(n, color, ctx) => paintPointerArea(n as unknown as GNode, color, ctx)}
-            linkColor={(l) => linkColorOf(l as unknown as GLink)}
-            linkWidth={(l) => linkWidthOf(l as unknown as GLink)}
-            linkDirectionalArrowLength={arrows ? 3.5 : 0}
-            linkDirectionalArrowRelPos={0.8}
-            onNodeClick={(n) => router.push(`/segments/${(n as unknown as GNode).id}`)}
-            onNodeHover={(n) => {
-              const id = n ? (n as unknown as GNode).id : null;
-              setHoverId(id);
-              document.body.style.cursor = id ? 'pointer' : 'default';
-            }}
-          />
+                }}
+                nodeCanvasObject={(n, ctx, gs) => drawNode(n as unknown as GNode, ctx, gs)}
+                nodePointerAreaPaint={(n, color, ctx) => paintPointerArea(n as unknown as GNode, color, ctx)}
+                linkColor={(l) => linkColorOf(l as unknown as GLink)}
+                linkWidth={(l) => linkWidthOf(l as unknown as GLink)}
+                linkDirectionalArrowLength={arrows ? 3.5 : 0}
+                linkDirectionalArrowRelPos={0.8}
+                onNodeClick={(n) => router.push(`/segments/${(n as unknown as GNode).id}`)}
+                onNodeHover={(n) => {
+                  const id = n ? (n as unknown as GNode).id : null;
+                  setHoverId(id);
+                  document.body.style.cursor = id ? 'pointer' : 'default';
+                }}
+              />
+            </div>
+          )}
           <span className="pointer-events-none absolute bottom-2 left-3 text-tag text-faint">
             节点大小 = 关联数 · 点击节点查看知识点
           </span>
