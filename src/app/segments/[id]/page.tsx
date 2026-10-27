@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -9,6 +9,7 @@ import { api, formatDuration } from '@/lib/client';
 import { MEMORY_TIER_LABELS, memoryTier } from '@/lib/memory';
 import { LampDot } from '@/components/MemoryBadge';
 import { Skeleton } from '@/components/Skeleton';
+import SegmentEditCard from '@/components/SegmentEditCard';
 
 interface RefItem {
   id: string;
@@ -62,8 +63,12 @@ interface LinkGroup {
 
 export default function SegmentPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [data, setData] = useState<SegmentDetail | null>(null);
   const [error, setError] = useState('');
+  /** 记录正在编辑的段 id：切换上一节/下一节后 id 不同，编辑态自动退出 */
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editing = editingId === id;
   const session = useRef<ReadingSession>({ id: '', counted: false, since: null, dwell: 0 });
 
   useEffect(() => {
@@ -143,6 +148,22 @@ export default function SegmentPage() {
   const { outgoing, incoming, relatedTags, prev, next } = data.refs;
   const tier = MEMORY_TIER_LABELS[memoryTier(s.memory)];
 
+  const reload = async () => {
+    const d = await api<SegmentDetail>(`/api/segments/${id}`);
+    setData(d);
+  };
+
+  /** 删除后回到文档；文档已无其他段则回知识库列表 */
+  const onDeleted = async () => {
+    const docId = data.document?.id;
+    if (!docId) {
+      router.replace('/notes');
+      return;
+    }
+    const doc = await api<{ segments: unknown[] }>(`/api/notes/${docId}`).catch(() => null);
+    router.replace(doc && doc.segments.length > 0 ? `/notes/${docId}` : '/notes');
+  };
+
   // 链接分组：出链/入链/共同标签，空组不渲染
   const groups: LinkGroup[] = [];
   if (outgoing.length > 0) groups.push({ key: 'out', title: `出链（${outgoing.length}）`, hint: '本文提及', items: outgoing });
@@ -154,12 +175,24 @@ export default function SegmentPage() {
     <div className="mx-auto max-w-[42rem]">
       {/* 正文优先：精简标题区（面包屑 + 衬线标题 + 单枚灯点） */}
       <div className="fade-up">
-        <Link
-          href={`/notes/${data.document?.id ?? ''}`}
-          className="text-tag text-faint transition-colors hover:text-accent hover:underline"
-        >
-          ← {data.document?.title ?? '文档'}
-        </Link>
+        <div className="flex items-start justify-between gap-3">
+          <Link
+            href={`/notes/${data.document?.id ?? ''}`}
+            className="mt-1 text-tag text-faint transition-colors hover:text-accent hover:underline"
+          >
+            ← {data.document?.title ?? '文档'}
+          </Link>
+          <button
+            onClick={() => setEditingId((prev) => (prev === id ? null : id))}
+            className={`shrink-0 rounded-lg border px-3 py-1.5 text-tag transition-colors duration-150 ${
+              editing
+                ? 'border-accent bg-accent text-accent-ink'
+                : 'border-line bg-surface text-muted hover:bg-surface-hover hover:text-primary'
+            }`}
+          >
+            {editing ? '✓ 完成编辑' : '✎ 编辑'}
+          </button>
+        </div>
         <div className="mt-2 flex items-center gap-2.5">
           <h1 className="font-display text-subtitle font-semibold">{s.title}</h1>
           <LampDot memory={s.memory} title={tier} />
@@ -174,11 +207,24 @@ export default function SegmentPage() {
         )}
       </div>
 
-      <article className="card fade-up mt-4 px-6 py-5" style={{ animationDelay: '80ms' }}>
-        <div className="md-body">
-          <Markdown remarkPlugins={[remarkGfm]}>{s.content}</Markdown>
-        </div>
-      </article>
+      {editing ? (
+        <SegmentEditCard
+          key={s.id}
+          segment={s}
+          onSaved={async () => {
+            await reload();
+            setEditingId(null);
+          }}
+          onDeleted={onDeleted}
+          onCancel={() => setEditingId(null)}
+        />
+      ) : (
+        <article className="card fade-up mt-4 px-6 py-5" style={{ animationDelay: '80ms' }}>
+          <div className="md-body">
+            <Markdown remarkPlugins={[remarkGfm]}>{s.content}</Markdown>
+          </div>
+        </article>
+      )}
 
       {/* 记忆状态：页脚一行（灯点 + 档位名 + 客观数字），无卡片无进度条 */}
       <p
