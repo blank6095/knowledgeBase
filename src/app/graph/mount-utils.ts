@@ -3,39 +3,69 @@
  */
 
 /**
- * 预热预算：用「首个 tick 成本 + (n-1) × 每 tick 中位成本」估算同步开销，上限 250ms。
- * 取值一律用多次测量的最坏值（不同次运行首 tick 波动可达 2 倍，用单次好看的值会把预算判成假达标）。
+ * 实测最坏 tick 成本（每次运行取最坏值）。
+ * 采集方式：`node artifacts/measure-tick-cost.mjs > artifacts/tick-cost-worst.json`
+ * —— d3-force-3d 3.0.6，forceLink/forceManyBody/forceCenter 默认参数，每规模 4 次。
+ *
+ * 节点数 ｜ 首 tick ｜ 中位 tick
+ * 500    ｜  2.10ms ｜  1.69ms
+ * 1000   ｜  4.50ms ｜  4.65ms
+ * 2000   ｜ 10.80ms ｜ 10.86ms
+ * 3000   ｜ 16.40ms ｜ 16.70ms
+ * 5000   ｜ 31.00ms ｜ 31.79ms
+ * 8000   ｜ 55.00ms ｜ 55.56ms
+ */
+export const TICK_COST_WORST = [
+  { nodes: 500, firstMs: 2.1, medianMs: 1.69 },
+  { nodes: 1000, firstMs: 4.5, medianMs: 4.65 },
+  { nodes: 2000, firstMs: 10.8, medianMs: 10.86 },
+  { nodes: 3000, firstMs: 16.4, medianMs: 16.7 },
+  { nodes: 5000, firstMs: 31, medianMs: 31.79 },
+  { nodes: 8000, firstMs: 55, medianMs: 55.56 },
+] as const;
+
+/**
+ * 预热预算：用「首个 tick 成本 + (n-1) × 中位成本」估算同步开销，上限 250ms。
  *
  * 为什么按预算而不是按收敛程度定 tick 数：force-graph 的 warmupTicks 在每次 update
- * （首挂载 / graphData 变化 / 尺寸变化）时同步跑完，大图要在同步阶段收敛需要秒级预算
- * （5000 节点 120 次 ≈3.2s、8000 节点 120 次 ≈5.3s），那本身就是长任务。
- *
- * 最坏值（4 次运行取最大，见 artifacts/tick-cost-worst.json）：
- * 节点数 ｜ 首 tick ｜ 中位 tick
- * 500    ｜  30.8ms ｜  1.59ms
- * 1000   ｜  13.6ms ｜  3.16ms
- * 2000   ｜   9.1ms ｜  7.62ms
- * 3000   ｜  12.0ms ｜ 11.56ms
- * 5000   ｜  39.8ms ｜ 31.01ms
- * 8000   ｜  92.3ms ｜ 53.81ms
+ * 时同步跑完，大图要在同步阶段收敛需要秒级预算（5000 节点约 200 tick ≈ 6s），
+ * 那本身就是长任务。因此预热只负责「首帧不要明显比最终布局离谱」，真正收敛交给
+ * 引擎按 d3AlphaMin 继续跑（见 page.tsx 的 CONVERGE_ALPHA_MIN），而不是硬停。
  */
 export const WARMUP_BUDGET_MS = 250;
 
+/** 小图预热上限：再多收益递减，且会白白增加首帧阻塞 */
+const MAX_WARMUP_TICKS = 120;
+
 /**
- * 首帧预热迭代数（每档取最坏采样下仍不超过 250ms 的整数档）：
- * - ≤600：120 次（30.8 + 119×1.59 ≈ 220ms）
- * - ≤2000：30 次（9.1 + 29×7.62 ≈ 230ms）
- * - ≤3000：20 次（12.0 + 19×11.56 ≈ 232ms）
- * - ≤6000：6 次（39.8 + 5×31.01 ≈ 195ms；6000 节点按 5000→8000 线性外推 ≈ 240ms）
- * - 更大：3 次（92.3 + 2×53.81 ≈ 200ms；8k 以上未实测，属已知限制）
+ * 布局收敛阈值：alpha 降到该值以下引擎才停。
+ *
+ * 不用 cooldownTicks 固定帧数硬停：实测 5000 节点预热 7 次后 alpha≈0.85，
+ * 60 帧后 alpha 仍在 0.23 左右（平均残余位移约 900px），硬停会把布局冻结在
+ * 半成品状态。改用 d3AlphaMin 让引擎按自身衰减跑到收敛再自停。
+ *
+ * 取值必须落在 (0, 1)：0 退化为「永不按 alpha 停」，1 会立即停。
+ */
+export const CONVERGE_ALPHA_MIN = 0.01;
+
+/** 容器长时间测不出尺寸时的兜底尺寸（仅用于解锁挂载，不参与常规路径） */
+export const FALLBACK_SIZE = { w: 900, h: 560 };
+/** 兜底触发延时：正常测量在首帧内完成，留出 300ms 给隐藏/过渡态恢复 */
+export const FALLBACK_MEASURE_MS = 300;
+
+/**
+ * 首帧预热迭代数：取「不小于当前规模的实测行」的成本上界，按预算反推 tick 数。
+ * 用上界行（而不是就近插值）是保守做法：规模介于两行之间时按更大的那档算成本，
+ * 只会让实际耗时更低于预算。
+ *
+ * 结果：500→120、1000→53、2000→22、3000→14、5000→7、8000→4（>8000 沿用 8000 档，
+ * 属已知限制：未实测更大规模的每 tick 成本）。
  */
 export function warmupTicksFor(nodeCount: number): number {
   if (nodeCount <= 0) return 0;
-  if (nodeCount <= 600) return 120;
-  if (nodeCount <= 2000) return 30;
-  if (nodeCount <= 3000) return 20;
-  if (nodeCount <= 6000) return 6;
-  return 3;
+  const row = TICK_COST_WORST.find((candidate) => nodeCount <= candidate.nodes) ?? TICK_COST_WORST[TICK_COST_WORST.length - 1];
+  const ticks = Math.floor((WARMUP_BUDGET_MS - row.firstMs) / row.medianMs) + 1;
+  return Math.min(MAX_WARMUP_TICKS, Math.max(1, ticks));
 }
 
 /**

@@ -9,7 +9,7 @@ import { MEMORY_TIER_META } from '@/components/MemoryBadge';
 import { memoryColor, memoryTier, MEMORY_TIER_LABELS, MEMORY_TIER_ORDER } from '@/lib/memory';
 import { Skeleton } from '@/components/Skeleton';
 import { colorBucketKey, shade } from './color-utils';
-import { sizeChanged, warmupTicksFor } from './mount-utils';
+import { CONVERGE_ALPHA_MIN, FALLBACK_MEASURE_MS, FALLBACK_SIZE, sizeChanged, warmupTicksFor } from './mount-utils';
 import { drawSprite, getNodeSprite, glowBucket, radiusBucket, type NodePaint } from './node-sprites';
 
 // 力导向图依赖 window，仅浏览器渲染
@@ -28,10 +28,10 @@ const Graph = dynamic(() => import('react-force-graph-2d'), { ssr: false }) as u
   onNodeClick?: (n: never) => void;
   onNodeHover?: (n: never, prev: never) => void;
   maxZoom?: number;
-  /** 首帧前预热的迭代次数：让首次可见即为收敛布局，避免“开屏爆炸” */
+  /** 首帧前预热的迭代次数：把首帧从随机初始位置推到较合理的布局 */
   warmupTicks?: number;
-  /** 预热后剩余冷却迭代数：收敛后再画，减少可见的持续运动 */
-  cooldownTicks?: number;
+  /** 布局收敛阈值：alpha 低于该值才停引擎，避免在未收敛处硬冻结 */
+  d3AlphaMin?: number;
   ref?: React.RefObject<FGInstance | null>;
 }>;
 
@@ -89,9 +89,6 @@ const KINDS = [
   { kind: 'doc', label: '同文档', color: '#3a362f' },
 ];
 const TABS = ['筛选', '分组', '显示', '力'] as const;
-
-/** 预热后的剩余冷却迭代：布局收敛后只保留极少后续运动 */
-const COOLDOWN_TICKS = 60;
 
 function ends(l: GLink): [string, string] {
   const s = typeof l.source === 'object' ? l.source.id : l.source;
@@ -172,7 +169,7 @@ export default function GraphPage() {
       const w = el.clientWidth;
       const h = el.clientHeight;
       if (!w || !h) return;
-      // ±1~2px 的滚动条/亚像素抖动不触发重渲染，避免画布反复重设（见 layout.sizeChanged）
+      // ±1~2px 的滚动条/亚像素抖动不触发重渲染，避免画布反复重设（见 mount-utils.sizeChanged）
       setSize((prev) => (sizeChanged(prev, { w, h }) ? { w, h } : prev));
     };
     apply();
@@ -182,11 +179,21 @@ export default function GraphPage() {
   }, [nodes]);
 
   // 测量落定后再等一帧放行：把 dev StrictMode 的双次 effect 合并，引擎只初始化一次。
+  // 容器被隐藏或尺寸暂为 0 时 ResizeObserver 不一定会再触发，因此补一次延时兜底：
+  // 宁可先用兜底尺寸挂载（用户至少能看到图），也不把页面永久卡在“布局中”。
   useEffect(() => {
     if (ready || !size) return;
     const raf = requestAnimationFrame(() => setReady(true));
     return () => cancelAnimationFrame(raf);
   }, [ready, size]);
+
+  useEffect(() => {
+    if (ready || !nodes || nodes.length === 0) return;
+    const timer = setTimeout(() => {
+      setSize((prev) => prev ?? { w: FALLBACK_SIZE.w, h: FALLBACK_SIZE.h });
+    }, FALLBACK_MEASURE_MS);
+    return () => clearTimeout(timer);
+  }, [ready, nodes]);
 
   // 引擎随 graphData 变更重建后，恢复用户已调整的力参数与暂停态
   useEffect(() => {
@@ -592,7 +599,7 @@ export default function GraphPage() {
                 width={size.w}
                 height={size.h}
                 warmupTicks={warmupTicksFor(graphData.nodes.length)}
-                cooldownTicks={COOLDOWN_TICKS}
+                d3AlphaMin={CONVERGE_ALPHA_MIN}
                 backgroundColor={CANVAS.bg}
                 maxZoom={4}
                 nodeLabel={(n) => {
