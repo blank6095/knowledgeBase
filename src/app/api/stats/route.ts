@@ -1,15 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { desc, eq, gte, or, sql } from 'drizzle-orm';
+import { asc, desc, eq, gte, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { documents, links, readingEvents, segments } from '@/db/schema';
 import { guard } from '@/lib/api';
-import { MEMORY_TIER_ORDER } from '@/lib/memory';
+import { getCache, setCache } from '@/lib/cache';
+import { MEMORY_TIER_ORDER, type MemoryTier } from '@/lib/memory';
 
+const CACHE_KEY = 'stats';
+const CACHE_TTL_MS = 60_000;
+
+type RecentDocument = Pick<typeof documents.$inferSelect, 'id' | 'title' | 'segmentCount' | 'createdAt'>;
+
+interface StatsPayload {
+  total: number;
+  byTier: { unread: number; weak: number; medium: number; strong: number };
+  tierOrder: MemoryTier[];
+  readToday: number;
+  recentDocuments: RecentDocument[];
+  suggestion: { segmentId: string; title: string; memory: number; degree: number } | null;
+  /** 与 suggestion 同一条 SQL：已读且记忆薄弱（m<0.4）按 薄弱度×(度数+1) 取 top3 */
+  weakTop3: { segmentId: string; title: string; memory: number; degree: number }[];
+  /** 最新导入且未读的段落 top3（文档创建时间倒序、段内顺序正序） */
+  unreadTop3: { segmentId: string; title: string; documentId: string; documentTitle: string; createdAt: string | Date }[];
+}
 
 /** 概览统计：总数/记忆档位分布（SQL CASE 下推，单行返回）/今日阅读数/最近导入/今日首推（薄弱×中心性，纯规则不调 LLM） */
 export async function GET(req: NextRequest) {
   const denied = await guard(req);
   if (denied) return denied;
+
+  // 命中缓存时跳过全部 DB；不能用 miss 分支的耗时统计，命中时只报 cache 段
+  const cached = getCache<StatsPayload>(CACHE_KEY);
+  if (cached) {
+    return NextResponse.json(cached, { headers: { 'X-Cache': 'HIT', 'Server-Timing': 'cache;dur=0' } });
+  }
 
   const t0 = performance.now();
   const startOfDay = new Date();
@@ -19,8 +43,9 @@ export async function GET(req: NextRequest) {
   const m = sql`exp(-extract(epoch from (now() - ${segments.lastViewedAt})) / 86400.0 / greatest(${segments.stability}, 1e-9))`;
   const read = sql`${segments.stability} > 0 and ${segments.lastViewedAt} is not null`;
 
-  // L3-4 今日首推：已读但记忆薄弱（m<0.4）的段里，按 薄弱程度(1-m) × 图谱中心性(度数+1) 取 top1
-  const suggestPromise = db
+  // 今日首推与薄弱清单共用一条 SQL：已读但记忆薄弱（m<0.4）的段里，
+  // 按 薄弱程度(1-m) × 图谱中心性(度数+1) 排序；suggestion 取第一行，weakTop3 取前三行。
+  const weakPromise = db
     .select({
       id: segments.id,
       title: segments.title,
@@ -32,10 +57,26 @@ export async function GET(req: NextRequest) {
     .where(sql`${read} and (${m}) < 0.4`)
     .groupBy(segments.id, segments.title, segments.lastViewedAt, segments.stability)
     .orderBy(desc(sql`(1 - (${m})) * (count(${links.id}) + 1)`))
-    .limit(1)
+    .limit(3)
     .catch(() => []);
 
-  const [tierRow, todayRow, recentDocs, suggestRows] = await Promise.all([
+  // 未读精选：最新导入且未读的段，按文档创建时间倒序、段内顺序正序取前三。
+  const unreadPromise = db
+    .select({
+      segmentId: segments.id,
+      title: segments.title,
+      documentId: documents.id,
+      documentTitle: documents.title,
+      createdAt: documents.createdAt,
+    })
+    .from(segments)
+    .innerJoin(documents, eq(segments.documentId, documents.id))
+    .where(sql`not (${read})`)
+    .orderBy(desc(documents.createdAt), asc(segments.orderIndex))
+    .limit(3)
+    .catch(() => []);
+
+  const [tierRow, todayRow, recentDocs, weakRows, unreadRows] = await Promise.all([
     db
       .select({
         total: sql<number>`count(*)::int`,
@@ -54,15 +95,26 @@ export async function GET(req: NextRequest) {
       .from(documents)
       .orderBy(desc(documents.createdAt))
       .limit(5),
-    suggestPromise,
+    weakPromise,
+    unreadPromise,
   ]);
   const tDb = performance.now();
 
-  const suggest = suggestRows[0]
-    ? { segmentId: suggestRows[0].id, title: suggestRows[0].title, memory: Math.round(suggestRows[0].memory * 100) / 100, degree: suggestRows[0].degree }
-    : null;
+  const weakTop3 = weakRows.map((row) => ({
+    segmentId: row.id,
+    title: row.title,
+    memory: Math.round(row.memory * 100) / 100,
+    degree: row.degree,
+  }));
+  const unreadTop3 = unreadRows.map((row) => ({
+    segmentId: row.segmentId,
+    title: row.title,
+    documentId: row.documentId,
+    documentTitle: row.documentTitle,
+    createdAt: row.createdAt,
+  }));
 
-  const payload = {
+  const payload: StatsPayload = {
     total: tierRow[0]?.total ?? 0,
     byTier: {
       unread: tierRow[0]?.unread ?? 0,
@@ -73,14 +125,19 @@ export async function GET(req: NextRequest) {
     tierOrder: MEMORY_TIER_ORDER,
     readToday: todayRow[0]?.count ?? 0,
     recentDocuments: recentDocs,
-    suggestion: suggest,
+    suggestion: weakTop3[0] ?? null,
+    weakTop3,
+    unreadTop3,
   };
   const t1 = performance.now();
   console.log(
     `[perf] GET /api/stats db=${(tDb - t0).toFixed(1)}ms transform=${(t1 - tDb).toFixed(1)}ms total=${(t1 - t0).toFixed(1)}ms aggRows=1`,
   );
 
+  setCache(CACHE_KEY, payload, CACHE_TTL_MS);
+
   const res = NextResponse.json(payload);
+  res.headers.set('X-Cache', 'MISS');
   res.headers.set(
     'Server-Timing',
     `db;dur=${(tDb - t0).toFixed(1)}, transform;dur=${(t1 - tDb).toFixed(1)}, total;dur=${(t1 - t0).toFixed(1)}`,
