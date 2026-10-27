@@ -3,6 +3,7 @@ import { eq, inArray, or } from 'drizzle-orm';
 import { db } from '@/db';
 import { documents, links, segments } from '@/db/schema';
 import { badRequest, guard, isUuid, notFound } from '@/lib/api';
+import { invalidateCache } from '@/lib/cache';
 import { memoryOf } from '@/lib/memory';
 import { extractInlineTags } from '@/lib/markdown';
 import { rebuildDocChain, rebuildSegmentLinks } from '@/lib/links';
@@ -162,6 +163,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const nextTags = patch.tags ?? (patch.content !== undefined ? [...new Set([...seg.tags, ...extractInlineTags(nextContent)])] : seg.tags);
   await rebuildSegmentLinks({ id, content: nextContent, tags: nextTags });
 
+  // 段标题/内容/标签/chunk 边变化：图谱、统计、列表与文档详情均需失效
+  invalidateCache('graph');
+  invalidateCache('stats');
+  invalidateCache('docs');
+  invalidateCache(`note:${seg.documentId}`);
+
   const now = new Date();
   return NextResponse.json({
     segment: {
@@ -190,5 +197,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   await db.delete(segments).where(eq(segments.id, id));
   await rebuildDocChain(seg.documentId);
+
+  invalidateCache('graph');
+  invalidateCache('stats');
+  invalidateCache('docs');
+  invalidateCache(`note:${seg.documentId}`);
+
   return NextResponse.json({ ok: true });
 }

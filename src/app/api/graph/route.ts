@@ -3,13 +3,36 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { documents, links, segments } from '@/db/schema';
 import { guard } from '@/lib/api';
+import { getCache, setCache } from '@/lib/cache';
 import { memoryOf } from '@/lib/memory';
 
+const CACHE_KEY = 'graph';
+const CACHE_TTL_MS = 60_000;
+
+interface GraphNode {
+  id: string;
+  title: string;
+  memory: number;
+  stability: number;
+  viewCount: number;
+  readingMs: number;
+  tags: string[];
+  documentId: string;
+  documentTitle: string | null;
+}
+
+interface GraphPayload {
+  nodes: GraphNode[];
+  edges: { source: string; target: string; kind: string; weight: number }[];
+}
 
 /** 关系图谱数据：节点=知识点（记忆度读取时现算），边=关联（wiki/tag/doc） */
 export async function GET(req: NextRequest) {
   const denied = await guard(req);
   if (denied) return denied;
+
+  const cached = getCache<GraphPayload>(CACHE_KEY);
+  if (cached) return NextResponse.json(cached, { headers: { 'X-Cache': 'HIT' } });
 
   const now = new Date();
   const rows = await db
@@ -43,5 +66,7 @@ export async function GET(req: NextRequest) {
     .select({ source: links.fromId, target: links.toId, kind: links.kind, weight: links.weight })
     .from(links);
 
-  return NextResponse.json({ nodes, edges });
+  const payload: GraphPayload = { nodes, edges };
+  setCache(CACHE_KEY, payload, CACHE_TTL_MS);
+  return NextResponse.json(payload, { headers: { 'X-Cache': 'MISS' } });
 }

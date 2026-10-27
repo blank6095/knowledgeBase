@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { documents, segments } from '@/db/schema';
 import { guard, isUuid, notFound } from '@/lib/api';
 import { extractInlineTags } from '@/lib/markdown';
+import { invalidateCache } from '@/lib/cache';
 import { rebuildDocChain, rebuildSegmentLinks } from '@/lib/links';
 
 /** 在文档中插入知识点：afterIndex 为插入位置（新段的序号），缺省追加到末尾 */
@@ -51,5 +52,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const segTags = extractInlineTags(content).slice(0, 20);
   await rebuildSegmentLinks({ id: seg.id, content, tags: segTags });
   await rebuildDocChain(id);
+
+  // 新增段会同时改变图谱边、概览统计、文档列表段数与详情
+  invalidateCache('graph');
+  invalidateCache('stats');
+  invalidateCache('docs');
+  invalidateCache(`note:${id}`);
+
   return NextResponse.json({ segment: seg });
 }

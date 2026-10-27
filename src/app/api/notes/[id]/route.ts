@@ -3,7 +3,23 @@ import { asc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { documents, segments } from '@/db/schema';
 import { badRequest, guard, isUuid, notFound } from '@/lib/api';
+import { getCache, invalidateCache, setCache } from '@/lib/cache';
 import { memoryOf } from '@/lib/memory';
+
+const NOTE_CACHE_TTL_MS = 120_000;
+
+type NotePayload = {
+  document: typeof documents.$inferSelect;
+  segments: {
+    id: string;
+    title: string;
+    headingPath: string;
+    tags: string[];
+    viewCount: number;
+    content: string;
+    memory: number;
+  }[];
+};
 
 
 /** 文档详情（阅读视图）：document 与 segments 并行查询，含各段 content */
@@ -12,6 +28,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (denied) return denied;
   const { id } = await params;
   if (!isUuid(id)) return notFound();
+
+  const cacheKey = `note:${id}`;
+  const cached = getCache<NotePayload>(cacheKey);
+  if (cached) return NextResponse.json(cached, { headers: { 'X-Cache': 'HIT' } });
 
   const t0 = performance.now();
   const [docRows, segs] = await Promise.all([
@@ -37,7 +57,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!doc) return notFound('文档不存在');
 
   const now = new Date();
-  const payload = {
+  const payload: NotePayload = {
     document: doc,
     segments: segs.map((s) => ({
       id: s.id,
@@ -54,7 +74,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     `[perf] GET /api/notes/${id} db=${(tDb - t0).toFixed(1)}ms transform=${(t1 - tDb).toFixed(1)}ms total=${(t1 - t0).toFixed(1)}ms segRows=${segs.length}`,
   );
 
+  // 仅在文档存在时写入缓存；404 不缓存
+  setCache(cacheKey, payload, NOTE_CACHE_TTL_MS);
+
   const res = NextResponse.json(payload);
+  res.headers.set('X-Cache', 'MISS');
   res.headers.set(
     'Server-Timing',
     `db;dur=${(tDb - t0).toFixed(1)}, transform;dur=${(t1 - tDb).toFixed(1)}, total;dur=${(t1 - t0).toFixed(1)}`,
@@ -83,5 +107,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const [doc] = await db.update(documents).set(patch).where(eq(documents.id, id)).returning();
   if (!doc) return notFound('文档不存在');
+
+  // 标题变化会同时影响列表、文档详情与图谱节点名；tags 也可能影响详情展示
+  invalidateCache('docs');
+  invalidateCache(`note:${id}`);
+  invalidateCache('graph');
+  invalidateCache('stats');
+
   return NextResponse.json({ document: doc });
 }

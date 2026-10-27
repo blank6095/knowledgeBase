@@ -3,6 +3,7 @@ import { asc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { segments } from '@/db/schema';
 import { badRequest, guard, isUuid, notFound } from '@/lib/api';
+import { invalidateCache } from '@/lib/cache';
 import { rebuildDocChain } from '@/lib/links';
 
 /** 与相邻段交换顺序（同文档内）：direction = up（向前）| down（向后） */
@@ -37,5 +38,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   await db.update(segments).set({ orderIndex: seg.orderIndex }).where(eq(segments.id, siblings[target].id));
 
   await rebuildDocChain(seg.documentId);
+
+  // 顺序变化会重接 doc 边并影响列表/详情展示
+  invalidateCache('graph');
+  invalidateCache('stats');
+  invalidateCache('docs');
+  invalidateCache(`note:${seg.documentId}`);
+
   return NextResponse.json({ ok: true });
 }

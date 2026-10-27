@@ -3,6 +3,7 @@ import { desc, eq, inArray, sql, arrayOverlaps } from 'drizzle-orm';
 import { db } from '@/db';
 import { documents, links, segments } from '@/db/schema';
 import { badRequest, guard } from '@/lib/api';
+import { getCache, invalidateCache, setCache } from '@/lib/cache';
 import { extractInlineTags, extractWikiLinks } from '@/lib/markdown';
 import { splitMarkdown, type RawSegment } from '@/lib/splitter';
 import { semanticSplit } from '@/lib/ai-split';
@@ -14,10 +15,22 @@ import { putOriginal } from '@/lib/r2';
 const MEMORY_SQL = (stability: typeof segments.stability, lastViewedAt: typeof segments.lastViewedAt) =>
   sql`exp(-extract(epoch from (now() - ${lastViewedAt})) / 86400.0 / greatest(${stability}, 1e-9))`;
 
+const DOCS_CACHE_KEY = 'docs';
+const DOCS_CACHE_TTL_MS = 60_000;
+
+type DocsPayload = {
+  documents: (Pick<typeof documents.$inferSelect, 'id' | 'title' | 'source' | 'tags' | 'segmentCount' | 'createdAt'> & {
+    avgMemory: number;
+  })[];
+};
+
 /** 文档列表（含平均记忆度：SQL 聚合下推，按文档分组返回，不拉全表行） */
 export async function GET(req: NextRequest) {
   const denied = await guard(req);
   if (denied) return denied;
+
+  const cached = getCache<DocsPayload>(DOCS_CACHE_KEY);
+  if (cached) return NextResponse.json(cached, { headers: { 'X-Cache': 'HIT' } });
 
   const t0 = performance.now();
   const [docs, memAgg] = await Promise.all([
@@ -50,7 +63,11 @@ export async function GET(req: NextRequest) {
     `[perf] GET /api/notes db=${(tDb - t0).toFixed(1)}ms transform=${(t1 - tDb).toFixed(1)}ms total=${(t1 - t0).toFixed(1)}ms docRows=${docs.length} aggRows=${memAgg.length}`,
   );
 
-  const res = NextResponse.json({ documents: rows });
+  const payload: DocsPayload = { documents: rows };
+  setCache(DOCS_CACHE_KEY, payload, DOCS_CACHE_TTL_MS);
+
+  const res = NextResponse.json(payload);
+  res.headers.set('X-Cache', 'MISS');
   res.headers.set(
     'Server-Timing',
     `db;dur=${(tDb - t0).toFixed(1)}, transform;dur=${(t1 - tDb).toFixed(1)}, total;dur=${(t1 - t0).toFixed(1)}`,
@@ -151,6 +168,12 @@ export async function POST(req: NextRequest) {
     await db.insert(links).values(linkRows).onConflictDoNothing();
   }
   await db.update(documents).set({ segmentCount: inserted.length }).where(eq(documents.id, doc.id));
+
+  // 导入成功后：图谱/概览/列表/该文档详情统一失效
+  invalidateCache('graph');
+  invalidateCache('stats');
+  invalidateCache(DOCS_CACHE_KEY);
+  invalidateCache(`note:${doc.id}`);
 
   return NextResponse.json({
     documentId: doc.id,

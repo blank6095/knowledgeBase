@@ -3,6 +3,7 @@ import { asc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { segments } from '@/db/schema';
 import { badRequest, guard, isUuid, notFound } from '@/lib/api';
+import { invalidateCache } from '@/lib/cache';
 import { stripMarkdown } from '@/lib/markdown';
 import { rebuildDocChain, rebuildSegmentLinks } from '@/lib/links';
 import { migrateAnnotations } from '@/lib/annotation-migrate';
@@ -66,6 +67,12 @@ export async function POST(req: NextRequest) {
 
   await rebuildSegmentLinks({ id: keeper.id, content: merged.content, tags: keeper.tags });
   await rebuildDocChain(keeper.documentId);
+
+  // 聚合涉及更新/删除、边重建与标注迁移，全部写完后统一失效
+  invalidateCache('graph');
+  invalidateCache('stats');
+  invalidateCache('docs');
+  invalidateCache(`note:${keeper.documentId}`);
 
   return NextResponse.json({ segment: updated, removed: others.length, migrated, invalid });
 }

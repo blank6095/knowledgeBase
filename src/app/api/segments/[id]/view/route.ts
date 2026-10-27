@@ -3,6 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { readingEvents, segments } from '@/db/schema';
 import { guard, isUuid, notFound } from '@/lib/api';
+import { invalidateCache } from '@/lib/cache';
 import { applyReading, MEMORY } from '@/lib/memory';
 
 /**
@@ -52,6 +53,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       })
       .where(eq(segments.id, id));
 
+    // 写库成功后才失效：记忆度/阅读时长变化影响图谱与概览
+    invalidateCache('graph');
+    invalidateCache('stats');
+
     return NextResponse.json({ ok: true, counted: true, stability });
   }
 
@@ -63,6 +68,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       firstViewedAt: sql`coalesce(${segments.firstViewedAt}, ${now.toISOString()}::timestamptz)`,
     })
     .where(eq(segments.id, id));
+
+  // 打开 ping 已写 viewCount/firstViewedAt（durationMs 缺失或 <5s 未写库时提前返回）
+  invalidateCache('graph');
+  invalidateCache('stats');
 
   return NextResponse.json({ ok: true, counted: true });
 }

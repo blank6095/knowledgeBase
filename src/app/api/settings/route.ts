@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { badRequest, guard } from '@/lib/api';
+import { invalidateCache } from '@/lib/cache';
 import { DEFAULT_MODEL, getLlmConfig } from '@/lib/llm';
 import { getLearnerDeclaration, saveLearnerDeclaration } from '@/lib/learner-profile';
 import { getLlmSettings, saveLlmSettings } from '@/lib/app-settings';
@@ -42,6 +43,9 @@ export async function POST(req: NextRequest) {
   if (typeof body.learnerDeclaration === 'string') {
     await saveLearnerDeclaration(body.learnerDeclaration.slice(0, 500));
   }
+
+  // 设置已落库：探测接口缓存必须失效，保证保存后立即回显新配置
+  invalidateCache('ai-config');
 
   const current = await getLlmConfig();
   const declaration = await getLearnerDeclaration();
