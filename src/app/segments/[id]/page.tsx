@@ -43,7 +43,7 @@ interface SegmentDetail {
   };
 }
 
-/** 停留时长会话：随组件实例存续，跨 StrictMode 二次挂载与同页参数切换保持 */
+/** 停留时长会话：随组件实例存续（StrictMode 二次挂载复用）；切换段时随实例卸载冲刷 */
 interface ReadingSession {
   id: string;
   counted: boolean;
@@ -63,12 +63,15 @@ interface LinkGroup {
 
 export default function SegmentPage() {
   const { id } = useParams<{ id: string }>();
+  // 以段 id 作 key：切换上一节/下一节时整页重挂，编辑态与草稿状态不会残留到下一个段。
+  return <SegmentPageView key={id} id={id} />;
+}
+
+function SegmentPageView({ id }: { id: string }) {
   const router = useRouter();
   const [data, setData] = useState<SegmentDetail | null>(null);
   const [error, setError] = useState('');
-  /** 记录正在编辑的段 id：切换上一节/下一节后 id 不同，编辑态自动退出 */
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const editing = editingId === id;
+  const [editing, setEditing] = useState(false);
   const session = useRef<ReadingSession>({ id: '', counted: false, since: null, dwell: 0 });
 
   useEffect(() => {
@@ -183,7 +186,7 @@ export default function SegmentPage() {
             ← {data.document?.title ?? '文档'}
           </Link>
           <button
-            onClick={() => setEditingId((prev) => (prev === id ? null : id))}
+            onClick={() => setEditing((v) => !v)}
             className={`shrink-0 rounded-lg border px-3 py-1.5 text-tag transition-colors duration-150 ${
               editing
                 ? 'border-accent bg-accent text-accent-ink'
@@ -213,10 +216,10 @@ export default function SegmentPage() {
           segment={s}
           onSaved={async () => {
             await reload();
-            setEditingId(null);
+            setEditing(false);
           }}
           onDeleted={onDeleted}
-          onCancel={() => setEditingId(null)}
+          onCancel={() => setEditing(false)}
         />
       ) : (
         <article className="card fade-up mt-4 px-6 py-5" style={{ animationDelay: '80ms' }}>

@@ -239,7 +239,7 @@ B 的核心判断是"概览不该是第二个状态看板"。若你更想保留�
 | 任务 | 状态 | 落地位置 |
 |---|---|---|
 | C 图谱双闪动 | ✅ | `6cfcf3a` 首帧先测尺寸再挂载 + 自适应预热；`e86740e` 以收敛阈值替代硬冷却；`1c3069f` 按跨轮最坏 tick 成本收紧预热预算 |
-| D 节点编辑/删除 | ✅ | `src/app/segments/[id]/page.tsx` 页头编辑开关；`src/components/SegmentEditCard.tsx` 标题/正文/标签编辑与删除（删除后按文档剩余段数回文档或 `/notes`） |
+| D 节点编辑/删除 | ✅ | `src/app/segments/[id]/page.tsx` 页头编辑开关；`src/components/SegmentEditCard.tsx` 标题/正文/标签编辑与删除（删除后按文档剩余段数回文档或 `/notes`）；切换段时以 id 为 key 重挂页面，编辑态不跨段残留 |
 | A 服务端缓存 | ✅ | `a7579f1` 进程内 TTL 缓存与写后失效（`src/lib/cache.ts` + 热点读端点） |
 | B 概览行动化 | ✅ | `dd0eaab` 行动面板重排与档位点色统一 |
 
