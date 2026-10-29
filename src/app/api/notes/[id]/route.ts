@@ -4,7 +4,10 @@ import { db } from '@/db';
 import { documents, segments } from '@/db/schema';
 import { badRequest, guard, isUuid, notFound } from '@/lib/api';
 import { getCache, invalidateCache, setCache } from '@/lib/cache';
+import { runBatch } from '@/lib/db-batch';
+import { rebuildLinksQueries } from '@/lib/links';
 import { memoryOf } from '@/lib/memory';
+import { deleteOriginal } from '@/lib/r2';
 
 const NOTE_CACHE_TTL_MS = 120_000;
 
@@ -93,19 +96,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   if (!isUuid(id)) return notFound();
 
-  const body = (await req.json().catch(() => ({}))) as { title?: string; tags?: string[] };
+  const body = (await req.json().catch(() => ({}))) as { title?: unknown; tags?: unknown };
   const patch: { title?: string; tags?: string[] } = {};
   if (body.title !== undefined) {
+    if (typeof body.title !== 'string') return badRequest('title 必须是字符串');
     const t = body.title.trim();
     if (!t) return badRequest('标题不能为空');
     patch.title = t.slice(0, 300);
   }
+  if (body.tags !== undefined && !Array.isArray(body.tags)) return badRequest('tags 必须是字符串数组');
   if (Array.isArray(body.tags)) {
     patch.tags = body.tags.map((t) => String(t).trim()).filter(Boolean).slice(0, 30);
   }
   if (Object.keys(patch).length === 0) return badRequest('没有可更新的字段');
 
-  const [doc] = await db.update(documents).set(patch).where(eq(documents.id, id)).returning();
+  const docSegmentIds =
+    patch.tags !== undefined
+      ? (await db.select({ id: segments.id }).from(segments).where(eq(segments.documentId, id))).map((seg) => seg.id)
+      : [];
+  const [updatedRows] = (await runBatch([
+    db.update(documents).set(patch).where(eq(documents.id, id)).returning(),
+    ...rebuildLinksQueries(docSegmentIds),
+  ])) as [Array<typeof documents.$inferSelect>];
+  const doc = updatedRows[0];
   if (!doc) return notFound('文档不存在');
 
   // 标题变化会同时影响列表、文档详情与图谱节点名；tags 也可能影响详情展示
@@ -115,4 +128,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   invalidateCache('stats');
 
   return NextResponse.json({ document: doc });
+}
+
+/** 删除整篇文档；数据库外键会级联清理知识点、关联、标注与阅读流水。 */
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await guard(req);
+  if (denied) return denied;
+  const { id } = await params;
+  if (!isUuid(id)) return notFound();
+
+  const [doc] = await db
+    .delete(documents)
+    .where(eq(documents.id, id))
+    .returning({ id: documents.id, storageKey: documents.storageKey });
+  if (!doc) return notFound('文档不存在');
+
+  invalidateCache('graph');
+  invalidateCache('stats');
+  invalidateCache('docs');
+  invalidateCache(`note:${id}`);
+  if (doc.storageKey) await deleteOriginal(doc.storageKey);
+  return NextResponse.json({ ok: true });
 }

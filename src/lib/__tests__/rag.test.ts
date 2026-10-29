@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scoreSegment, tokenize } from '../rag';
+import { buildContextBudget, scoreSegment, tokenize, type RagHit } from '../rag';
 
 const T = (title: string, content: string, tags: string[] = []) => ({ title, content, tags });
 
@@ -19,6 +19,37 @@ describe('tokenize 查询分词', () => {
 
   it('上限 24 个', () => {
     expect(tokenize('这是一段特别长的中文查询文本用来验证分词数量上限保护机制').length).toBeLessThanOrEqual(24);
+  });
+});
+
+describe('buildContextBudget 总上下文预算', () => {
+  const hits: RagHit[] = [
+    { segmentId: '1', title: '高分', snippet: '甲'.repeat(20), score: 2 },
+    { segmentId: '2', title: '低分', snippet: '乙'.repeat(20), score: 1 },
+  ];
+
+  it('未超限时保留全部输入', () => {
+    const result = buildContextBudget({ material: '材料', profileBlock: '画像', ragHits: hits, maxChars: 200 });
+    expect(result.material).toBe('材料');
+    expect(result.profileBlock).toBe('画像');
+    expect(result.contextUsed).toEqual(hits);
+    expect(result.truncated).toBe(false);
+  });
+
+  it('超限先裁低优先级 RAG，再裁画像，最后才裁材料', () => {
+    const ragClipped = buildContextBudget({ material: '材'.repeat(30), profileBlock: '像'.repeat(20), ragHits: hits, maxChars: 65 });
+    expect(ragClipped.contextUsed).toHaveLength(0);
+    expect(ragClipped.profileBlock).toBe('像'.repeat(20));
+    expect(ragClipped.totalChars).toBeLessThanOrEqual(65);
+
+    const profileClipped = buildContextBudget({ material: '材'.repeat(30), profileBlock: '像'.repeat(40), maxChars: 50 });
+    expect(profileClipped.material).toBe('材'.repeat(30));
+    expect(profileClipped.profileBlock.length).toBeLessThan(40);
+
+    const materialClipped = buildContextBudget({ material: '材'.repeat(80), maxChars: 50 });
+    expect(materialClipped.material).toHaveLength(50);
+    expect(materialClipped.material.endsWith('…')).toBe(true);
+    expect(materialClipped.totalChars).toBe(50);
   });
 });
 

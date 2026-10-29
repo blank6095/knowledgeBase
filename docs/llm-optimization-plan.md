@@ -106,7 +106,14 @@
 
 ## 附：执行注意事项
 
-- 迁移 0006（llm_calls）生成后**单独执行**（db:migrate 全量重放会卡死在 0000，已知陷阱）。
+- 迁移执行器现已使用 `_kb_migrations` 版本表；升级前先运行 `npm run db:migrate:check`，再执行 `npm run db:migrate`。
 - llm_calls 含 error 字段但**不得记录 prompt 内容与画像文本**（隐私），只记维度与用量。
 - L1-5 流式改造涉及 api client 与 /ask 页两处，遵守既有 reduced-motion 与骨架屏约定。
 - 本方案与 v14 画像层正交：画像已注入三个消费方，任何 L1/L2 措施不得破坏 profileSummary 响应字段。
+
+## 交付记录（2026-10-29）
+
+- L1 全部、L2-1、L2-2、L2-4 已完成。
+- `buildContextBudget()` 按材料 > 画像 > RAG 裁剪，接入拆解、聚合与问答。
+- `llm_cache` 冲突写已改为覆盖更新；ask 无工具直答缓存 24h TTL，命中仍按 SSE 返回。
+- 验证：Vitest 覆盖预算裁剪与缓存覆盖写；CI 执行 test/lint/typecheck/build/E2E。

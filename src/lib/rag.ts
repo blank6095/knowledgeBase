@@ -22,6 +22,64 @@ export interface ScoreInput {
   tags: string[];
 }
 
+export const CONTEXT_CHAR_BUDGET = 6000;
+
+export interface ContextBudgetInput {
+  material: string;
+  profileBlock?: string;
+  ragHits?: RagHit[];
+  maxChars?: number;
+}
+
+/**
+ * 用字符数近似约束材料 + 画像 + RAG 总上下文（6000 字约对应 3k token 的保守工程口径）。
+ * 保留优先级为材料 > 画像 > RAG；RAG 从低分尾部开始裁，返回项与实际注入内容始终一致。
+ */
+export function buildContextBudget({
+  material,
+  profileBlock = '',
+  ragHits = [],
+  maxChars = CONTEXT_CHAR_BUDGET,
+}: ContextBudgetInput) {
+  const budget = Math.max(0, Math.floor(maxChars));
+  const clip = (text: string, length: number) => {
+    if (length <= 0) return '';
+    if (text.length <= length) return text;
+    return length === 1 ? '…' : `${text.slice(0, length - 1)}…`;
+  };
+  const renderContext = (hits: RagHit[]) =>
+    hits.length ? hits.map((hit) => `- ${hit.title}：${hit.snippet}`).join('\n') : '';
+
+  let keptMaterial = material;
+  let keptProfile = profileBlock;
+  const keptHits = [...ragHits];
+  let contextBlock = renderContext(keptHits);
+  let total = keptMaterial.length + keptProfile.length + contextBlock.length;
+
+  while (keptHits.length && total > budget) {
+    keptHits.pop();
+    contextBlock = renderContext(keptHits);
+    total = keptMaterial.length + keptProfile.length + contextBlock.length;
+  }
+  if (total > budget && keptProfile) {
+    keptProfile = clip(keptProfile, Math.max(0, budget - keptMaterial.length - contextBlock.length));
+    total = keptMaterial.length + keptProfile.length + contextBlock.length;
+  }
+  if (total > budget) {
+    keptMaterial = clip(keptMaterial, Math.max(0, budget - keptProfile.length - contextBlock.length));
+    total = keptMaterial.length + keptProfile.length + contextBlock.length;
+  }
+
+  return {
+    material: keptMaterial,
+    profileBlock: keptProfile,
+    contextBlock,
+    contextUsed: keptHits,
+    totalChars: total,
+    truncated: keptMaterial !== material || keptProfile !== profileBlock || keptHits.length !== ragHits.length,
+  };
+}
+
 /** 查询分词：英数词（≥2 位）原样 + 中文段 2-3 字滑窗，去重，上限 24 个防候选条件爆炸 */
 export function tokenize(query: string): string[] {
   const out: string[] = [];

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readSessionCookie, sessionToken } from '@/lib/auth';
+import { passcodeConfigured, readSessionCookie, sessionToken } from '@/lib/auth';
 
 const PUBLIC_PATHS = ['/login', '/api/auth'];
 
@@ -10,8 +10,19 @@ export default async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
+  if (!passcodeConfigured()) {
+    if (pathname.startsWith('/api')) {
+      return NextResponse.json({ error: '服务器未配置 AUTH_PASSCODE' }, { status: 503 });
+    }
+    const url = req.nextUrl.clone();
+    url.pathname = '/login';
+    url.search = '';
+    return NextResponse.redirect(url);
+  }
+
+  const expected = await sessionToken();
   const token = readSessionCookie(req.headers.get('cookie'));
-  if (token && token === (await sessionToken())) {
+  if (expected && token === expected) {
     return NextResponse.next();
   }
 

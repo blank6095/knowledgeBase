@@ -4,7 +4,8 @@ import { db } from '@/db';
 import { segments } from '@/db/schema';
 import { badRequest, guard, isUuid, notFound } from '@/lib/api';
 import { invalidateCache } from '@/lib/cache';
-import { rebuildDocChain } from '@/lib/links';
+import { runBatch } from '@/lib/db-batch';
+import { rebuildDocQueries } from '@/lib/links';
 
 /** 与相邻段交换顺序（同文档内）：direction = up（向前）| down（向后） */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -33,11 +34,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const target = body.direction === 'up' ? cur - 1 : cur + 1;
   if (target < 0 || target >= siblings.length) return badRequest(body.direction === 'up' ? '已经是第一节' : '已经是最后一节');
 
-  // 交换两者的 orderIndex（orderIndex 无唯一约束；并列值由 rebuildDocChain 归一化）
-  await db.update(segments).set({ orderIndex: siblings[target].orderIndex }).where(eq(segments.id, seg.id));
-  await db.update(segments).set({ orderIndex: seg.orderIndex }).where(eq(segments.id, siblings[target].id));
-
-  await rebuildDocChain(seg.documentId);
+  // 交换两者的 orderIndex，并在同一事务内重建文档链。
+  await runBatch([
+    db.update(segments).set({ orderIndex: siblings[target].orderIndex }).where(eq(segments.id, seg.id)),
+    db.update(segments).set({ orderIndex: seg.orderIndex }).where(eq(segments.id, siblings[target].id)),
+    ...rebuildDocQueries(seg.documentId),
+  ]);
 
   // 顺序变化会重接 doc 边并影响列表/详情展示
   invalidateCache('graph');

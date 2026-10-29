@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import React from 'react';
 import Markdown from 'react-markdown';
@@ -32,7 +32,6 @@ interface DocDetail {
     viewCount: number;
     content: string;
     memory: number;
-    summary: string | null;
   }[];
 }
 
@@ -152,20 +151,33 @@ const IcToc = (p: React.SVGProps<SVGSVGElement>) => (
 
 const excerpt = (s: string, n = 40) => (s.length > n ? `${s.slice(0, n)}…` : s);
 const clampX = (x: number) => Math.min(Math.max(x, 120), (typeof window === 'undefined' ? 1200 : window.innerWidth) - 120);
+const MIN_READING_MS = 5_000;
+
+interface SectionReadingSession {
+  opened: boolean;
+  since: number | null;
+  dwellMs: number;
+}
 
 export default function NoteDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [data, setData] = useState<DocDetail | null>(null);
   const [error, setError] = useState('');
   const [activeSec, setActiveSec] = useState(0);
   const [tocOpen, setTocOpen] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
+  const readingSessions = useRef(new Map<string, SectionReadingSession>());
+  const activeReadingId = useRef<string | null>(null);
+  const readingVisible = useRef(true);
+  const readingDocId = useRef<string | null>(null);
 
   // 编辑模式
   const [editing, setEditing] = useState(false);
   const [docTitle, setDocTitle] = useState('');
   const [docTagsInput, setDocTagsInput] = useState('');
   const [docMsg, setDocMsg] = useState('');
+  const [deleting, setDeleting] = useState(false);
   // AI 语义拆解/聚合
   const [llmReady, setLlmReady] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -232,6 +244,104 @@ export default function NoteDetailPage() {
       .then((d) => setAnnotations(d.annotations))
       .catch(() => setAnnotations([]));
   }, [id]);
+
+  // 整篇连续阅读：当前可见节累计停留；切节、隐藏或卸载时提交有效阅读。
+  useEffect(() => {
+    if (!data || editing) return;
+    const sessions = readingSessions.current;
+    if (readingDocId.current !== data.document.id) {
+      sessions.clear();
+      readingDocId.current = data.document.id;
+      activeReadingId.current = null;
+    }
+
+    const ensureSession = (segId: string) => {
+      let session = sessions.get(segId);
+      if (!session) {
+        session = { opened: false, since: null, dwellMs: 0 };
+        sessions.set(segId, session);
+      }
+      return session;
+    };
+
+    const sendDuration = (segId: string, durationMs: number, useBeacon: boolean) => {
+      const body = JSON.stringify({ durationMs });
+      if (useBeacon && typeof navigator.sendBeacon === 'function') {
+        navigator.sendBeacon(`/api/segments/${segId}/view`, new Blob([body], { type: 'application/json' }));
+        return;
+      }
+      fetch(`/api/segments/${segId}/view`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true,
+      }).catch(() => {});
+    };
+
+    const pauseActive = (now: number) => {
+      const segId = activeReadingId.current;
+      if (!segId) return;
+      const session = sessions.get(segId);
+      if (!session?.since || !readingVisible.current) return;
+      session.dwellMs += Math.max(0, now - session.since);
+      session.since = null;
+    };
+
+    const flushEligible = (useBeacon: boolean, now = Date.now()) => {
+      pauseActive(now);
+      for (const [segId, session] of sessions) {
+        if (session.dwellMs < MIN_READING_MS) continue;
+        const durationMs = Math.round(session.dwellMs);
+        session.dwellMs = 0;
+        sendDuration(segId, durationMs, useBeacon);
+      }
+    };
+
+    const activeId = data.segments[activeSec]?.id;
+    if (activeId) {
+      activeReadingId.current = activeId;
+      const session = ensureSession(activeId);
+      if (!session.opened) {
+        session.opened = true;
+        fetch(`/api/segments/${activeId}/view`, { method: 'POST', keepalive: true }).catch(() => {
+          session.opened = false;
+        });
+      }
+      if (readingVisible.current) session.since = Date.now();
+    }
+
+    const onVisibility = () => {
+      const now = Date.now();
+      if (document.visibilityState === 'hidden') {
+        readingVisible.current = false;
+        flushEligible(true, now);
+        return;
+      }
+      readingVisible.current = true;
+      const session = activeReadingId.current ? sessions.get(activeReadingId.current) : null;
+      if (session) session.since = now;
+    };
+    const onPageHide = () => {
+      readingVisible.current = false;
+      flushEligible(true);
+    };
+    const onPageShow = () => {
+      readingVisible.current = true;
+      const session = activeReadingId.current ? sessions.get(activeReadingId.current) : null;
+      if (session && document.visibilityState === 'visible') session.since = Date.now();
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('pageshow', onPageShow);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('pageshow', onPageShow);
+      flushEligible(false);
+      activeReadingId.current = null;
+    };
+  }, [data, editing, activeSec]);
 
   // 顶部阅读进度条：滚动驱动（rAF 节流）
   useEffect(() => {
@@ -321,7 +431,9 @@ export default function NoteDetailPage() {
     for (const [segId, rows] of bySeg) {
       const el = document.querySelector<HTMLElement>(`section[data-seg-id="${segId}"]`);
       if (!el) continue;
-      const text = el.textContent ?? '';
+      const body = el.querySelector<HTMLElement>('.md-body');
+      if (!body) continue;
+      const text = body.textContent ?? '';
       const specs: MarkSpec[] = [];
       for (const a of rows) {
         const quote = a.quote;
@@ -330,7 +442,7 @@ export default function NoteDetailPage() {
         if (r) specs.push({ id: a.id, start: r.start, end: r.end, color: a.color, hasNote: a.kind === 'note' && !!a.note });
         else failed.add(a.id);
       }
-      injectMarks(el, specs);
+      injectMarks(body, specs);
     }
     // 注入完成后再回写失效集合：DOM 副作用与状态解耦，微任务时机避开 effect 内同步 setState
     queueMicrotask(() => setInvalidIds(failed));
@@ -347,13 +459,16 @@ export default function NoteDetailPage() {
       const quote = sel.toString().trim();
       if (quote.length < MIN_QUOTE_LEN) return;
       const anchorEl = sel.anchorNode instanceof Element ? sel.anchorNode : sel.anchorNode?.parentElement;
-      const sec = anchorEl?.closest('section[data-seg-id]') as HTMLElement | null;
+      const body = anchorEl?.closest('.md-body') as HTMLElement | null;
+      const sec = body?.closest('section[data-seg-id]') as HTMLElement | null;
       if (!sec || !sec.dataset.segId) return;
 
-      const secText = sec.textContent ?? '';
       const range = sel.getRangeAt(0);
+      const endEl = range.endContainer instanceof Element ? range.endContainer : range.endContainer.parentElement;
+      if (!body || !endEl || !body.contains(endEl)) return;
+      const secText = body.textContent ?? '';
       const pre = range.cloneRange();
-      pre.selectNodeContents(sec);
+      pre.selectNodeContents(body);
       pre.setEnd(range.startContainer, range.startOffset);
       const startOff = pre.toString().length;
 
@@ -475,6 +590,20 @@ export default function NoteDetailPage() {
       setDocMsg('已保存');
     } catch (e) {
       setDocMsg(e instanceof Error ? e.message : '保存失败');
+    }
+  };
+
+  const deleteDocument = async () => {
+    if (!data || deleting) return;
+    if (!window.confirm(`永久删除「${data.document.title}」及其全部知识点、划线和阅读记录？此操作无法撤销。`)) return;
+    setDeleting(true);
+    setDocMsg('');
+    try {
+      await api(`/api/notes/${id}`, { method: 'DELETE' });
+      router.replace('/notes');
+    } catch (e) {
+      setDocMsg(e instanceof Error ? e.message : '删除失败');
+      setDeleting(false);
     }
   };
 
@@ -666,6 +795,13 @@ export default function NoteDetailPage() {
               className="rounded-lg border border-line px-3 py-1.5 text-tag text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
             >
               保存文档信息
+            </button>
+            <button
+              onClick={deleteDocument}
+              disabled={deleting}
+              className="ml-auto rounded-lg border border-danger/30 px-3 py-1.5 text-tag text-danger transition-colors duration-150 hover:bg-danger/10 disabled:opacity-50"
+            >
+              {deleting ? '删除中…' : '删除文档'}
             </button>
             {docMsg && <span className="text-tag text-faint">{docMsg}</span>}
           </div>

@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
 import { and, eq, gte, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { segments } from '@/db/schema';
+import { annotations, segments } from '@/db/schema';
 import { badRequest, guard, isUuid, notFound } from '@/lib/api';
+import { planAnnotationMigration } from '@/lib/annotation-migrate';
 import { invalidateCache } from '@/lib/cache';
+import { runBatch } from '@/lib/db-batch';
+import { rebuildDocQueries, rebuildLinksQueries } from '@/lib/links';
 import { extractInlineTags, stripMarkdown } from '@/lib/markdown';
-import { rebuildDocChain, rebuildSegmentLinks } from '@/lib/links';
-import { migrateAnnotations } from '@/lib/annotation-migrate';
 
 interface Child {
   title: string;
@@ -28,9 +30,9 @@ function parseChildren(input: unknown): Child[] | null {
 
 /**
  * 语义拆解应用（用户已确认预览）：
- * 母段 PATCH 为第一个子段（记忆字段不动，readingMs 均分余数归第一子段）；
+ * 母段更新为第一个子段（记忆字段不动，readingMs 均分余数归第一子段）；
  * 其余子段按序插入其后（stability/viewCount 复制母段、readingMs 均分、first/lastViewedAt 复制）；
- * 每段 rebuildSegmentLinks + rebuildDocChain；母段标注按 locate 三级降级迁移到子段。
+ * 段更新、插入、标注迁移、关系边和段数在同一个 Neon batch 事务内完成。
  */
 export async function POST(req: NextRequest) {
   const denied = await guard(req);
@@ -50,59 +52,75 @@ export async function POST(req: NextRequest) {
   const share = Math.floor(totalMs / n);
   const firstMs = totalMs - share * (n - 1); // 余数归第一子段，保证之和不变
 
-  // 腾位：母段之后的同文档段整体后移 n-1 位
-  if (n > 1) {
-    await db
-      .update(segments)
-      .set({ orderIndex: sql`${segments.orderIndex} + ${n - 1}` })
-      .where(and(eq(segments.documentId, seg.documentId), gte(segments.orderIndex, seg.orderIndex + 1)));
-  }
-
-  // 母段 → 第一子段（内容变更；记忆字段仅 readingMs 均分，其余原样即「复制」）
   const firstTags = [...new Set([...seg.tags, ...extractInlineTags(children[0].content)])].slice(0, 20);
-  await db
-    .update(segments)
-    .set({ title: children[0].title, content: children[0].content, tags: firstTags, readingMs: firstMs })
-    .where(eq(segments.id, seg.id));
+  const inserted = children.slice(1).map((child, index) => ({
+    id: randomUUID(),
+    title: child.title,
+    orderIndex: seg.orderIndex + index + 1,
+    tags: extractInlineTags(child.content).slice(0, 20),
+    content: child.content,
+  }));
 
-  // 其余子段按序插入，并各自重建 wiki/tag 边
-  const inserted: { id: string; title: string; orderIndex: number }[] = [];
-  for (let k = 1; k < n; k++) {
-    const tags = extractInlineTags(children[k].content).slice(0, 20);
-    const [row] = await db
-      .insert(segments)
-      .values({
+  const candidates = children.map((child, index) => ({
+    segmentId: index === 0 ? seg.id : inserted[index - 1].id,
+    text: stripMarkdown(child.content),
+  }));
+  const sourceAnnotations = await db
+    .select({
+      id: annotations.id,
+      segmentId: annotations.segmentId,
+      quote: annotations.quote,
+      occurrence: annotations.occurrence,
+      prefix: annotations.prefix,
+      suffix: annotations.suffix,
+    })
+    .from(annotations)
+    .where(eq(annotations.segmentId, seg.id));
+  const annotationPlan = planAnnotationMigration(sourceAnnotations, {
+    fromSegmentIds: [seg.id],
+    candidates,
+    fallbackSegmentId: seg.id,
+  });
+
+  const queries = [
+    ...(n > 1
+      ? [
+          db
+            .update(segments)
+            .set({ orderIndex: sql`${segments.orderIndex} + ${n - 1}` })
+            .where(and(eq(segments.documentId, seg.documentId), gte(segments.orderIndex, seg.orderIndex + 1))),
+        ]
+      : []),
+    db
+      .update(segments)
+      .set({ title: children[0].title, content: children[0].content, tags: firstTags, readingMs: firstMs, summary: null })
+      .where(eq(segments.id, seg.id)),
+    db.insert(segments).values(
+      inserted.map((child) => ({
         documentId: seg.documentId,
-        title: children[k].title,
-        content: children[k].content,
-        headingPath: children[k].title.slice(0, 300),
-        orderIndex: seg.orderIndex + k,
-        tags,
+        id: child.id,
+        title: child.title,
+        content: child.content,
+        headingPath: child.title.slice(0, 300),
+        orderIndex: child.orderIndex,
+        tags: child.tags,
         stability: seg.stability,
         viewCount: seg.viewCount,
         readingMs: share,
         firstViewedAt: seg.firstViewedAt,
         lastViewedAt: seg.lastViewedAt,
-      })
-      .returning({ id: segments.id, title: segments.title, orderIndex: segments.orderIndex });
-    inserted.push(row);
-    await rebuildSegmentLinks({ id: row.id, content: children[k].content, tags });
-  }
-
-  // 边维护：母段内容变更后重建 wiki/tag；文档链归一化重接
-  await rebuildSegmentLinks({ id: seg.id, content: children[0].content, tags: firstTags });
-  await rebuildDocChain(seg.documentId);
-
-  // 标注迁移：母段标注按子段渲染文本 locate 三级降级，全部不命中留在第一子段置无效
-  const candidates = children.map((c, i) => ({
-    segmentId: i === 0 ? seg.id : inserted[i - 1].id,
-    text: stripMarkdown(c.content),
-  }));
-  const { migrated, invalid } = await migrateAnnotations({
-    fromSegmentIds: [seg.id],
-    candidates,
-    fallbackSegmentId: seg.id,
-  });
+      })),
+    ),
+    ...annotationPlan.updates.map((update) =>
+      db
+        .update(annotations)
+        .set({ segmentId: update.segmentId, updatedAt: update.updatedAt })
+        .where(eq(annotations.id, update.id)),
+    ),
+    ...rebuildLinksQueries([seg.id, ...inserted.map((child) => child.id)]),
+    ...rebuildDocQueries(seg.documentId),
+  ];
+  await runBatch(queries);
 
   // 拆解涉及段更新/插入、边重建与标注迁移，全部写完后统一失效
   invalidateCache('graph');
@@ -113,9 +131,9 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     segments: [
       { id: seg.id, title: children[0].title, orderIndex: seg.orderIndex },
-      ...inserted,
+      ...inserted.map(({ id, title, orderIndex }) => ({ id, title, orderIndex })),
     ],
-    migrated,
-    invalid,
+    migrated: annotationPlan.migrated,
+    invalid: annotationPlan.invalid,
   });
 }

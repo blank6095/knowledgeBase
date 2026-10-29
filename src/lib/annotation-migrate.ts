@@ -8,6 +8,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { annotations } from '@/db/schema';
 import { locate, type Anchor } from '@/lib/annotations';
+import { runBatch } from '@/lib/db-batch';
 
 export interface MigrateResult {
   /** 成功定位迁移的标注数（含无引文的节级笔记） */
@@ -16,19 +17,29 @@ export interface MigrateResult {
   invalid: number;
 }
 
-export async function migrateAnnotations(opts: {
-  fromSegmentIds: string[];
-  /** 候选目标段（新文本），按优先级排序 */
-  candidates: { segmentId: string; text: string }[];
-  /** 全部不命中时的兜底段 */
-  fallbackSegmentId: string;
-}): Promise<MigrateResult> {
-  const { fromSegmentIds, candidates, fallbackSegmentId } = opts;
-  if (fromSegmentIds.length === 0) return { migrated: 0, invalid: 0 };
+interface AnnotationRow {
+  id: string;
+  segmentId: string;
+  quote: string | null;
+  occurrence: number;
+  prefix: string | null;
+  suffix: string | null;
+}
 
-  const rows = await db.select().from(annotations).where(inArray(annotations.segmentId, fromSegmentIds));
+export interface AnnotationMigrationPlan extends MigrateResult {
+  updates: { id: string; segmentId: string; updatedAt: Date }[];
+}
+
+export function planAnnotationMigration(rows: AnnotationRow[], opts: {
+  fromSegmentIds: string[];
+  candidates: { segmentId: string; text: string }[];
+  fallbackSegmentId: string;
+}): AnnotationMigrationPlan {
+  const { candidates, fallbackSegmentId } = opts;
   let migrated = 0;
   let invalid = 0;
+  const updates: AnnotationMigrationPlan['updates'] = [];
+  const updatedAt = new Date();
 
   for (const a of rows) {
     let target: string;
@@ -44,10 +55,31 @@ export async function migrateAnnotations(opts: {
       ok = true;
     }
     if (target !== a.segmentId) {
-      await db.update(annotations).set({ segmentId: target }).where(eq(annotations.id, a.id));
+      updates.push({ id: a.id, segmentId: target, updatedAt });
     }
     if (ok) migrated++;
     else invalid++;
   }
-  return { migrated, invalid };
+  return { migrated, invalid, updates };
+}
+
+export async function migrateAnnotations(opts: {
+  fromSegmentIds: string[];
+  /** 候选目标段（新文本），按优先级排序 */
+  candidates: { segmentId: string; text: string }[];
+  /** 全部不命中时的兜底段 */
+  fallbackSegmentId: string;
+}): Promise<MigrateResult> {
+  if (opts.fromSegmentIds.length === 0) return { migrated: 0, invalid: 0 };
+  const rows = await db.select().from(annotations).where(inArray(annotations.segmentId, opts.fromSegmentIds));
+  const plan = planAnnotationMigration(rows, opts);
+  await runBatch(
+    plan.updates.map((update) =>
+      db
+        .update(annotations)
+        .set({ segmentId: update.segmentId, updatedAt: update.updatedAt })
+        .where(eq(annotations.id, update.id)),
+    ),
+  );
+  return { migrated: plan.migrated, invalid: plan.invalid };
 }

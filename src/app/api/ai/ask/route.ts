@@ -9,6 +9,7 @@ import { deriveLearnerProfileCached, getLearnerDeclaration, profileToPromptBlock
 import { buildKbOverview } from '@/lib/kb-overview';
 import { AGENT_TOOLS, mergeToolCallDelta, validateActions, type AgentAction } from '@/lib/agent-tools';
 import { logLlmCall } from '@/lib/llm-calls';
+import { cacheKey, getCachedOutput, saveCachedOutput } from '@/lib/llm-cache';
 
 /**
  * 知识库助手 Agent（v15 范式替换：检索式问答 → 自主决定何时检索的对话 Agent）。
@@ -18,8 +19,8 @@ import { logLlmCall } from '@/lib/llm-calls';
  *   propose_actions 只提议不执行——LLM 输出永不直接写库，由前端确认卡走 v10 端点；
  * - 循环上限 3 轮工具调用，超限直答收尾；每轮写 llm_calls(kind='ask-agent')；
  * - 多轮对话：客户端携 history（≤10 条），服务端无状态；
- * - 本版移除：ask 缓存（多轮+工具下 fingerprint 语义不成立，成本由 llm_calls 观测）、
- *   ADVICE_RE/advice 路由与教练 prompt、材料不足死胡同文案（Agent 凭常驻上下文如实回答取代）；
+ * - ask 缓存仅覆盖无工具、无改动提议的直接回答（24h TTL）；工具材料在请求前不可知，不重放陈旧检索结果；
+ * - 本版移除：ADVICE_RE/advice 路由与教练 prompt、材料不足死胡同文案（Agent 凭常驻上下文如实回答取代）；
  * - Step 0 说明：deepseek-v4-flash 的 function calling 未实测（本环境无 API Key 无法验证）；
  *   若上游对 tools 参数返回 400，自动降级为无工具直答（mode:'agent-notools'），行为不中断。
  */
@@ -112,6 +113,29 @@ export async function POST(req: NextRequest) {
     '4. 回答用简洁中文 Markdown；引用了某知识点时可附《标题》。',
   ].join('\n');
 
+  const askCacheKey = cacheKey(
+    'ask',
+    status.config.model,
+    JSON.stringify({ query, history, overviewBlock, profileBlock }),
+  );
+  const cachedAnswer = await getCachedOutput<{ answer: string; mode: 'agent' | 'agent-notools' }>(askCacheKey).catch(
+    () => null,
+  );
+  if (cachedAnswer?.answer) {
+    await logLlmCall({ kind: 'ask-agent', model: status.config.model, cached: true });
+    const cachedStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encoder = new TextEncoder();
+        controller.enqueue(encoder.encode(sse({ delta: cachedAnswer.answer })));
+        controller.enqueue(
+          encoder.encode(sse({ done: true, sources: [], actions: [], mode: cachedAnswer.mode, cached: true })),
+        );
+        controller.close();
+      },
+    });
+    return new Response(cachedStream, { headers: { ...sseHeaders, 'X-Cache': 'HIT' } });
+  }
+
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
@@ -125,6 +149,8 @@ export async function POST(req: NextRequest) {
       let proposed: AgentAction[] = [];
       let degraded = false; // 上游不支持 tools → 无工具直答
       let finalAnswer = '';
+      let usedTools = false;
+      let cacheableDirectAnswer = false;
 
       try {
         for (let iter = 0; iter <= MAX_TOOL_ROUNDS + 1; iter++) {
@@ -159,46 +185,55 @@ export async function POST(req: NextRequest) {
           const calls = new Map<number, { id: string; name: string; args: string }>();
           let inTok = 0;
           let outTok = 0;
-          const reader = handle.response.body!.getReader();
-          let buf = '';
-          for (;;) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buf += decoder.decode(value, { stream: true });
-            const lines = buf.split('\n');
-            buf = lines.pop() ?? '';
-            for (const line of lines) {
-              const t = line.trim();
-              if (!t.startsWith('data:')) continue;
-              const data = t.slice(5).trim();
-              if (data === '[DONE]') continue;
-              let payload: {
-                choices?: {
-                  delta?: {
-                    content?: string;
-                    tool_calls?: { index?: number; id?: string; function?: { name?: string; arguments?: string } }[];
-                  };
-                }[];
-                usage?: { prompt_tokens?: number; completion_tokens?: number };
-              };
-              try {
-                payload = JSON.parse(data);
-              } catch {
-                continue;
-              }
-              const delta = payload.choices?.[0]?.delta;
-              if (typeof delta?.content === 'string' && delta.content) {
-                acc += delta.content;
-                send({ delta: delta.content });
-              }
-              for (const tc of delta?.tool_calls ?? []) mergeToolCallDelta(calls, tc);
-              if (payload.usage) {
-                inTok = payload.usage.prompt_tokens ?? inTok;
-                outTok = payload.usage.completion_tokens ?? outTok;
+          let released = false;
+          const release = () => {
+            if (released) return;
+            released = true;
+            handle.release();
+          };
+          try {
+            const reader = handle.response.body!.getReader();
+            let buf = '';
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              buf += decoder.decode(value, { stream: true });
+              const lines = buf.split('\n');
+              buf = lines.pop() ?? '';
+              for (const line of lines) {
+                const t = line.trim();
+                if (!t.startsWith('data:')) continue;
+                const data = t.slice(5).trim();
+                if (data === '[DONE]') continue;
+                let payload: {
+                  choices?: {
+                    delta?: {
+                      content?: string;
+                      tool_calls?: { index?: number; id?: string; function?: { name?: string; arguments?: string } }[];
+                    };
+                  }[];
+                  usage?: { prompt_tokens?: number; completion_tokens?: number };
+                };
+                try {
+                  payload = JSON.parse(data);
+                } catch {
+                  continue;
+                }
+                const delta = payload.choices?.[0]?.delta;
+                if (typeof delta?.content === 'string' && delta.content) {
+                  acc += delta.content;
+                  send({ delta: delta.content });
+                }
+                for (const tc of delta?.tool_calls ?? []) mergeToolCallDelta(calls, tc);
+                if (payload.usage) {
+                  inTok = payload.usage.prompt_tokens ?? inTok;
+                  outTok = payload.usage.completion_tokens ?? outTok;
+                }
               }
             }
+          } finally {
+            release();
           }
-          handle.release();
           await logLlmCall({ kind: 'ask-agent', model: handle.model, inTok, outTok, ms: Date.now() - started });
 
           const toolCalls: ToolCallRef[] = [...calls.values()]
@@ -211,9 +246,11 @@ export async function POST(req: NextRequest) {
 
           if (toolCalls.length === 0) {
             finalAnswer = acc;
+            cacheableDirectAnswer = Boolean(acc.trim());
             break;
           }
 
+          usedTools = true;
           // 工具轮：执行并回填（OpenAI 要求每个 tool_call 都有 tool 消息响应）
           messages.push({ role: 'assistant', content: acc, tool_calls: toolCalls });
           for (const call of toolCalls) {
@@ -247,11 +284,24 @@ export async function POST(req: NextRequest) {
           actions: enriched,
           mode: degraded ? 'agent-notools' : 'agent',
         });
+        if (cacheableDirectAnswer && !usedTools && proposed.length === 0 && finalAnswer.trim()) {
+          await saveCachedOutput(
+            askCacheKey,
+            'ask',
+            status.config.model,
+            { answer: finalAnswer, mode: degraded ? 'agent-notools' : 'agent' },
+            new Date(Date.now() + 24 * 60 * 60 * 1_000),
+          ).catch(() => {});
+        }
       } catch (e) {
         await logLlmCall({ kind: 'ask-agent', model: status.config.model, error: e instanceof Error ? e.message : String(e) });
         send({ error: e instanceof Error ? e.message : '助手暂时不可用' });
       } finally {
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          // 客户端已断开时流可能已关闭。
+        }
       }
     },
   });

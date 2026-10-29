@@ -14,7 +14,7 @@
  * - 分档：fast 档（摘要/测试）可用轻模型，未配置时与 default 同档。
  */
 import { getLlmSettings } from '@/lib/app-settings';
-import { logLlmCall } from '@/lib/llm-calls';
+import { assertDailyTokenBudget, logLlmCall } from '@/lib/llm-calls';
 
 /** DeepSeek 官方 base url（OpenAI 兼容；文档 https://api-docs.deepseek.com） */
 export const LLM_BASE_URL = 'https://api.deepseek.com';
@@ -139,8 +139,8 @@ export function pickModel(config: LlmConfig, tier: LlmTier = 'default'): string 
 /** 是否应对该错误重试（纯函数，供单测）：网络类（无 status）/429/5xx 可重试，其余 4xx 不重试 */
 export function isRetryableError(e: unknown): boolean {
   const status = (e as { status?: number })?.status;
-  if (typeof status !== 'number') return true; // 网络错误/超时/空返回
-  return status === 429 || status >= 500;
+  if (typeof status === 'number') return status === 429 || status >= 500;
+  return (e as { retryable?: boolean })?.retryable === true;
 }
 
 // ---- 进程内并发护栏（≤3，超出排队） ----
@@ -152,11 +152,15 @@ async function acquireSlot(): Promise<void> {
     return;
   }
   await new Promise<void>((resolve) => waiters.push(resolve));
-  active++;
 }
 function releaseSlot(): void {
-  active--;
-  waiters.shift()?.();
+  const next = waiters.shift();
+  if (next) {
+    // 槽位直接从当前调用转移给等待者，active 保持已占用，避免新调用插队超限。
+    next();
+  } else {
+    active--;
+  }
 }
 
 interface UpstreamPayload {
@@ -184,7 +188,9 @@ async function requestOnce(
   } catch (e) {
     const reason =
       e instanceof Error && e.name === 'TimeoutError' ? `请求超时（${TIMEOUT_MS / 1000}s）` : `网络错误：${(e as Error).message}`;
-    throw new Error(`大模型请求失败：${reason}`);
+    const err = new Error(`大模型请求失败：${reason}`);
+    (err as { retryable?: boolean }).retryable = true;
+    throw err;
   }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -202,6 +208,7 @@ async function requestOnce(
 export async function chatCompletion(messages: ChatMessage[], opts: ChatOptions): Promise<ChatResult> {
   const status = await resolveLlmStatus();
   if (!status.ok) throw new Error(status.hint);
+  await assertDailyTokenBudget();
   const cfg = status.config;
   const model = pickModel(cfg, opts.tier);
   const maxTokens = opts.maxTokens ?? 2048;
@@ -256,6 +263,7 @@ export interface StreamHandle {
 export async function chatCompletionStream(messages: ChatMessage[], opts: ChatOptions): Promise<StreamHandle> {
   const status = await resolveLlmStatus();
   if (!status.ok) throw new Error(status.hint);
+  await assertDailyTokenBudget();
   const cfg = status.config;
   const model = pickModel(cfg, opts.tier);
   const maxTokens = opts.maxTokens ?? 2048;
@@ -266,6 +274,8 @@ export async function chatCompletionStream(messages: ChatMessage[], opts: ChatOp
     await acquireSlot();
     let res: Response;
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(new DOMException('Timeout', 'TimeoutError')), TIMEOUT_MS);
       try {
         res = await fetch(`${LLM_BASE_URL}/chat/completions`, {
           method: 'POST',
@@ -279,12 +289,19 @@ export async function chatCompletionStream(messages: ChatMessage[], opts: ChatOp
             stream_options: { include_usage: true },
             ...(opts.tools?.length ? { tools: opts.tools } : {}),
           }),
-          signal: AbortSignal.timeout(TIMEOUT_MS),
+          signal: controller.signal,
         });
       } catch (e) {
         const reason =
-          e instanceof Error && e.name === 'TimeoutError' ? `请求超时（${TIMEOUT_MS / 1000}s）` : `网络错误：${(e as Error).message}`;
-        throw new Error(`大模型请求失败：${reason}`);
+          controller.signal.reason instanceof Error && controller.signal.reason.name === 'TimeoutError'
+            ? `请求超时（${TIMEOUT_MS / 1000}s）`
+            : `网络错误：${(e as Error).message}`;
+        const err = new Error(`大模型请求失败：${reason}`);
+        (err as { retryable?: boolean }).retryable = true;
+        throw err;
+      } finally {
+        // 超时只约束建连与响应头；拿到 SSE 后允许长回答持续读取。
+        clearTimeout(timeout);
       }
       if (!res.ok) {
         const text = await res.text().catch(() => '');

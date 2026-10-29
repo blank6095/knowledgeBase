@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "云端知识库/**",
+    ".verify-planet/**",
   ]),
 ]);
 

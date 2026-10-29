@@ -39,8 +39,16 @@ function normalizeTags(v: unknown): string[] {
 /** 行内 #标签（排除 Markdown 标题：# 后必须直接跟非空内容且前面是行首空白或行中空白） */
 export function extractInlineTags(body: string): string[] {
   const tags: string[] = [];
+  let fence: { char: string; length: number } | null = null;
   for (const line of body.split(/\r?\n/)) {
-    // 跳过标题行和代码块内的内容由调用方决定；这里只匹配行内标签
+    const marker = line.match(/^\s*(`{3,}|~{3,})/);
+    if (marker) {
+      const token = marker[1];
+      if (!fence) fence = { char: token[0], length: token.length };
+      else if (token[0] === fence.char && token.length >= fence.length) fence = null;
+      continue;
+    }
+    if (fence) continue;
     for (const m of line.matchAll(/(?:^|[\s(（])#([^\s#。，,.!?！？:：;；)）]{1,30})/g)) {
       const t = m[1];
       if (!tags.includes(t)) tags.push(t);

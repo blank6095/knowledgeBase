@@ -8,6 +8,7 @@ import { api, formatDuration } from '@/lib/client';
 import { MEMORY_TIER_META } from '@/components/MemoryBadge';
 import { memoryColor, memoryTier, MEMORY_TIER_LABELS, MEMORY_TIER_ORDER } from '@/lib/memory';
 import { Skeleton } from '@/components/Skeleton';
+import { escapeHtml } from '@/lib/security';
 import { colorBucketKey, shade } from './color-utils';
 import { CONVERGE_ALPHA_MIN, FALLBACK_MEASURE_MS, FALLBACK_SIZE, sizeChanged, warmupTicksFor } from './mount-utils';
 import { drawSprite, getNodeSprite, glowBucket, radiusBucket, type NodePaint } from './node-sprites';
@@ -27,6 +28,8 @@ const Graph = dynamic(() => import('react-force-graph-2d'), { ssr: false }) as u
   linkDirectionalArrowRelPos?: number;
   onNodeClick?: (n: never) => void;
   onNodeHover?: (n: never, prev: never) => void;
+  onNodeDrag?: (n: never) => void;
+  onNodeDragEnd?: (n: never) => void;
   maxZoom?: number;
   /** 首帧前预热的迭代次数：把首帧从随机初始位置推到较合理的布局 */
   warmupTicks?: number;
@@ -141,6 +144,8 @@ export default function GraphPage() {
   const fgRef = useRef<FGInstance | null>(null);
   const forcesTouched = useRef(false);
   const groupId = useRef(0);
+  /** 记录本次拖拽是否已重热，避免每个 pointermove 都把布局重置为满能量 */
+  const draggingNodeId = useRef<string | null>(null);
 
   const wrapRef = useRef<HTMLDivElement>(null);
   /** 容器实测尺寸：null = 尚未测量；此时不挂载 Graph，避免先用硬编码尺寸画一遍再重设 */
@@ -301,6 +306,24 @@ export default function GraphPage() {
     if (!fg) return;
     if (next) fg.pauseAnimation();
     else fg.resumeAnimation();
+  };
+
+  const onNodeDrag = (node: GNode) => {
+    if (draggingNodeId.current === node.id) return;
+    draggingNodeId.current = node.id;
+
+    const fg = fgRef.current;
+    if (!fg) return;
+
+    // force-graph 会先按旧 alpha 判定收敛并停引擎，再应用拖拽时的 alphaTarget。
+    // 已收敛的图若不显式重热，当前节点由指针直接移动，邻接节点却不会参与仿真。
+    fg.d3ReheatSimulation();
+    if (paused) fg.resumeAnimation();
+  };
+
+  const onNodeDragEnd = () => {
+    draggingNodeId.current = null;
+    if (paused) fgRef.current?.pauseAnimation();
   };
 
   const addGroup = () => {
@@ -606,8 +629,8 @@ export default function GraphPage() {
                   const d = n as unknown as GNode;
                   const tier = MEMORY_TIER_LABELS[memoryTier(d.memory)];
                   return `<div style="max-width:280px;padding:6px 9px;background:var(--color-elevated);color:var(--color-primary);border:1px solid var(--color-line-strong);border-radius:6px;font:13px var(--font-geist-sans),sans-serif">
-                <b>${d.title}</b><br/>
-                <span style="color:var(--color-faint)">${d.documentTitle ?? ''}</span><br/>
+                <b>${escapeHtml(d.title)}</b><br/>
+                <span style="color:var(--color-faint)">${escapeHtml(d.documentTitle)}</span><br/>
                 <span style="font-family:var(--font-geist-mono),monospace">${tier} · 阅读 ${d.viewCount} 次 · 累计 ${formatDuration(d.readingMs)}</span>
               </div>`;
                 }}
@@ -623,6 +646,8 @@ export default function GraphPage() {
                   setHoverId(id);
                   document.body.style.cursor = id ? 'pointer' : 'default';
                 }}
+                onNodeDrag={(n) => onNodeDrag(n as unknown as GNode)}
+                onNodeDragEnd={onNodeDragEnd}
               />
             </div>
           )}

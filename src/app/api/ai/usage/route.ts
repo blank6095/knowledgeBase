@@ -3,9 +3,7 @@ import { and, gte, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { llmCalls } from '@/db/schema';
 import { guard } from '@/lib/api';
-
-/** 日 token 护栏（docs/llm-optimization-plan.md 建议值，接近日志后校准） */
-export const DAILY_TOKEN_GUARDRAIL = 500_000;
+import { DAILY_TOKEN_GUARDRAIL } from '@/lib/llm-calls';
 
 /**
  * 大模型用量（近 7 天，设置页可观测小节）：

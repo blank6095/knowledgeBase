@@ -4,7 +4,7 @@ import { db } from '@/db';
 import { segments } from '@/db/schema';
 import { badRequest, guard, isUuid, notFound } from '@/lib/api';
 import { chatCompletion, extractJson, getLlmConfig, LLM_SETUP_HINT } from '@/lib/llm';
-import { neighborsOf } from '@/lib/rag';
+import { buildContextBudget, neighborsOf } from '@/lib/rag';
 import { cacheKey, getCachedOutput, saveCachedOutput } from '@/lib/llm-cache';
 import { logLlmCall } from '@/lib/llm-calls';
 import { deriveLearnerProfileCached, getLearnerDeclaration, profileToPromptBlock } from '@/lib/learner-profile';
@@ -45,27 +45,29 @@ export async function POST(req: NextRequest) {
   // RAG 上下文：选中段集的图谱 1-hop 邻居 top5（命中/未命中都实时计算，随图谱演进）
   const neighbors = await neighborsOf(ids, 5).catch(() => []);
 
-  if (cached) {
-    await logLlmCall({ kind: 'aggregate', model: config.model, cached: true });
-    return NextResponse.json({ merged: cached, contextUsed: neighbors.map(toContext), cached: true });
-  }
-
   // 学习者画像（60s TTL 缓存）：融合稿兼顾薄弱主题
   const [profile, declaration] = await Promise.all([
     deriveLearnerProfileCached().catch(() => null),
     getLearnerDeclaration().catch(() => ''),
   ]);
   const profileBlock = profileToPromptBlock(profile, declaration);
-  const profileNote = profileBlock
-    ? '\n\n' + profileBlock + '\n（融合命名与术语取舍时兼顾学习者水平：其记忆薄弱主题的术语首次出现时可附一句简要解释。）'
-    : '';
-
   const parts = rows.map((r, i) => `【段落 ${i + 1}】标题：${r.title}\n内容：\n${r.content}`).join('\n\n');
+  const budget = buildContextBudget({
+    material: `以下是需要聚合的 ${rows.length} 个段落：\n\n${parts}`,
+    profileBlock,
+    ragHits: neighbors,
+  });
 
-  const contextBlock = neighbors.length
-    ? `\n\n以下是知识库中与这些段落相关的其他节点（标题 + 摘要）。融合时避免与它们内容重复，专有名词与术语保持一致：\n${neighbors
-        .map((n) => `- ${n.title}：${n.snippet}`)
-        .join('\n')}`
+  if (cached) {
+    await logLlmCall({ kind: 'aggregate', model: config.model, cached: true });
+    return NextResponse.json({ merged: cached, contextUsed: budget.contextUsed.map(toContext), cached: true });
+  }
+
+  const profileNote = budget.profileBlock
+    ? '\n\n' + budget.profileBlock + '\n（融合命名与术语取舍时兼顾学习者水平：其记忆薄弱主题的术语首次出现时可附一句简要解释。）'
+    : '';
+  const contextBlock = budget.contextUsed.length
+    ? `\n\n以下是知识库中与这些段落相关的其他节点（标题 + 摘要）。融合时避免与它们内容重复，专有名词与术语保持一致：\n${budget.contextBlock}`
     : '';
 
   const system = [
@@ -76,7 +78,7 @@ export async function POST(req: NextRequest) {
     '4. 只重组、不增删事实：不得添加原文没有的信息。',
     '只输出 JSON 对象，格式：{"title":"...","content":"..."}，不要输出任何其他文字或解释。',
   ].join('\n');
-  const user = `以下是需要聚合的 ${rows.length} 个段落：\n\n${parts}`;
+  const user = budget.material;
 
   const result = await chatCompletion(
     [
@@ -96,7 +98,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     merged,
-    contextUsed: neighbors.map(toContext),
+    contextUsed: budget.contextUsed.map(toContext),
     cached: false,
   });
 }

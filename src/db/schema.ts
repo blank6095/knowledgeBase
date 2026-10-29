@@ -111,6 +111,34 @@ export const readingEvents = pgTable(
   (t) => [index('reading_events_segment_idx').on(t.segmentId), index('reading_events_started_idx').on(t.startedAt)],
 );
 
+/**
+ * 主动回忆记录：与 reading_events 平行，记录“本次能否回忆起来”，
+ * 不用阅读时长或记忆度代替真实掌握结果。
+ */
+export const recallReviews = pgTable(
+  'recall_reviews',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    submissionId: text('submission_id').notNull(),
+    segmentId: uuid('segment_id')
+      .notNull()
+      .references(() => segments.id, { onDelete: 'cascade' }),
+    question: text('question').notNull(),
+    referenceAnswer: text('reference_answer').notNull(),
+    answer: text('answer').notNull().default(''),
+    result: text('result').notNull(), // incorrect | partial | correct
+    sourceVersion: text('source_version').notNull(),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }).notNull().defaultNow(),
+    nextReviewAt: timestamp('next_review_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('recall_reviews_submission_idx').on(t.submissionId),
+    index('recall_reviews_segment_idx').on(t.segmentId),
+    index('recall_reviews_reviewed_idx').on(t.reviewedAt),
+    index('recall_reviews_next_idx').on(t.nextReviewAt),
+  ],
+);
+
 /** 应用级键值设置（key text pk, value jsonb）：key='llm' 存 {apiKey, model}；API key 只在服务端使用 */
 export const appSettings = pgTable('app_settings', {
   key: text('key').primaryKey(),

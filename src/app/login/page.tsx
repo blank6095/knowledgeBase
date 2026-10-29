@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { safeNextPath } from '@/lib/security';
 
 export default function LoginPage() {
   const [passcode, setPasscode] = useState('');
@@ -20,7 +21,7 @@ export default function LoginPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? '登录失败');
       const next = new URLSearchParams(window.location.search).get('next');
-      window.location.href = next && next.startsWith('/') ? next : '/';
+      window.location.href = safeNextPath(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : '登录失败');
       setLoading(false);

@@ -6,7 +6,8 @@ import { badRequest, guard, isUuid, notFound } from '@/lib/api';
 import { invalidateCache } from '@/lib/cache';
 import { memoryOf } from '@/lib/memory';
 import { extractInlineTags } from '@/lib/markdown';
-import { rebuildDocChain, rebuildSegmentLinks } from '@/lib/links';
+import { runBatch } from '@/lib/db-batch';
+import { rebuildDocQueries, rebuildLinksQueries } from '@/lib/links';
 
 interface NeighborRow {
   id: string;
@@ -134,12 +135,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!isUuid(id)) return notFound();
 
   const body = (await req.json().catch(() => ({}))) as {
-    title?: string;
-    content?: string;
-    tags?: string[];
+    title?: unknown;
+    content?: unknown;
+    tags?: unknown;
   };
-  const patch: { title?: string; content?: string; tags?: string[] } = {};
+  const patch: { title?: string; content?: string; tags?: string[]; summary?: null } = {};
   if (body.title !== undefined) {
+    if (typeof body.title !== 'string') return badRequest('title 必须是字符串');
     const t = body.title.trim();
     if (!t) return badRequest('标题不能为空');
     patch.title = t.slice(0, 200);
@@ -148,6 +150,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (typeof body.content !== 'string') return badRequest('content 必须是字符串');
     patch.content = body.content;
   }
+  if (body.tags !== undefined && !Array.isArray(body.tags)) return badRequest('tags 必须是字符串数组');
   if (Array.isArray(body.tags)) {
     patch.tags = body.tags.map((t) => String(t).trim()).filter(Boolean).slice(0, 20);
   }
@@ -156,12 +159,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const [seg] = await db.select().from(segments).where(eq(segments.id, id));
   if (!seg) return notFound('知识点不存在');
 
-  const [updated] = await db.update(segments).set(patch).where(eq(segments.id, id)).returning();
-
-  // wiki/tag 边依赖内容与标签，重建；仅标题变更也需重建（wiki 按标题匹配）
+  if (patch.content !== undefined && patch.content !== seg.content) patch.summary = null;
   const nextContent = patch.content ?? seg.content;
-  const nextTags = patch.tags ?? (patch.content !== undefined ? [...new Set([...seg.tags, ...extractInlineTags(nextContent)])] : seg.tags);
-  await rebuildSegmentLinks({ id, content: nextContent, tags: nextTags });
+  const nextTags = [...new Set([
+    ...(patch.tags ?? seg.tags),
+    ...(patch.content !== undefined ? extractInlineTags(nextContent) : []),
+  ])].slice(0, 20);
+  if (patch.content !== undefined || patch.tags !== undefined) patch.tags = nextTags;
+  const [updatedRows] = (await runBatch([
+    db.update(segments).set(patch).where(eq(segments.id, id)).returning(),
+    ...rebuildLinksQueries([id]),
+  ])) as [Array<typeof segments.$inferSelect>];
+  const updated = updatedRows[0];
 
   // 段标题/内容/标签/chunk 边变化：图谱、统计、列表与文档详情均需失效
   invalidateCache('graph');
@@ -195,8 +204,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const [seg] = await db.select({ id: segments.id, documentId: segments.documentId }).from(segments).where(eq(segments.id, id));
   if (!seg) return notFound('知识点不存在');
 
-  await db.delete(segments).where(eq(segments.id, id));
-  await rebuildDocChain(seg.documentId);
+  await runBatch([
+    db.delete(segments).where(eq(segments.id, id)),
+    ...rebuildDocQueries(seg.documentId),
+  ]);
 
   invalidateCache('graph');
   invalidateCache('stats');

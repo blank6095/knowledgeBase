@@ -36,7 +36,10 @@ export async function saveCachedOutput(
   await db
     .insert(llmCache)
     .values({ hash: key, kind, output, model, expiresAt: expiresAt ?? null })
-    .onConflictDoNothing();
+    .onConflictDoUpdate({
+      target: llmCache.hash,
+      set: { kind, output, model, expiresAt: expiresAt ?? null, createdAt: new Date() },
+    });
   // 上限治理：超出 256 条时按最旧删除溢出部分
   await db.execute(sql`
     delete from llm_cache where hash in (

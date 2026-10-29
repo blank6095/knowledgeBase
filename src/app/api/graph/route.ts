@@ -13,11 +13,8 @@ interface GraphNode {
   id: string;
   title: string;
   memory: number;
-  stability: number;
   viewCount: number;
   readingMs: number;
-  tags: string[];
-  documentId: string;
   documentTitle: string | null;
 }
 
@@ -43,8 +40,6 @@ export async function GET(req: NextRequest) {
       stability: segments.stability,
       readingMs: segments.readingMs,
       lastViewedAt: segments.lastViewedAt,
-      tags: segments.tags,
-      documentId: segments.documentId,
       documentTitle: documents.title,
     })
     .from(segments)
@@ -54,11 +49,8 @@ export async function GET(req: NextRequest) {
     id: r.id,
     title: r.title,
     memory: memoryOf(r.stability, r.lastViewedAt, now),
-    stability: r.stability,
     viewCount: r.viewCount,
     readingMs: Number(r.readingMs),
-    tags: r.tags,
-    documentId: r.documentId,
     documentTitle: r.documentTitle,
   }));
 

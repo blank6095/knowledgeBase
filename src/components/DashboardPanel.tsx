@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api, formatDate } from '@/lib/client';
 import MemoryBadge, { MEMORY_TIER_META } from '@/components/MemoryBadge';
+import { TodayLearningSection, type TodayLearningPayload } from '@/components/TodayLearningPanel';
 import { MEMORY_TIER_LABELS } from '@/lib/memory';
 
 export interface WeakSegment {
@@ -75,23 +76,60 @@ export function subscribeStats(
   };
 }
 
+export function loadTodayLearning(): Promise<TodayLearningPayload> {
+  return api<TodayLearningPayload>('/api/learning/today');
+}
+
 export default function DashboardPanel() {
   const [stats, setStats] = useState<StatsPayload | null>(null);
   const [error, setError] = useState('');
+  const [learning, setLearning] = useState<TodayLearningPayload | null>(null);
+  const [learningError, setLearningError] = useState('');
 
   useEffect(() => subscribeStats(setStats, setError), []);
+  useEffect(() => {
+    let alive = true;
+    loadTodayLearning()
+      .then((data) => {
+        if (alive) setLearning(data);
+      })
+      .catch((reason: Error) => {
+        if (alive) setLearningError(reason.message);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
-  return <DashboardShell stats={stats} error={error} />;
+  return <DashboardShell stats={stats} error={error} learning={learning} learningError={learningError} />;
 }
 
 /** 三态外壳：错误 → 提示；加载中 → 骨架屏；就绪 → 行动面板 */
-export function DashboardShell({ stats, error }: { stats: StatsPayload | null; error: string }) {
+export function DashboardShell({
+  stats,
+  error,
+  learning,
+  learningError,
+}: {
+  stats: StatsPayload | null;
+  error: string;
+  learning?: TodayLearningPayload | null;
+  learningError?: string;
+}) {
   if (error) return <p className="text-body text-danger">{error}</p>;
-  return stats ? <DashboardView stats={stats} /> : <DashboardSkeleton />;
+  return stats ? <DashboardView stats={stats} learning={learning} learningError={learningError} /> : <DashboardSkeleton />;
 }
 
 /** 数据就绪后的完整面板；空库走引导导入，其余四块行动 + 降权统计带 */
-export function DashboardView({ stats }: { stats: StatsPayload }) {
+export function DashboardView({
+  stats,
+  learning,
+  learningError,
+}: {
+  stats: StatsPayload;
+  learning?: TodayLearningPayload | null;
+  learningError?: string;
+}) {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <PageHeader />
@@ -99,7 +137,11 @@ export function DashboardView({ stats }: { stats: StatsPayload }) {
         <EmptyLibrary />
       ) : (
         <>
-          {stats.suggestion && <TodayCard segment={stats.suggestion} />}
+          {learning !== undefined ? (
+            <TodayLearningSection learning={learning} error={learningError} />
+          ) : (
+            stats.suggestion && <TodayCard segment={stats.suggestion} />
+          )}
           <WeakSection items={stats.weakTop3 ?? []} />
           <UnreadSection items={stats.unreadTop3 ?? []} />
           <RecentSection documents={stats.recentDocuments} />

@@ -8,11 +8,13 @@
 |---|---|---|---|
 | 1 | 知识只能存本地，跨设备访问需付费 | 全部数据在 Neon Postgres，应用部署 Vercel，任意设备浏览器访问 | ✅ |
 | 2 | 不知道如何归类，关联知识需手动建立 | 导入时自动提取 frontmatter/行内标签与 `[[双链]]`，自动建立三类关联边 | ✅ |
-| 3 | 关系图谱肉眼难以判断哪些未掌握 | 力导向图：掌握度映射红→绿色，未学习灰色；支持状态/关联类型过滤 | ✅ |
-| 4 | 根据最近查看时间、查看次数、复习调查得出掌握程度 | 查看行为自动记录（次数/首末时间）+ SM-2 复习评分，共同派生 0~1 掌握度 | ✅ |
+| 3 | 关系图谱肉眼难以判断哪些快忘了 | 力导向图：节点按记忆档位呈现琥珀灯光亮度，未读为暗点；支持档位/关联类型过滤 | ✅ |
+| 4 | 根据最近查看时间、查看次数与停留得出记忆程度 | 有效阅读 ≥5 秒才推进 stability 与 readingMs；记忆度按指数遗忘曲线读取时计算 | ✅ |
 | 5 | 从外部引入知识，先支持 md | 导入页支持 .md 文件与粘贴，原文备份 R2 | ✅ |
 | 6 | 长段可分割知识点理性分割，避免复习失去耐心 | 按 ## 标题切分，超长按段落贪心组块（默认 ≤1200 字符，可调） | ✅ |
-| 7 | 测验式复习调查 | Roadmap：选择题/填空题生成 | ⏳ |
+| 7 | 不知道今天该复习什么 | 首页按错题、到期、最近读过未测、新知识给出 3 条可解释推荐 | ✅ |
+| 8 | 看过不等于能回忆 | `/study/[segmentId]` 主动回忆：作答后揭晓参考答案，记录真实结果并安排下次复习 | ✅ |
+| 9 | 正式测验 | Roadmap：选择题/填空题生成与判分 | ⏳ |
 
 ## 2. 关键技术决策
 
@@ -21,40 +23,65 @@
 | 框架 | Next.js 16 App Router | Vercel 原生支持；API Routes 免独立后端，Hobby 计划可零成本部署 |
 | 数据库访问 | Drizzle ORM + neon-http 驱动 | 类型安全、轻量；HTTP 驱动适配 Serverless 函数冷启动 |
 | 认证 | 单口令 + Cookie + Proxy 网关 | 个人自用，无需用户体系；全站（页面+API）统一拦截 |
-| 复习算法 | SM-2（Anki 式 4 档评分，天粒度） | 成熟、可解释、无需外部服务；掌握度由 interval/ease/lapses 派生 |
+| 记忆算法 | 指数遗忘曲线 + 间隔效应 | 打开即学习，无需额外评分；M(t)=exp(-Δt/S)，阅读间隔与有效时长共同推进稳定度 |
+| 复习调度 | 独立 recall_reviews + 固定初始间隔 | 阅读行为回答“看过多久”，复习记录回答“当时能否回忆”；两者不混用 |
+| 今日推荐 | 确定性分组排序，不调用 LLM | 错题 → 到期 → 最近读过未测 → 新知识；每条推荐都有可解释原因 |
 | 分割算法 | 标题切分 + 段落贪心组块 | 可离线、可解释、可控长度；LLM 语义分割列入 Roadmap |
 | 关联构建 | wiki（双链标题匹配）/ tag（共同标签）/ doc（同文档相邻） | 三类边互补：作者意图、主题相似、结构相邻 |
-| 关系图谱 | react-force-graph-2d（Canvas） | 性能好、交互成熟（悬停/点击/缩放），客户端渲染 |
+| 关系图谱 | react-force-graph-2d（Canvas） | 性能好、交互成熟（悬停/点击/缩放），客户端渲染；琥珀灯光表达记忆强度 |
 
 ## 3. 数据模型
 
 ```
-documents ──1:N── segments ──1:N── review_logs
-                    │
+documents ──1:N── segments ──1:N── annotations
+                    │        ├──1:N── reading_events
+                    │        └──1:N── recall_reviews
                     └──M:N(自关联)── links（from/to/kind/weight）
+
+app_settings / llm_cache / llm_calls（应用设置、LLM 缓存与可观测流水）
 ```
 
 - **documents**：导入的文档（标题、来源、R2 键、标签、知识点数）
 - **segments**：知识点（标题、内容、headingPath、顺序、标签）
-  - 观测：viewCount、firstViewedAt、lastViewedAt
-  - SM-2：ease、intervalDays、reps、lapses、dueAt、lastGrade
-  - 派生：mastery(0~1)、status(new/learning/familiar/mastered)
+  - 观测：viewCount、firstViewedAt、lastViewedAt、readingMs、summary
+  - 记忆：stability（稳定度，天）
+  - 派生：memory(0~1) 在 API 读取时现算，不落库
 - **links**：kind ∈ {wiki, tag, doc}，unique(from, to, kind)
-- **review_logs**：每次评分留痕（评分、前后间隔）
+- **annotations**：划线/笔记，保存 quote、occurrence、prefix、suffix 四元锚点
+- **reading_events**：单次有效阅读流水（segmentId、startedAt、durationMs）
+- **recall_reviews**：主动回忆流水（题目、回答、参考答案、结果、内容版本、复习时间、下次复习时间）
+- **app_settings**：LLM 与学习者声明等键值设置
+- **llm_cache**：AI preview 输出缓存
+- **llm_calls**：模型、token、耗时、错误摘要等调用观测，不记录 prompt
 
-## 4. 掌握度与状态派生（src/lib/sm2.ts）
+写入一致性：导入、段编辑/移动/删除、AI 拆解/聚合均通过 `db.batch` 在单个 Neon HTTP 事务中同时提交业务数据与派生边；标注迁移在删除源段前完成。
+
+## 4. 记忆度与档位（src/lib/memory.ts）
 
 ```
-mastery = (0.75 × min(1, intervalDays/21) + 0.25 × easeScore) × 遗忘衰减
-status: reps=0 → new；interval≥21 且无遗忘 → mastered；interval≥7 → familiar；否则 learning
+memory(t) = exp(-Δt / max(stability, ε))
+unread: stability=0 或 lastViewedAt=null
+weak: memory<0.4
+medium: 0.4≤memory<0.75
+strong: memory≥0.75
 ```
 
-图谱颜色：new 灰色，其余按 mastery 在色相 0（红）→ 142（绿）间插值。
+单次停留 <5 秒只计打开次数；≥5 秒才写 reading_events 并推进记忆。readingMs 单次封顶 10 分钟。
+图谱颜色：未读为暗灰，已读节点按记忆度呈现由弱到强的琥珀灯光。
 
-## 5. 后续迭代方向
+## 5. 主动回忆与复习调度
 
-1. **测验模式**：基于知识点内容生成选择题/填空题
-2. ~~LLM 语义拆解/聚合（编辑态）~~ ✅ 已落地：`/api/ai/*` 四端点，preview → 用户确认 → apply 两步，LLM 输出永不直接写库；导入态语义分割仍待做
+- 题目由当前段内容生成；未配置或调用失败时降级为原文复述题。
+- 用户先作答再揭晓参考答案；只有提交明确结果后才记录复习。
+- 初始调度：没答出 +1 天、部分掌握 +3 天、答对 +7 天。
+- `sourceVersion` 由标题与正文哈希生成，原文变化后旧题提交返回 409。
+- `submissionId` 唯一约束保证网络重试或重复点击只产生一条记录。
+- 近 7 天反馈只展示自测数、需巩固数、改善数和活跃天数，不把阅读时长或题目数量解释为掌握率。
+
+## 6. 后续迭代方向
+
+1. **正式测验模式**：基于知识点内容生成选择题/填空题并判分
+2. ~~LLM 语义拆解/聚合（编辑态与导入态）~~ ✅ 已落地：`/api/ai/*` 四端点，preview → 用户确认 → apply 两步，LLM 输出永不直接写库；导入态可按需开启语义分割，每篇至多处理 5 段
 3. **更多格式**：PDF / DOCX 解析导入
 4. **附件**：图片上传 R2，知识点内渲染
 5. **统计**：阅读热力图、记忆曲线报表、薄弱主题排行
@@ -62,3 +89,5 @@ status: reps=0 → new；interval≥21 且无遗忘 → mastered；interval≥7 
 > 2026-10 变更注记：移除显式复习页与评分流，改为「打开即学习」；导入拆分器升级为按标题层级的结构化拆解；导航精简为 概览/知识库/关系图谱。
 >
 > 2026-10 后续注记：掌握度体系重构为阅读记忆曲线（stability/readingMs，记忆=灯光亮度）；新增段级编辑、划线/笔记标注（锚点三级重定位）；接入 OpenAI 兼容 LLM 提供编辑态语义拆解与聚合——母段/被删段的标注按 stripMarkdown + locate 三级降级迁移，未命中置无效灰显。
+>
+> 2026-10-29 学习闭环：新增今日学习、主动回忆、复习记录与确定性调度；阅读记忆度保留，但不再作为实际掌握程度的唯一证据。

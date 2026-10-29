@@ -8,8 +8,10 @@
 | Obsidian 痛点                  | 本项目的解法                                                                             |
 | ------------------------------ | ---------------------------------------------------------------------------------------- |
 | 知识在本地，跨设备要付费同步   | 部署在 Vercel，任何设备浏览器访问                                                        |
+| 打开应用后不知道今天该学什么   | 首页给出“今日学习”3 条可解释推荐，按错题、到期复习、最近阅读排序                          |
+| 看过不等于会了                 | `/study/[segmentId]` 提供主动回忆：先作答、再揭晓参考答案、记录真实掌握结果                 |
 | 不知道如何归类、关联要手动建   | 导入时自动提取标签和`[[双链]]`，自动建立三类关联（双链/共同标签/同文档）                 |
-| 关系图谱庞大，看不出哪些快忘了 | 力导向图节点按记忆度呈紫色系亮度渐变（灰=未读，越亮记得越牢），可按记忆档位/关联类型过滤 |
+| 关系图谱庞大，看不出哪些快忘了 | 力导向图节点按记忆度呈琥珀灯光亮度渐变（暗灰=未读，越亮记得越牢），可按记忆档位/关联类型过滤 |
 | 记忆保持缺少反馈               | 阅读即学习：详情页自动采集停留时长，按记忆曲线模型推进稳定度，展示记忆度与半衰期         |
 | 长文阅读容易失去耐心           | 导入时按标题层级结构化拆解为合适长度的知识点，绝不在句中截断                             |
 
@@ -42,6 +44,8 @@ npm run db:migrate           # 顺序执行迁移建表（Neon HTTP 驱动）
 npm run dev                  # http://localhost:3000
 ```
 
+`db:migrate` 使用 `_kb_migrations` 记录已执行版本；完整旧库会自动建立基线，重复执行不会重放历史迁移。升级前可先运行 `npm run db:migrate:check` 做只读检查。
+
 ### 4. 部署到 Vercel
 
 ```bash
@@ -63,10 +67,12 @@ git remote add origin <你的 GitHub 仓库> && git push -u origin main
 
 ## 使用流程
 
-1. **导入**（`/import`）：上传 `.md` 文件或粘贴内容 → 按 `##`/`###`/`####` 标题层级自动拆解知识点，超长内容按句子边界降级，代码块与表格保持完整
-2. **阅读**（知识点详情）：停留时长自动采集（可见时计时、切走/关闭时上报）——单次 ≥5 秒记一次有效阅读并推进记忆稳定度，3 分钟全效、单次封顶 10 分钟；状态卡展示记忆度、半衰期（预计多少天后忘一半）、阅读次数与累计时长
-3. **关系图谱**（`/graph`）：节点颜色 = 记忆度（灰=未读，紫色系亮度随记忆度上升），节点大小 = 关联数，点击进入知识点；支持按记忆档位（未读/弱/中/强）与关联类型筛选
-4. **概览**（`/`）：记忆档位分布、今日阅读数、最近导入
+1. **今日学习**（`/`）：从错题、到期复习、最近读过未测和新知识中给出 3 条带原因的建议，点击直接开始主动回忆
+2. **主动回忆**（`/study/[segmentId]`）：先回答，再揭晓参考答案；记录“没答出 / 部分掌握 / 答对”，分别安排 1 / 3 / 7 天后复习
+3. **导入**（`/import`）：上传 `.md` 文件或粘贴内容 → 按 `##`/`###`/`####` 标题层级自动拆解知识点，超长内容按句子边界降级，代码块与表格保持完整
+4. **阅读**（知识点详情）：停留时长自动采集（可见时计时、切走/关闭时上报）——单次 ≥5 秒记一次有效阅读并推进记忆稳定度，3 分钟全效、单次封顶 10 分钟
+5. **关系图谱**（`/graph`）：节点颜色 = 记忆度（暗灰=未读，琥珀亮度随记忆度上升），节点大小 = 关联数，点击进入知识点
+6. **概览**（`/`）：今日学习、近 7 天自测反馈、记忆档位、今日阅读数与最近导入
 
 记忆模型（详见 `src/lib/memory.ts`，参数集中在 `MEMORY` 常量表）：记忆度 M(t) = exp(-Δt/S)，Δt 为距最近一次有效阅读的天数，S 为稳定度；每次有效阅读按间隔效应推进 S（间隔越远增幅越大，封顶 1.6 倍），阅读时长决定推进权重。记忆度由 API 读取时现算，不落库。
 
@@ -79,11 +85,19 @@ git remote add origin <你的 GitHub 仓库> && git push -u origin main
 ```bash
 npm run dev          # 开发
 npm run build        # 生产构建
+npm run lint         # ESLint
+npm run typecheck    # TypeScript 类型检查
 npm run test         # 单元测试（分割器、记忆模型）
+npm run test:e2e     # Playwright 浏览器回归（首次先安装 Chromium）
 npm run db:migrate   # 顺序执行 src/db/migrations/ 下的迁移（Neon HTTP）
+npm run db:migrate:check # 只读检查待执行迁移
 npm run db:generate  # 生成迁移 SQL（src/db/migrations/）
 npm run db:studio    # Drizzle Studio 查看数据
 ```
+
+首次运行浏览器测试：`npx playwright install chromium`。CI 已在构建后自动安装 Chromium 并执行 E2E。
+
+导入、段编辑/移动/删除、AI 拆解/聚合使用 Neon HTTP batch：业务数据、标注迁移、wiki/tag/doc 关系和文档段数在同一事务中提交；失败时整体回滚。
 
 ## 目录结构
 
@@ -91,7 +105,7 @@ npm run db:studio    # Drizzle Studio 查看数据
 src/
 ├── proxy.ts                 # 认证网关（全站登录门）
 ├── db/
-│   ├── schema.ts            # documents / segments / links / reading_events
+│   ├── schema.ts            # documents / segments / links / reading_events / recall_reviews
 │   ├── index.ts             # Neon 连接（惰性初始化）
 │   └── migrations/          # 生成的 SQL 迁移
 ├── lib/
@@ -103,8 +117,8 @@ src/
 ├── components/              # AppShell / MemoryBadge
 └── app/
     ├── page.tsx             # 概览
-    ├── login/ import/ notes/ segments/ graph/
-    └── api/                 # notes / segments / graph / stats / auth
+    ├── login/ import/ notes/ segments/ study/ graph/
+    └── api/                 # learning / notes / segments / graph / stats / auth
 ```
 
 ## 已知限制
@@ -112,13 +126,15 @@ src/
 - Vercel Hobby 请求体上限约 4.5MB：超大 md 建议粘贴分次导入
 - 单用户设计：一个 `AUTH_PASSCODE`，无多用户/注册体系
 - 导入仅支持 Markdown 纯文本；图片等附件暂不处理
+- 进程内 TTL 缓存为单实例 best-effort，多实例部署下写后失效存在短窗口
+- 当前仍使用单口令会话；LLM API Key 尚未加密存储，CSP 尚未强制启用
 
 ## Roadmap
 
-- [X]  测验模式：由知识点自动生成选择题/填空题，替代自评
+- [ ]  测验模式：由知识点自动生成选择题/填空题，替代自评
 - [X]  LLM 语义拆解/聚合（编辑态）：preview → 确认 → apply 两步，RAG 上下文注入，导入默认仍用启发式拆分
 - [X]  应用内设置页（DeepSeek API Key 存服务端 DB）与「助手」Agent 对话（自主检索 + 改动确认卡）
-- [ ]  LLM 语义分割（导入态）：导入长文时按语义切分并起标题
+- [X]  LLM 语义分割（导入态）：按需开关，每篇至多处理 5 段，按语义切分并起标题
 - [ ]  更多导入格式（PDF / DOCX / 网页剪藏）
 - [ ]  附件与图片上传到 R2 并在知识点内渲染
 - [ ]  学习热力图与学习统计报表

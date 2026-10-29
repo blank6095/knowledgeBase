@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+/云端知识库/
+/.verify-planet/
 /.pnp
 .pnp.*
 .yarn/*
@@ -12,6 +14,8 @@
 
 # testing
 /coverage
+/playwright-report/
+/test-results/
 
 # next.js
 /.next/

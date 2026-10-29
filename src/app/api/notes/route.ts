@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { desc, eq, inArray, sql, arrayOverlaps } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import { desc, inArray, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { documents, links, segments } from '@/db/schema';
 import { badRequest, guard } from '@/lib/api';
 import { getCache, invalidateCache, setCache } from '@/lib/cache';
-import { extractInlineTags, extractWikiLinks } from '@/lib/markdown';
+import { runBatch } from '@/lib/db-batch';
+import { rebuildDocQueries, rebuildLinksQueries } from '@/lib/links';
+import { extractInlineTags } from '@/lib/markdown';
 import { splitMarkdown, type RawSegment } from '@/lib/splitter';
 import { semanticSplit } from '@/lib/ai-split';
 import { getLlmConfig } from '@/lib/llm';
-import { putOriginal } from '@/lib/r2';
+import { deleteOriginal, putOriginal } from '@/lib/r2';
 
 
 /** 记忆度 SQL 表达式：与 src/lib/memory.ts memoryOf 公式一致 exp(-Δt天/S)，ε 防除零 */
@@ -76,12 +79,12 @@ export async function GET(req: NextRequest) {
 }
 
 interface ImportBody {
-  title?: string;
-  content?: string;
+  title?: unknown;
+  content?: unknown;
   source?: 'paste' | 'file';
-  filename?: string;
-  maxChars?: number;
-  aiSplit?: boolean;
+  filename?: unknown;
+  maxChars?: unknown;
+  aiSplit?: unknown;
 }
 
 /** 导入 Markdown：分割为知识点 → 建库 → 建立 wiki/tag/doc 三类关联 → 原文存 R2 */
@@ -90,6 +93,12 @@ export async function POST(req: NextRequest) {
   if (denied) return denied;
 
   const body = (await req.json().catch(() => ({}))) as ImportBody;
+  if (body.content !== undefined && typeof body.content !== 'string') return badRequest('content 必须是字符串');
+  if (body.title !== undefined && typeof body.title !== 'string') return badRequest('title 必须是字符串');
+  if (body.filename !== undefined && typeof body.filename !== 'string') return badRequest('filename 必须是字符串');
+  if (body.maxChars !== undefined && (typeof body.maxChars !== 'number' || !Number.isFinite(body.maxChars))) {
+    return badRequest('maxChars 必须是有限数字');
+  }
   const content = (body.content ?? '').trim();
   if (!content) return badRequest('内容为空');
   const maxChars = Math.min(Math.max(body.maxChars ?? 1800, 300), 4000);
@@ -142,120 +151,59 @@ export async function POST(req: NextRequest) {
 
   const bodyInlineTags = extractInlineTags(content);
   const docTags = [...new Set([...fmTags, ...bodyInlineTags])].slice(0, 30);
+  const documentId = randomUUID();
+  const inserted = finalSegments.map((s, i) => ({
+    id: randomUUID(),
+    documentId,
+    title: s.title.slice(0, 200),
+    content: s.content,
+    headingPath: s.headingPath.slice(0, 300),
+    orderIndex: i,
+    tags: [...new Set([...fmTags, ...extractInlineTags(s.content)])].slice(0, 20),
+  }));
+
+  await runBatch([
+    db.insert(documents).values({
+      id: documentId,
+      title: docTitle,
+      source: body.source === 'file' ? 'file' : 'paste',
+      filename: body.filename ?? null,
+      storageKey: null,
+      tags: docTags,
+      segmentCount: inserted.length,
+    }),
+    db.insert(segments).values(inserted),
+    ...rebuildLinksQueries(inserted.map((segment) => segment.id)),
+    ...rebuildDocQueries(documentId),
+  ]);
+
   const storageKey = await putOriginal(content, body.filename ?? `${docTitle}.md`);
-
-  const [doc] = await db
-    .insert(documents)
-    .values({ title: docTitle, source: body.source === 'file' ? 'file' : 'paste', filename: body.filename ?? null, storageKey, tags: docTags, segmentCount: finalSegments.length })
-    .returning({ id: documents.id });
-
-  const inserted = await db
-    .insert(segments)
-    .values(
-      finalSegments.map((s, i) => ({
-        documentId: doc.id,
-        title: s.title.slice(0, 200),
-        content: s.content,
-        headingPath: s.headingPath.slice(0, 300),
-        orderIndex: i,
-        tags: [...new Set([...fmTags, ...extractInlineTags(s.content)])].slice(0, 20),
-      })),
-    )
-    .returning({ id: segments.id, title: segments.title, tags: segments.tags, orderIndex: segments.orderIndex });
-
-  const linkRows = await buildLinks(doc.id, inserted, finalSegments, docTags);
-  if (linkRows.length > 0) {
-    await db.insert(links).values(linkRows).onConflictDoNothing();
+  if (storageKey) {
+    try {
+      await db.update(documents).set({ storageKey }).where(sql`${documents.id} = ${documentId}`);
+    } catch (error) {
+      await deleteOriginal(storageKey);
+      console.error('R2 对象键回写失败，已清理备份:', error);
+    }
   }
-  await db.update(documents).set({ segmentCount: inserted.length }).where(eq(documents.id, doc.id));
+
+  const [linkCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(links)
+    .where(or(inArray(links.fromId, inserted.map((segment) => segment.id)), inArray(links.toId, inserted.map((segment) => segment.id))))
+    .catch(() => []);
 
   // 导入成功后：图谱/概览/列表/该文档详情统一失效
   invalidateCache('graph');
   invalidateCache('stats');
   invalidateCache(DOCS_CACHE_KEY);
-  invalidateCache(`note:${doc.id}`);
+  invalidateCache(`note:${documentId}`);
 
   return NextResponse.json({
-    documentId: doc.id,
+    documentId,
     segmentCount: inserted.length,
-    linkCount: linkRows.length,
+    linkCount: linkCountRow?.count ?? 0,
     aiSplitApplied,
     aiSplitFailed,
   });
-}
-
-interface NewSeg {
-  id: string;
-  title: string;
-  tags: string[];
-  orderIndex: number;
-}
-
-/** 建立三类关联边：doc（同文档相邻）/ wiki（[[双链]]按标题匹配）/ tag（共同标签） */
-async function buildLinks(
-  docId: string,
-  newSegs: NewSeg[],
-  rawSegments: { title: string; content: string }[],
-  docTags: string[],
-): Promise<{ fromId: string; toId: string; kind: string; weight: number }[]> {
-  const byOrder = [...newSegs].sort((a, b) => a.orderIndex - b.orderIndex);
-  const rows: { fromId: string; toId: string; kind: string; weight: number }[] = [];
-  const seen = new Set<string>();
-  const add = (fromId: string, toId: string, kind: string, weight: number) => {
-    if (fromId === toId) return;
-    const key = `${fromId}|${toId}|${kind}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    rows.push({ fromId, toId, kind, weight });
-  };
-
-  // 同文档相邻知识点
-  for (let i = 1; i < byOrder.length; i++) add(byOrder[i - 1].id, byOrder[i].id, 'doc', 0.3);
-
-  // wiki 双链：目标名与任意知识点的标题匹配（忽略大小写）
-  const targets = new Set<string>();
-  rawSegments.forEach((s) => extractWikiLinks(s.content).forEach((t) => targets.add(t.trim().toLowerCase())));
-  if (targets.size > 0) {
-    const matched = await db
-      .select({ id: segments.id, title: segments.title })
-      .from(segments)
-      .where(inArray(sql`lower(${segments.title})`, [...targets]));
-
-    // 标题(小写) → 知识点 id 列表，新导入的段落也参与
-    const titleToIds = new Map<string, string[]>();
-    const indexTitle = (id: string, title: string) => {
-      const k = title.trim().toLowerCase();
-      titleToIds.set(k, [...(titleToIds.get(k) ?? []), id]);
-    };
-    matched.forEach((m) => indexTitle(m.id, m.title));
-    newSegs.forEach((s) => indexTitle(s.id, s.title));
-
-    for (let i = 0; i < rawSegments.length; i++) {
-      const myTargets = extractWikiLinks(rawSegments[i].content).map((t) => t.trim().toLowerCase());
-      for (const t of myTargets) {
-        for (const targetId of titleToIds.get(t) ?? []) {
-          add(newSegs[i].id, targetId, 'wiki', 1);
-        }
-      }
-    }
-  }
-
-  // 共同标签：与全库中共享标签的知识点相连
-  const allTags = [...new Set([...docTags, ...newSegs.flatMap((s) => s.tags)])].filter(Boolean);
-  if (allTags.length > 0) {
-    const others = await db
-      .select({ id: segments.id, tags: segments.tags })
-      .from(segments)
-      .where(arrayOverlaps(segments.tags, allTags))
-      .limit(2000);
-    for (const seg of newSegs) {
-      for (const other of others) {
-        if (seg.id === other.id) continue;
-        const shared = seg.tags.filter((t) => other.tags.includes(t)).length;
-        if (shared > 0) add(seg.id, other.id, 'tag', Math.min(1, shared / 3));
-      }
-    }
-  }
-
-  return rows.slice(0, 3000);
 }

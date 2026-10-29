@@ -50,6 +50,13 @@
       "when": 1792943742572,
       "tag": "0006_llm_calls_observability",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793269380678,
+      "tag": "0007_wooden_wong",
+      "breakpoints": true
     }
   ]
 }

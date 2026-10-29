@@ -5,7 +5,7 @@
  * 失败抛可读错误，由调用方决定降级方式（铁律：LLM 失败永不阻断既有功能）。
  */
 import { chatCompletion, extractJson } from '@/lib/llm';
-import { neighborsOf, retrieveByQuery, type RagHit } from '@/lib/rag';
+import { buildContextBudget, neighborsOf, retrieveByQuery, type RagHit } from '@/lib/rag';
 import { deriveLearnerProfileCached, getLearnerDeclaration, profileToPromptBlock } from '@/lib/learner-profile';
 
 export interface SplitChild {
@@ -60,14 +60,17 @@ export async function semanticSplit(
     getLearnerDeclaration().catch(() => ''),
   ]);
   const profileBlock = profileToPromptBlock(profile, declaration);
-  const profileNote = profileBlock
-    ? '\n\n' + profileBlock + '\n（拆解/命名时兼顾学习者水平：其记忆薄弱主题的术语首次出现时，可在该子段内用一句话简要解释。）'
+  const budget = buildContextBudget({
+    material: `标题：${seg.title}\n\n内容：\n${seg.content}`,
+    profileBlock,
+    ragHits: context,
+  });
+  const profileNote = budget.profileBlock
+    ? '\n\n' + budget.profileBlock + '\n（拆解/命名时兼顾学习者水平：其记忆薄弱主题的术语首次出现时，可在该子段内用一句话简要解释。）'
     : '';
 
-  const contextBlock = context.length
-    ? `\n\n以下是知识库中与该段相关的其他节点（标题 + 摘要）。拆解时避免与它们内容重复，专有名词与术语保持一致：\n${context
-        .map((n) => `- ${n.title}：${n.snippet}`)
-        .join('\n')}`
+  const contextBlock = budget.contextUsed.length
+    ? `\n\n以下是知识库中与该段相关的其他节点（标题 + 摘要）。拆解时避免与它们内容重复，专有名词与术语保持一致：\n${budget.contextBlock}`
     : '';
 
   const system = [
@@ -82,10 +85,10 @@ export async function semanticSplit(
   const result = await chatCompletion(
     [
       { role: 'system', content: system + contextBlock + profileNote },
-      { role: 'user', content: `标题：${seg.title}\n\n内容：\n${seg.content}` },
+      { role: 'user', content: budget.material },
     ],
     { kind, maxTokens: 4096 },
   );
 
-  return { children: parseSplitChildren(extractJson<unknown>(result.text)), contextUsed: context };
+  return { children: parseSplitChildren(extractJson<unknown>(result.text)), contextUsed: budget.contextUsed };
 }

@@ -48,6 +48,17 @@ export default function SectionEditor({
   const [splitMsg, setSplitMsg] = useState('');
   const [splitPreview, setSplitPreview] = useState<SplitChild[] | null>(null);
 
+  // AI 拆解/聚合会在保留段 id 的同时替换内容；同步 props，避免编辑卡继续显示旧稿。
+  const tagsText = segment.tags.join(', ');
+  const sourceKey = `${segment.id}\u0000${segment.title}\u0000${segment.content}\u0000${tagsText}`;
+  const [editingSourceKey, setEditingSourceKey] = useState(sourceKey);
+  if (editingSourceKey !== sourceKey) {
+    setEditingSourceKey(sourceKey);
+    setTitle(segment.title);
+    setContent(segment.content);
+    setTagsInput(tagsText);
+  }
+
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
     setMsg('');

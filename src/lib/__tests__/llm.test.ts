@@ -25,9 +25,12 @@ describe('isRetryableError 重试判定', () => {
     return e;
   };
 
-  it('网络错误/超时/空返回（无 status）可重试', () => {
-    expect(isRetryableError(new Error('大模型请求失败：网络错误：fetch failed'))).toBe(true);
-    expect(isRetryableError(new Error('大模型返回为空'))).toBe(true);
+  it('显式网络错误可重试，确定性的输出错误不重试', () => {
+    const network = new Error('大模型请求失败：网络错误：fetch failed');
+    (network as { retryable?: boolean }).retryable = true;
+    expect(isRetryableError(network)).toBe(true);
+    expect(isRetryableError(new Error('大模型返回为空'))).toBe(false);
+    expect(isRetryableError(new Error('JSON 不完整'))).toBe(false);
   });
 
   it('429 与 5xx 可重试', () => {

@@ -34,6 +34,8 @@ export async function POST(req: NextRequest) {
   } else if (process.env.LLM_API_KEY) {
     // env 形态下留空保存 model：把 env key 固化进 DB，行为可预期
     apiKey = process.env.LLM_API_KEY;
+  } else if (process.env.DEEPSEEK_API_KEY) {
+    apiKey = process.env.DEEPSEEK_API_KEY;
   } else {
     return badRequest('API Key 不能为空：请输入 DeepSeek API Key');
   }

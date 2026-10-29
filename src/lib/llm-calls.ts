@@ -5,6 +5,9 @@
  */
 import { db } from '@/db';
 import { llmCalls } from '@/db/schema';
+import { gte, sql } from 'drizzle-orm';
+
+export const DAILY_TOKEN_GUARDRAIL = 500_000;
 
 export interface LlmCallLogInput {
   kind: string;
@@ -29,5 +32,24 @@ export async function logLlmCall(log: LlmCallLogInput): Promise<void> {
     });
   } catch (e) {
     console.error('llm_calls 写入失败（已忽略）:', e instanceof Error ? e.message : e);
+  }
+}
+
+/** 每次真实调用前读取日累计量；成本护栏读取失败时 fail-closed。 */
+export async function assertDailyTokenBudget(): Promise<void> {
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  let tokens: number;
+  try {
+    const [row] = await db
+      .select({ tokens: sql<number>`coalesce(sum(${llmCalls.inTok} + ${llmCalls.outTok}), 0)::int` })
+      .from(llmCalls)
+      .where(gte(llmCalls.createdAt, startOfDay));
+    tokens = row?.tokens ?? 0;
+  } catch {
+    throw new Error('无法读取今日大模型用量，已停止调用以避免超出成本护栏');
+  }
+  if (tokens >= DAILY_TOKEN_GUARDRAIL) {
+    throw new Error(`今日大模型用量已达 ${tokens.toLocaleString()} token，超过 ${DAILY_TOKEN_GUARDRAIL.toLocaleString()} 护栏；请明天再试或调整护栏`);
   }
 }

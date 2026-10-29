@@ -1,4 +1,4 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
 /** R2 是否已配置（未配置时导入仍可用，只是不保存原始文件） */
 export function r2Configured(): boolean {
@@ -34,5 +34,15 @@ export async function putOriginal(content: string, filename: string): Promise<st
   } catch (err) {
     console.error('R2 上传失败（已跳过）:', err);
     return null;
+  }
+}
+
+/** 删除本次导入刚写入的 R2 对象，用于数据库回写失败后的补偿。 */
+export async function deleteOriginal(key: string): Promise<void> {
+  if (!r2Configured()) return;
+  try {
+    await client().send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET!, Key: key }));
+  } catch (err) {
+    console.error('R2 补偿删除失败:', err);
   }
 }

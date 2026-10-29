@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { asc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
-import { segments } from '@/db/schema';
+import { annotations, segments } from '@/db/schema';
 import { badRequest, guard, isUuid, notFound } from '@/lib/api';
+import { planAnnotationMigration } from '@/lib/annotation-migrate';
 import { invalidateCache } from '@/lib/cache';
+import { runBatch } from '@/lib/db-batch';
+import { rebuildDocQueries, rebuildLinksQueries } from '@/lib/links';
 import { stripMarkdown } from '@/lib/markdown';
-import { rebuildDocChain, rebuildSegmentLinks } from '@/lib/links';
-import { migrateAnnotations } from '@/lib/annotation-migrate';
 
 /**
  * 语义聚合应用（用户已确认预览）：
  * orderIndex 最小的段更新为融合稿并继承记忆（stability=max、viewCount/readingMs=sum、
  * firstViewedAt=min、lastViewedAt=max），其余段删除；
- * rebuildSegmentLinks + rebuildDocChain；被删段标注迁移到合并段（locate 降级，失败置无效）。
+ * 标注迁移、段更新/删除、关系边和段数在同一 batch 事务内完成。
  */
 export async function POST(req: NextRequest) {
   const denied = await guard(req);
@@ -38,9 +39,19 @@ export async function POST(req: NextRequest) {
   const keeper = rows[0];
   const others = rows.slice(1);
 
-  // 被删段的标注先迁移（DELETE 级联会清标注）：合并稿渲染文本 locate 降级，未命中落 keeper 置无效
   const keeperText = stripMarkdown(merged.content);
-  const { migrated, invalid } = await migrateAnnotations({
+  const otherAnnotations = await db
+    .select({
+      id: annotations.id,
+      segmentId: annotations.segmentId,
+      quote: annotations.quote,
+      occurrence: annotations.occurrence,
+      prefix: annotations.prefix,
+      suffix: annotations.suffix,
+    })
+    .from(annotations)
+    .where(inArray(annotations.segmentId, others.map((other) => other.id)));
+  const annotationPlan = planAnnotationMigration(otherAnnotations, {
     fromSegmentIds: others.map((o) => o.id),
     candidates: [{ segmentId: keeper.id, text: keeperText }],
     fallbackSegmentId: keeper.id,
@@ -49,24 +60,32 @@ export async function POST(req: NextRequest) {
   // 记忆合并：stability=max、viewCount/readingMs=sum、firstViewedAt=min、lastViewedAt=max
   const times = rows.map((r) => r.firstViewedAt?.getTime()).filter((v): v is number => v != null);
   const lastTimes = rows.map((r) => r.lastViewedAt?.getTime()).filter((v): v is number => v != null);
-  const [updated] = await db
-    .update(segments)
-    .set({
-      title: merged.title.trim().slice(0, 200),
-      content: merged.content,
-      stability: Math.max(...rows.map((r) => r.stability)),
-      viewCount: rows.reduce((s, r) => s + r.viewCount, 0),
-      readingMs: rows.reduce((s, r) => s + Number(r.readingMs), 0),
-      firstViewedAt: times.length ? new Date(Math.min(...times)) : null,
-      lastViewedAt: lastTimes.length ? new Date(Math.max(...lastTimes)) : null,
-    })
-    .where(eq(segments.id, keeper.id))
-    .returning({ id: segments.id, title: segments.title, orderIndex: segments.orderIndex });
-
-  await db.delete(segments).where(inArray(segments.id, others.map((o) => o.id)));
-
-  await rebuildSegmentLinks({ id: keeper.id, content: merged.content, tags: keeper.tags });
-  await rebuildDocChain(keeper.documentId);
+  const nextTitle = merged.title.trim().slice(0, 200);
+  const updated = { id: keeper.id, title: nextTitle, orderIndex: keeper.orderIndex };
+  await runBatch([
+    ...annotationPlan.updates.map((update) =>
+      db
+        .update(annotations)
+        .set({ segmentId: update.segmentId, updatedAt: update.updatedAt })
+        .where(eq(annotations.id, update.id)),
+    ),
+    db
+      .update(segments)
+      .set({
+        title: nextTitle,
+        content: merged.content,
+        summary: null,
+        stability: Math.max(...rows.map((r) => r.stability)),
+        viewCount: rows.reduce((s, r) => s + r.viewCount, 0),
+        readingMs: rows.reduce((s, r) => s + Number(r.readingMs), 0),
+        firstViewedAt: times.length ? new Date(Math.min(...times)) : null,
+        lastViewedAt: lastTimes.length ? new Date(Math.max(...lastTimes)) : null,
+      })
+      .where(eq(segments.id, keeper.id)),
+    db.delete(segments).where(inArray(segments.id, others.map((o) => o.id))),
+    ...rebuildLinksQueries([keeper.id]),
+    ...rebuildDocQueries(keeper.documentId),
+  ]);
 
   // 聚合涉及更新/删除、边重建与标注迁移，全部写完后统一失效
   invalidateCache('graph');
@@ -74,5 +93,10 @@ export async function POST(req: NextRequest) {
   invalidateCache('docs');
   invalidateCache(`note:${keeper.documentId}`);
 
-  return NextResponse.json({ segment: updated, removed: others.length, migrated, invalid });
+  return NextResponse.json({
+    segment: updated,
+    removed: others.length,
+    migrated: annotationPlan.migrated,
+    invalid: annotationPlan.invalid,
+  });
 }
