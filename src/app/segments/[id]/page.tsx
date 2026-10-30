@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api, formatDuration } from '@/lib/client';
@@ -67,6 +67,16 @@ export default function SegmentPage() {
   return <SegmentPageView key={id} id={id} />;
 }
 
+/** URL hash 订阅：hashchange / popstate（后者用于清 hash 后手动通知）。 */
+function subscribeHash(onChange: () => void) {
+  window.addEventListener('hashchange', onChange);
+  window.addEventListener('popstate', onChange);
+  return () => {
+    window.removeEventListener('hashchange', onChange);
+    window.removeEventListener('popstate', onChange);
+  };
+}
+
 function SegmentPageView({ id }: { id: string }) {
   const router = useRouter();
   const [data, setData] = useState<SegmentDetail | null>(null);
@@ -79,6 +89,22 @@ function SegmentPageView({ id }: { id: string }) {
       .then(setData)
       .catch((e) => setError(e.message));
   }, [id]);
+
+  // U1-5：图谱详情面板的「编辑」通过 /segments/{id}#edit 深链进入编辑态。
+  // 用 useSyncExternalStore 把 URL 当外部状态读取（不在 effect 里同步 setState）；
+  // 关闭编辑时清掉 hash 并主动通知订阅者（replaceState 不触发 hashchange）。
+  const urlEdit = useSyncExternalStore(
+    subscribeHash,
+    () => (typeof window !== 'undefined' ? window.location.hash === '#edit' : false),
+    () => false,
+  );
+  const showEditor = editing || urlEdit;
+  const closeEditor = () => {
+    setEditing(false);
+    if (typeof window === 'undefined' || window.location.hash !== '#edit') return;
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+    window.dispatchEvent(new Event('popstate'));
+  };
 
   // 阅读行为采集：打开 ping 计一次查看；可见时计时，隐藏/卸载/离开时上报停留时长
   useEffect(() => {
@@ -186,14 +212,14 @@ function SegmentPageView({ id }: { id: string }) {
             ← {data.document?.title ?? '文档'}
           </Link>
           <button
-            onClick={() => setEditing((v) => !v)}
+            onClick={() => (showEditor ? closeEditor() : setEditing(true))}
             className={`shrink-0 rounded-lg border px-3 py-1.5 text-tag transition-colors duration-150 ${
-              editing
+              showEditor
                 ? 'border-accent bg-accent text-accent-ink'
                 : 'border-line bg-surface text-muted hover:bg-surface-hover hover:text-primary'
             }`}
           >
-            {editing ? '✓ 完成编辑' : '✎ 编辑'}
+            {showEditor ? '✓ 完成编辑' : '✎ 编辑'}
           </button>
         </div>
         <div className="mt-2 flex items-center gap-2.5">
@@ -210,16 +236,16 @@ function SegmentPageView({ id }: { id: string }) {
         )}
       </div>
 
-      {editing ? (
+      {showEditor ? (
         <SegmentEditCard
           key={s.id}
           segment={s}
           onSaved={async () => {
             await reload();
-            setEditing(false);
+            closeEditor();
           }}
           onDeleted={onDeleted}
-          onCancel={() => setEditing(false)}
+          onCancel={closeEditor}
         />
       ) : (
         <article className="card fade-up mt-4 px-6 py-5" style={{ animationDelay: '80ms' }}>

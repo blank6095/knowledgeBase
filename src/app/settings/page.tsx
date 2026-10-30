@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/client';
+import InlineFeedback from '@/components/InlineFeedback';
 
 interface AiConfig {
   configured: boolean;
@@ -39,6 +40,7 @@ export default function SettingsPage() {
   const [fastChoice, setFastChoice] = useState<string>('');
   const [customFast, setCustomFast] = useState('');
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [usageError, setUsageError] = useState('');
   const [saveMsg, setSaveMsg] = useState('');
   const [saveErr, setSaveErr] = useState('');
   const [testMsg, setTestMsg] = useState('');
@@ -84,7 +86,10 @@ export default function SettingsPage() {
       .then((u) => {
         if (!cancelled) setUsage(u);
       })
-      .catch(() => {});
+      .catch((e: Error) => {
+        // 用量读取失败此前被静默吞掉，用户会误以为「没有调用记录」
+        if (!cancelled) setUsageError(e.message || '用量读取失败');
+      });
     return () => {
       cancelled = true;
     };
@@ -262,7 +267,26 @@ export default function SettingsPage() {
             )}
           </p>
         )}
-        {usage && usage.days.length > 0 ? (
+        {usageError ? (
+          <div className="mt-3">
+            <InlineFeedback tone="danger">用量读取失败：{usageError}</InlineFeedback>
+            <button
+              type="button"
+              onClick={() => {
+                setUsageError('');
+                setUsage(null);
+                api<Usage>('/api/ai/usage')
+                  .then(setUsage)
+                  .catch((e: Error) => setUsageError(e.message || '用量读取失败'));
+              }}
+              className="mt-2 rounded-lg border border-line px-3 py-1.5 text-tag text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
+            >
+              重试
+            </button>
+          </div>
+        ) : !usage ? (
+          <p className="mt-3 text-tag text-muted">正在读取用量…</p>
+        ) : usage.days.length > 0 ? (
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-left text-tag">
               <thead>
@@ -292,7 +316,7 @@ export default function SettingsPage() {
             </table>
           </div>
         ) : (
-          <p className="mt-3 text-tag text-faint">还没有调用记录——配置后使用「问知识库」或 AI 拆解/聚合，这里会逐日累计。</p>
+          <p className="mt-3 text-tag text-muted">还没有调用记录——配置后使用「助手」或 AI 拆解/聚合，这里会逐日累计。</p>
         )}
       </section>
 

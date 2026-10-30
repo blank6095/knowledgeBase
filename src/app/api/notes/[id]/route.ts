@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { asc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { documents, segments } from '@/db/schema';
-import { badRequest, guard, isUuid, notFound } from '@/lib/api';
-import { getCache, invalidateCache, setCache } from '@/lib/cache';
+import { badRequest, dbUnavailable, guard, isUuid, notFound } from '@/lib/api';
+import { getCache, invalidateCache } from '@/lib/cache';
+import { withDbRetry } from '@/lib/db-retry';
+import { withStaleFallback } from '@/lib/db-read';
 import { runBatch } from '@/lib/db-batch';
 import { rebuildLinksQueries } from '@/lib/links';
 import { memoryOf } from '@/lib/memory';
@@ -37,56 +39,72 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (cached) return NextResponse.json(cached, { headers: { 'X-Cache': 'HIT' } });
 
   const t0 = performance.now();
-  const [docRows, segs] = await Promise.all([
-    db.select().from(documents).where(eq(documents.id, id)),
-    db
-      .select({
-        id: segments.id,
-        title: segments.title,
-        headingPath: segments.headingPath,
-        tags: segments.tags,
-        viewCount: segments.viewCount,
-        content: segments.content,
-        stability: segments.stability,
-        lastViewedAt: segments.lastViewedAt,
-      })
-      .from(segments)
-      .where(eq(segments.documentId, id))
-      .orderBy(asc(segments.orderIndex)),
-  ]);
-  const tDb = performance.now();
+  // 文档不存在返回 null（404），数据库故障抛出（走重试 + 陈旧快照降级）
+  const loadNote = async (): Promise<NotePayload | null> => {
+    const [docRows, segs] = await Promise.all([
+      withDbRetry(() => db.select().from(documents).where(eq(documents.id, id)), { label: 'note.document' }),
+      withDbRetry(
+        () =>
+          db
+            .select({
+              id: segments.id,
+              title: segments.title,
+              headingPath: segments.headingPath,
+              tags: segments.tags,
+              viewCount: segments.viewCount,
+              content: segments.content,
+              stability: segments.stability,
+              lastViewedAt: segments.lastViewedAt,
+            })
+            .from(segments)
+            .where(eq(segments.documentId, id))
+            .orderBy(asc(segments.orderIndex)),
+        { label: 'note.segments' },
+      ),
+    ]);
 
-  const doc = docRows[0];
-  if (!doc) return notFound('文档不存在');
+    const doc = docRows[0];
+    if (!doc) return null;
 
-  const now = new Date();
-  const payload: NotePayload = {
-    document: doc,
-    segments: segs.map((s) => ({
-      id: s.id,
-      title: s.title,
-      headingPath: s.headingPath,
-      tags: s.tags,
-      viewCount: s.viewCount,
-      content: s.content,
-      memory: memoryOf(s.stability, s.lastViewedAt, now),
-    })),
+    const now = new Date();
+    return {
+      document: doc,
+      segments: segs.map((s) => ({
+        id: s.id,
+        title: s.title,
+        headingPath: s.headingPath,
+        tags: s.tags,
+        viewCount: s.viewCount,
+        content: s.content,
+        memory: memoryOf(s.stability, s.lastViewedAt, now),
+      })),
+    };
   };
-  const t1 = performance.now();
-  console.log(
-    `[perf] GET /api/notes/${id} db=${(tDb - t0).toFixed(1)}ms transform=${(t1 - tDb).toFixed(1)}ms total=${(t1 - t0).toFixed(1)}ms segRows=${segs.length}`,
-  );
 
-  // 仅在文档存在时写入缓存；404 不缓存
-  setCache(cacheKey, payload, NOTE_CACHE_TTL_MS);
+  try {
+    const { value: payload, stale } = await withStaleFallback({
+      cacheKey,
+      ttlMs: NOTE_CACHE_TTL_MS,
+      run: loadNote,
+      label: 'note.detail',
+    });
+    if (!payload) return notFound('文档不存在');
+    const tDb = performance.now();
+    const t1 = performance.now();
+    console.log(
+      `[perf] GET /api/notes/${id} db=${(tDb - t0).toFixed(1)}ms transform=${(t1 - tDb).toFixed(1)}ms total=${(t1 - t0).toFixed(1)}ms segRows=${payload.segments.length}${stale ? ' stale=1' : ''}`,
+    );
 
-  const res = NextResponse.json(payload);
-  res.headers.set('X-Cache', 'MISS');
-  res.headers.set(
-    'Server-Timing',
-    `db;dur=${(tDb - t0).toFixed(1)}, transform;dur=${(t1 - tDb).toFixed(1)}, total;dur=${(t1 - t0).toFixed(1)}`,
-  );
-  return res;
+    const res = NextResponse.json(payload);
+    res.headers.set('X-Cache', stale ? 'STALE' : 'MISS');
+    res.headers.set(
+      'Server-Timing',
+      `db;dur=${(tDb - t0).toFixed(1)}, transform;dur=${(t1 - tDb).toFixed(1)}, total;dur=${(t1 - t0).toFixed(1)}`,
+    );
+    return res;
+  } catch {
+    return dbUnavailable();
+  }
 }
 
 /** 编辑文档元信息（标题/标签）。知识点内容编辑见 PATCH /api/segments/[id] */

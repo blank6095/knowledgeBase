@@ -129,7 +129,7 @@ export function recommendLearningItems(
     .slice(0, Math.max(0, limit));
 }
 
-function dayKey(date: Date, timeZone: string): string {
+export function learningDayKey(date: Date, timeZone = 'Asia/Shanghai'): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone,
     year: 'numeric',
@@ -146,7 +146,7 @@ export function computeWeeklyMetrics(
 ): WeeklyLearningMetrics {
   const start = now.getTime() - 7 * 24 * 60 * 60 * 1_000;
   const current = reviews.filter((review) => review.reviewedAt.getTime() >= start && review.reviewedAt.getTime() <= now.getTime());
-  const activeDays = new Set(current.map((review) => dayKey(review.reviewedAt, timeZone))).size;
+  const activeDays = new Set(current.map((review) => learningDayKey(review.reviewedAt, timeZone))).size;
   const needsReviewCount = current.filter((review) => review.result !== 'correct').length;
 
   const improved = new Set<string>();

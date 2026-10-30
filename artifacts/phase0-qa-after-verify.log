@@ -1,0 +1,32 @@
+PASS  契约：未登录 GET /api/graph 被拒（401/403） — status=401
+PASS  契约：口令登录成功 — status=200 + httpOnly cookie
+PASS  契约：GET /api/graph 200 且返回 nodes/edges — status=200 x-cache=MISS nodes=15 edges=16 1518ms
+PASS  契约：每个节点都有 tags/summary/headingPath 且类型正确 — 15 个节点字段全合规
+PASS  契约：扩展字段空值率（本地库实测） — nodes=15 tags空=12(80%) summary为null=14(93%) headingPath空=0(0%)
+PASS  契约：edges 字段类型正确 — 16 条边字段合规
+PASS  契约：X-Cache 为 MISS/HIT 且命中缓存不改变结构 — x-cache=HIT，响应体与首次一致
+PASS  背景：默认环境为 deep-space，画布渲染出节点 — data-graph-env=deep-space，节点 15 个，engineStop=1227ms
+PASS  背景：背景层 pointer-events 为 none（不拦截画布交互） — pointer-events: none
+PASS  背景：Canvas 背景透明（角落像素 alpha=0，底色/纹理层可见） — corner alpha=0
+PASS  背景：deep-space 下节点 hover 命中（cursor=pointer + tooltip） — cursor=pointer tooltip="TCP 与 UDP 计算机网络基础 长明 · 阅读 7 次 · 累计 1 分钟"
+PASS  背景：切换 minimal 后属性生效且纹理层关闭 — env=minimal ::after opacity=0 background=none pointer-events=none
+PASS  背景：切换期间无 /api/graph 或 /fixtures 数据请求 — 切换窗口请求数=0（切换前 1s 静默窗口=0）
+PASS  背景：切换前后节点坐标与引擎停止时间戳不变 — nodeCount=15 maxDelta=0 engineStop 未变（1227ms）
+PASS  背景：minimal 下节点 hover 仍命中（cursor=pointer + tooltip） — cursor=pointer tooltip="TCP 与 UDP 计算机网络基础 长明 · 阅读 7 次 · 累计 1 分钟"
+PASS  背景：切回 deep-space 后坐标仍不变 — maxDelta=0，engineStop 未变
+PASS  回归：设置面板打开，四个页签齐全 — 筛选/分组/显示/力 均可见
+PASS  回归：筛选—标题搜索输入可用 — 输入生效并可清空（画布淡化由 Canvas 绘制，见截图/代码审阅）
+PASS  回归：记忆度档与关联类型复选框可切换 — 复选框 7 个（记忆度 + 关联类型），勾选可切换并复原
+PASS  回归：分组—新增与删除关键词分组 — 新增后出现分组行，删除后移除
+PASS  回归：显示—箭头开关 / 暂停按钮 / 三个视觉滑块 — 箭头切换 OK；暂停按钮「⏸ 暂停动画 → ▶ 继续动画」；滑块 3 个
+PASS  回归：力—四个滑块且拖动即时生效 — 4 个滑块，斥力改为 220 后显示同步（applyForces 生效）
+PASS  回归：双选—选两个节点出现「已选 2/2」且不跳页 — 已选 1/2 → 2/2，URL 保持 /graph（/graph）
+PASS  回归：双选→解释关联→AiOverlay 打开并可关闭（拦截 /api/ai/connect） — AiOverlay 打开并关闭（含「两个概念如何联系 概念 A ↔ 概念 B…」）
+PASS  回归：普通单击节点跳转 /segments/<id> — 跳转到 /segments/c2cd410f…
+PASS  回归：拖拽节点后重排并产生新坐标快照 — 节点位移 62.0px（图坐标），engineStop 更新 1387→3511ms
+PASS  回归：?fixture=graph-small 压测模式加载 500 节点 — badge 显示 500 节点，坐标快照 500 条，engineStop=1525ms
+PASS  回归：加载骨架（延迟响应时显示“加载中”） — 延迟 2.5s 期间出现 role=status aria-label=加载中 骨架
+PASS  回归：空态（nodes=[] 时显示“图谱还没有灯。”与去导入） — 空态文案 + 去导入(/import) 正常
+PASS  回归：主页面无 console/page error — pageerror=0 console.error=0（累计数据请求 10 次）
+
+=== 30/30 passed, 0 failed ===

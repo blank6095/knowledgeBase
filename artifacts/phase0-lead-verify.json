@@ -1,0 +1,82 @@
+{
+  "base": "http://localhost:3000",
+  "checks": {
+    "loaded": true,
+    "initial": {
+      "renderedNodes": 15,
+      "engineStop": 3818.5999999996275,
+      "firstTick": 3144
+    },
+    "apiPayload": {
+      "ok": true,
+      "nodeCount": 15,
+      "edgeCount": 16,
+      "keys": [
+        "documentTitle",
+        "headingPath",
+        "id",
+        "memory",
+        "readingMs",
+        "summary",
+        "tags",
+        "title",
+        "viewCount"
+      ],
+      "types": {
+        "tags": "array",
+        "summary": "null",
+        "headingPath": "string",
+        "memory": "number",
+        "documentTitle": "string"
+      },
+      "sample": {
+        "id": "c17bb517-00a7-4702-804b-35e5ec2511c2",
+        "title": "默认行为确实一样：都是单例",
+        "headingPath": "默认行为确实一样：都是单例",
+        "tags": [],
+        "summary": null
+      },
+      "nullSummary": 14
+    },
+    "apiPayloadKeysOk": true,
+    "background": {
+      "switchedTo": "minimal",
+      "pointerEvents": "none",
+      "dataRequestsDuringSwitch": [],
+      "requestCountDuringSwitch": 0,
+      "engineStopUnchanged": true,
+      "positionsUnchanged": true,
+      "nodeCount": 15
+    },
+    "hover": {
+      "moved": true,
+      "cursor": "pointer",
+      "tooltip": "默认行为确实一样：都是单例 单线程 未读 · 阅读 1 次 · 累计 10 秒"
+    },
+    "panelOpen": true,
+    "tabs": {
+      "分组": true,
+      "显示": true,
+      "力": true,
+      "筛选": true
+    },
+    "filter": {
+      "beforeNodes": 15,
+      "afterUncheckUnreadNodes": 6,
+      "engineRestarted": true,
+      "changed": true
+    },
+    "compareMode": {
+      "url": "http://localhost:3000/graph",
+      "compareText": "已选 1/2：TCP 与 UDP"
+    },
+    "normalClickNavigation": "http://localhost:3000/segments/c17bb517-00a7-4702-804b-35e5ec2511c2",
+    "fixtureMode": {
+      "fixtureNodes": 500,
+      "hasBadge": true,
+      "renderedNodes": 500
+    }
+  },
+  "consoleErrors": [],
+  "pageErrors": []
+}

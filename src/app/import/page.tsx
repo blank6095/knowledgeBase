@@ -207,23 +207,40 @@ export default function ImportPage() {
                 )}
               </p>
             )}
-            <p className="fade-up" style={{ animationDelay: '80ms' }}>
-              <Link href={`/notes/${result.documentId}`} className="mr-3 text-body text-accent underline underline-offset-2 hover:text-accent-strong">
-                查看文档 →
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <Link
+                href={`/notes/${result.documentId}`}
+                className="rounded-lg bg-accent px-3.5 py-1.5 text-body font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
+              >
+                查看文档
               </Link>
-              <Link href="/graph" className="text-body text-accent underline underline-offset-2 hover:text-accent-strong">
-                查看关系图谱 →
+              <Link
+                href="/graph"
+                className="rounded-lg border border-line px-3.5 py-1.5 text-body text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
+              >
+                查看关系图谱
               </Link>
-            </p>
+              <button
+                type="button"
+                onClick={() => setResult(null)}
+                className="rounded-lg px-3 py-1.5 text-tag text-muted transition-colors duration-150 hover:text-primary"
+              >
+                继续导入
+              </button>
+            </div>
           </div>
         )}
 
         <button
           onClick={submit}
           disabled={loading}
-          className="rounded-lg bg-accent px-5 py-2 text-body font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong disabled:opacity-50"
+          className={`rounded-lg px-5 py-2 text-body font-medium transition-colors duration-150 disabled:opacity-50 ${
+            result
+              ? 'border border-line text-muted hover:bg-surface-hover hover:text-primary'
+              : 'bg-accent text-accent-ink hover:bg-accent-strong'
+          }`}
         >
-          {loading ? '导入中…' : '导入'}
+          {loading ? '导入中…' : result ? '再导入一篇' : '导入'}
         </button>
       </div>
     </div>

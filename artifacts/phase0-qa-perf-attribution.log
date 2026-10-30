@@ -1,0 +1,5 @@
+{"fixture":"graph-mid","round":1,"env":"deep-space","fps":4.2120911793855305,"p95FrameMs":328.5,"firstTickMs":1168.5999999996275,"longTaskMax":183}
+{"fixture":"graph-mid","round":1,"env":"minimal","fps":4.295327638047439,"p95FrameMs":300.1000000005588,"firstTickMs":1352.2999999998137,"longTaskMax":230}
+{"fixture":"graph-mid","round":2,"env":"deep-space","fps":3.9808917197450384,"p95FrameMs":365.79999999981374,"firstTickMs":1307.4000000003725,"longTaskMax":236}
+{"fixture":"graph-mid","round":2,"env":"minimal","fps":5.654022960250537,"p95FrameMs":201.29999999981374,"firstTickMs":1070.7999999998137,"longTaskMax":187}
+SUMMARY {"deep":{"env":"deep-space","samples":2,"fps":4.1,"p95FrameMs":347.1,"longTaskMax":236},"minimal":{"env":"minimal","samples":2,"fps":4.97,"p95FrameMs":250.7,"longTaskMax":230}}

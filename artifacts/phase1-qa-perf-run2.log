@@ -1,0 +1,53 @@
+
+> knowledge-base@0.1.0 perf:graph
+> node scripts/measure-graph.mjs
+
+▲ Next.js 16.4.3 (Turbopack)
+- Local:         http://127.0.0.1:3200
+- Network:       http://127.0.0.1:3200
+- Environments: .env.local
+✓ Ready in 519ms
+✓ Running next.config.ts took 36ms
+- Cache Components enabled
+- Partial Prefetching enabled
+
+ GET /login 200 in 904ms (next.js: 674ms, proxy.ts: 61ms, application-code: 169ms)
+ GET /login 200 in 47ms (next.js: 8ms, proxy.ts: 6ms, application-code: 33ms)
+ POST /api/auth/login 200 in 139ms (next.js: 86ms, proxy.ts: 7ms, application-code: 46ms)
+ GET / 200 in 91ms (next.js: 35ms, proxy.ts: 6ms, application-code: 50ms)
+ GET /graph?fixture=graph-small 200 in 182ms (next.js: 64ms, proxy.ts: 9ms, application-code: 109ms)
+graph-small: {
+  fixture: 'graph-small',
+  nodes: 500,
+  fixtureBytes: 179537,
+  firstTickMs: 954.8999999994412,
+  engineStopMs: 1590.5,
+  fps: 130.69445485667984,
+  p95FrameMs: 13.600000000558794,
+  heapBytes: 18305625,
+  maxLongTaskMs: 164
+}
+ GET /graph?fixture=graph-mid 200 in 113ms (next.js: 45ms, proxy.ts: 7ms, application-code: 62ms)
+graph-mid: {
+  fixture: 'graph-mid',
+  nodes: 5000,
+  fixtureBytes: 2234824,
+  firstTickMs: 1440.3999999994412,
+  engineStopMs: 16633.099999999627,
+  fps: 3.5175761555231526,
+  p95FrameMs: 366,
+  heapBytes: 69163129,
+  maxLongTaskMs: 254
+}
+ GET /graph?fixture=graph-large 200 in 93ms (next.js: 15ms, proxy.ts: 7ms, application-code: 71ms)
+graph-large: {
+  fixture: 'graph-large',
+  nodes: 20000,
+  fixtureBytes: 3579419,
+  firstTickMs: 1526.9000000003725,
+  engineStopMs: 16823,
+  fps: 2.455855988605165,
+  p95FrameMs: 595.4000000003725,
+  heapBytes: 103381922,
+  maxLongTaskMs: 308
+}

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, formatDate } from '@/lib/client';
 import MemoryBadge from '@/components/MemoryBadge';
 import { Skeleton } from '@/components/Skeleton';
+import ErrorState from '@/components/ErrorState';
 
 interface DocRow {
   id: string;
@@ -20,12 +21,24 @@ export default function NotesPage() {
   const [docs, setDocs] = useState<DocRow[] | null>(null);
   const [error, setError] = useState('');
   const [q, setQ] = useState('');
+  // 重试令牌：失败后不刷新整页也能重新拉取（数据库抖动时的主要恢复手段）
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
+    let alive = true;
     api<{ documents: DocRow[] }>('/api/notes')
-      .then((d) => setDocs(d.documents))
-      .catch((e) => setError(e.message));
-  }, []);
+      .then((d) => {
+        if (!alive) return;
+        setDocs(d.documents);
+        setError('');
+      })
+      .catch((e: Error) => {
+        if (alive) setError(e.message || '加载失败');
+      });
+    return () => {
+      alive = false;
+    };
+  }, [reloadToken]);
 
   const filtered = useMemo(() => {
     if (!docs) return [];
@@ -34,7 +47,17 @@ export default function NotesPage() {
     return docs.filter((d) => d.title.toLowerCase().includes(kw) || d.tags.some((t) => t.toLowerCase().includes(kw)));
   }, [docs, q]);
 
-  if (error) return <p className="text-body text-danger">{error}</p>;
+  if (error) {
+    return (
+      <div className="mx-auto max-w-4xl">
+        <ErrorState
+          message={error}
+          onRetry={() => setReloadToken((n) => n + 1)}
+          hint="若提示数据库暂时不可用，稍后点「重试」即可；期间可以先到「学习复盘」查看已缓存的学习数据。"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -88,14 +111,14 @@ export default function NotesPage() {
             <li key={d.id} className="fade-up" style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}>
               <Link
                 href={`/notes/${d.id}`}
-                className="flex flex-col gap-1.5 px-4 py-3 transition-colors duration-150 hover:bg-surface-hover sm:flex-row sm:items-center sm:gap-3"
+                className="group flex flex-col gap-1.5 px-4 py-3 transition-colors duration-150 hover:bg-surface-hover sm:flex-row sm:items-center sm:gap-3"
               >
                 <div className="min-w-0 flex-1">
                   <span className="truncate font-display text-card text-primary transition-colors duration-150 group-hover:text-accent-strong">
                     {d.title}
                   </span>
                   {d.tags.length > 0 && (
-                    <span className="ml-2 hidden space-x-1.5 lg:inline">
+                    <span className="ml-2 hidden space-x-1.5 sm:inline">
                       {d.tags.slice(0, 4).map((t) => (
                         <span key={t} className="rounded bg-surface-hover px-1.5 py-0.5 text-tag text-muted">
                           #{t}
@@ -108,7 +131,7 @@ export default function NotesPage() {
                 <div className="flex shrink-0 items-center gap-3 font-mono text-tag tabular-nums text-muted">
                   <MemoryBadge memory={d.avgMemory ?? 0} />
                   <span className="w-10 whitespace-nowrap text-right">{d.segmentCount} 点</span>
-                  <span className="hidden sm:inline">{formatDate(d.createdAt)}</span>
+                  <span className="whitespace-nowrap">{formatDate(d.createdAt)}</span>
                 </div>
               </Link>
             </li>

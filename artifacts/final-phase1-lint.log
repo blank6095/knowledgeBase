@@ -1,0 +1,10 @@
+
+> knowledge-base@0.1.0 lint
+> eslint
+
+
+D:\Project\knowledgeBase\artifacts\phase1-qa-verify.mjs
+  223:11  warning  'items' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+✖ 1 problem (0 errors, 1 warning)
+

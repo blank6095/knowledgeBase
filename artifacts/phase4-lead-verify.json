@@ -1,0 +1,60 @@
+{
+  "checks": {
+    "clickableNodes": 15,
+    "focusDepth1": {
+      "label": "展开二阶关联",
+      "pressed": "true"
+    },
+    "focusDepth2": {
+      "label": "收起关联",
+      "pressed": "true"
+    },
+    "focusCycle": [
+      "展开一阶关联",
+      "展开二阶关联",
+      "收起关联",
+      "展开一阶关联"
+    ],
+    "pathDirect": {
+      "bar": "已选 2/2：TCP 与 UDP ↔ OSI 七层模型",
+      "pathText": "路径：TCP 与 UDP → OSI 七层模型（同文档）",
+      "hasPathToggle": true,
+      "url": "http://localhost:3000/graph"
+    },
+    "pathIndirect": {
+      "bar": "已选 2/2：概述 ↔ 核心区别：多线程 vs 单线程",
+      "pathText": "路径：概述 → 默认行为确实一样：都是单例 → 核心区别：多线程 vs 单线程（同文档 / 同文档）",
+      "hasPathToggle": true,
+      "url": "http://localhost:3000/graph"
+    },
+    "pathNone": {
+      "bar": "已选 2/2：TCP 与 UDP ↔ 概述",
+      "pathText": "两个知识点之间没有路径",
+      "hasPathToggle": false,
+      "url": "http://localhost:3000/graph"
+    },
+    "contextMenu": {
+      "visible": true,
+      "itemCount": 7,
+      "items": [
+        "聚焦该节点",
+        "展开一阶关联",
+        "展开二阶关联",
+        "阅读知识点",
+        "编辑知识点",
+        "标记为重要\n需数据模型支持（当前未实现）",
+        "加入今日学习\n需学习计划接口（U4-3 一并设计）"
+      ]
+    },
+    "contextMenuClosed": true,
+    "menuAction": {
+      "detailVisible": true,
+      "focusLabel": "收起关联"
+    },
+    "mobileLongPress": {
+      "menuVisible": true
+    }
+  },
+  "consoleErrors": [],
+  "pageErrors": []
+}

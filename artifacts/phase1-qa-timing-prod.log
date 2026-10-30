@@ -1,0 +1,31 @@
+{
+  "baseURL": "http://127.0.0.1:3103",
+  "samples": [
+    290.70000000018626,
+    286.30000000074506,
+    288.20000000018626,
+    294.3999999994412,
+    291.80000000074506
+  ],
+  "layout": {
+    "canvas": {
+      "top": 0,
+      "height": 1000
+    },
+    "innerHeight": 1000,
+    "navItems": 7,
+    "navRect": {
+      "top": 324.5,
+      "bottom": 675.5
+    },
+    "scrollH": 1000,
+    "scrollW": 1440
+  },
+  "h1": {
+    "text": "关系图谱",
+    "className": "sr-only",
+    "rect": 1
+  },
+  "pageErrors": [],
+  "consoleErrors": []
+}

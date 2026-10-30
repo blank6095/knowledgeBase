@@ -1,0 +1,61 @@
+
+> knowledge-base@0.1.0 test:e2e
+> node scripts/run-e2e.mjs
+
+▲ Next.js 16.4.3 (Turbopack)
+- Local:         http://127.0.0.1:3100
+- Network:       http://127.0.0.1:3100
+- Environments: .env.local
+✓ Ready in 765ms
+✓ Running next.config.ts took 127ms
+- Cache Components enabled
+- Partial Prefetching enabled
+
+ GET /login 200 in 1267ms (next.js: 1003ms, proxy.ts: 68ms, application-code: 197ms)
+
+Running 6 tests using 6 workers
+
+(node:18876) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3380) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11008) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:10852) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:22512) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11372) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Route /login is rendering with server caches disabled. For this navigation, Component Metadata in React DevTools will not accurately reflect what is statically prerenderable and runtime prefetchable. See more info here: https://nextjs.org/docs/messages/cache-bypass-in-dev
+ GET /login?next=/notes/test-note-id 200 in 514ms (next.js: 42ms, proxy.ts: 18ms, application-code: 453ms)
+ GET /login 200 in 500ms (next.js: 138ms, proxy.ts: 89ms, application-code: 273ms)
+ GET /login?next=/graph 200 in 535ms (next.js: 129ms, proxy.ts: 31ms, application-code: 375ms)
+ GET /login?next=//example.com 200 in 547ms (next.js: 160ms, proxy.ts: 33ms, application-code: 353ms)
+ GET /login?next=/study/33333333-3333-4333-8333-333333333333 200 in 515ms (next.js: 239ms, proxy.ts: 96ms, application-code: 180ms)
+ GET /login?next=/progress 200 in 481ms (next.js: 254ms, proxy.ts: 75ms, application-code: 152ms)
+ GET /login?next=%2Fnotes 200 in 227ms (next.js: 58ms, proxy.ts: 36ms, application-code: 133ms)
+  ok 3 e2e\auth-graph.spec.ts:5:5 › 未登录访问页面会进入登录页 (2.2s)
+ POST /api/auth/login 200 in 465ms (next.js: 358ms, proxy.ts: 23ms, application-code: 83ms)
+ POST /api/auth/login 200 in 469ms (next.js: 404ms, proxy.ts: 24ms, application-code: 41ms)
+ POST /api/auth/login 200 in 480ms (next.js: 423ms, proxy.ts: 22ms, application-code: 34ms)
+ POST /api/auth/login 200 in 253ms (next.js: 38ms, proxy.ts: 174ms, application-code: 41ms)
+ POST /api/auth/login 200 in 109ms (next.js: 46ms, proxy.ts: 38ms, application-code: 25ms)
+Route / is rendering with server caches disabled. For this navigation, Component Metadata in React DevTools will not accurately reflect what is statically prerenderable and runtime prefetchable. See more info here: https://nextjs.org/docs/messages/cache-bypass-in-dev
+Route /progress is rendering with server caches disabled. For this navigation, Component Metadata in React DevTools will not accurately reflect what is statically prerenderable and runtime prefetchable. See more info here: https://nextjs.org/docs/messages/cache-bypass-in-dev
+Route /graph is rendering with server caches disabled. For this navigation, Component Metadata in React DevTools will not accurately reflect what is statically prerenderable and runtime prefetchable. See more info here: https://nextjs.org/docs/messages/cache-bypass-in-dev
+ GET / 200 in 680ms (next.js: 279ms, proxy.ts: 37ms, application-code: 365ms)
+ GET /progress 200 in 687ms (next.js: 312ms, proxy.ts: 31ms, application-code: 345ms)
+ GET /graph 200 in 656ms (next.js: 423ms, proxy.ts: 30ms, application-code: 202ms)
+  ok 5 e2e\auth-graph.spec.ts:14:5 › 登录 next 参数不允许跳出当前站点 (4.1s)
+  ok 2 e2e\auth-graph.spec.ts:187:5 › 学习复盘展示周期对比和 14 天热力 (4.5s)
+Route /study/[segmentId] is rendering with server caches disabled. For this navigation, Component Metadata in React DevTools will not accurately reflect what is statically prerenderable and runtime prefetchable. See more info here: https://nextjs.org/docs/messages/cache-bypass-in-dev
+  ok 1 e2e\auth-graph.spec.ts:46:5 › 登录后可加载 mock 知识图谱 (4.7s)
+Route /notes/[id] is rendering with server caches disabled. For this navigation, Component Metadata in React DevTools will not accurately reflect what is statically prerenderable and runtime prefetchable. See more info here: https://nextjs.org/docs/messages/cache-bypass-in-dev
+ GET /study/33333333-3333-4333-8333-333333333333 200 in 1917ms (next.js: 340ms, proxy.ts: 12ms, generate-params: 1420ms, application-code: 146ms)
+ GET /notes/test-note-id 200 in 1953ms (next.js: 429ms, proxy.ts: 31ms, generate-params: 1378ms, application-code: 115ms)
+  ok 6 e2e\auth-graph.spec.ts:126:5 › 选中正文后可请求 AI 解释且不跳转 (5.5s)
+ POST /api/segments/55555555-5555-4555-8555-555555555555/view 200 in 261ms (proxy.ts: 6ms)
+  ok 4 e2e\auth-graph.spec.ts:81:5 › 主动回忆先作答，再揭晓答案并记录结果 (5.7s)
+
+  6 passed (7.1s)

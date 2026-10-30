@@ -16,6 +16,7 @@ import { useEffect, useState } from 'react';
 import { api, formatDate } from '@/lib/client';
 import MemoryBadge, { MEMORY_TIER_META } from '@/components/MemoryBadge';
 import { TodayLearningSection, type TodayLearningPayload } from '@/components/TodayLearningPanel';
+import ErrorState from '@/components/ErrorState';
 import { MEMORY_TIER_LABELS } from '@/lib/memory';
 
 export interface WeakSegment {
@@ -85,8 +86,9 @@ export default function DashboardPanel() {
   const [error, setError] = useState('');
   const [learning, setLearning] = useState<TodayLearningPayload | null>(null);
   const [learningError, setLearningError] = useState('');
+  const [reloadToken, setReloadToken] = useState(0);
 
-  useEffect(() => subscribeStats(setStats, setError), []);
+  useEffect(() => subscribeStats(setStats, setError), [reloadToken]);
   useEffect(() => {
     let alive = true;
     loadTodayLearning()
@@ -99,24 +101,44 @@ export default function DashboardPanel() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [reloadToken]);
 
-  return <DashboardShell stats={stats} error={error} learning={learning} learningError={learningError} />;
+  return (
+    <DashboardShell
+      stats={stats}
+      error={error}
+      learning={learning}
+      learningError={learningError}
+      onRetry={() => setReloadToken((n) => n + 1)}
+    />
+  );
 }
 
-/** 三态外壳：错误 → 提示；加载中 → 骨架屏；就绪 → 行动面板 */
+/** 三态外壳：错误 → 可重试提示；加载中 → 骨架屏；就绪 → 行动面板 */
 export function DashboardShell({
   stats,
   error,
   learning,
   learningError,
+  onRetry,
 }: {
   stats: StatsPayload | null;
   error: string;
   learning?: TodayLearningPayload | null;
   learningError?: string;
+  onRetry?: () => void;
 }) {
-  if (error) return <p className="text-body text-danger">{error}</p>;
+  if (error) {
+    return (
+      <div className="mx-auto max-w-4xl">
+        <ErrorState
+          message={error}
+          onRetry={onRetry}
+          hint="若提示数据库暂时不可用，稍后点「重试」即可；期间可以先到「知识库」继续阅读。"
+        />
+      </div>
+    );
+  }
   return stats ? <DashboardView stats={stats} learning={learning} learningError={learningError} /> : <DashboardSkeleton />;
 }
 

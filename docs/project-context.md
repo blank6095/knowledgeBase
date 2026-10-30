@@ -69,7 +69,7 @@
 | 图谱 | `react-force-graph-2d` | `^1.29.2` | Canvas 力导向图 |
 | Markdown | `react-markdown` + `remark-gfm` | `10.1.0` / `4.0.1` | 阅读态渲染 |
 | YAML | `js-yaml` | `^5.5.0` | frontmatter 解析 |
-| 单测 | Vitest | `^5.0.5` | 用例在 `src/lib/__tests__/`、以及组件测试 |
+| 单测 | Vitest | `^5.0.5` | 用例在 `src/lib/__tests__/`、以及组件测试；`vitest.config.mts` 限 `maxWorkers: 2`（Windows 默认并发会偶发 worker 启动超时，导致整套假失败） |
 | E2E | Playwright | `^1.64.1` | `e2e/auth-graph.spec.ts` |
 | Lint | ESLint 9 + `eslint-config-next` | `^9` / `16.4.3` | `npm run lint` |
 
@@ -164,11 +164,27 @@ knowledge-base/
     │   ├── api.ts             # guard / badRequest / notFound / isUuid
     │   ├── r2.ts              # R2 原文备份（S3 SDK 封装）
     │   ├── client.ts          # 浏览器侧 fetch 封装
+    │   ├── db-retry.ts        # 数据库瞬时故障识别 + 指数退避重试（仅只读路径）
+    │   ├── db-read.ts         # 读路径降级包装（失败回退陈旧快照）
+    │   ├── ui/                # 表现层基础：contrast(对比度) / geometry(浮层碰撞) / theme(色值出口)
+    │   ├── graph/             # 图谱契约与状态：graph-types / graph-state / click-intent / graph-search / graph-focus(局部探索/最短路径)
     │   └── __tests__/         # Vitest 用例（memory/splitter/links/rag/llm/cache…）
     ├── components/
-    │   ├── AppShell.tsx       # 侧边栏 + 页面骨架
+    │   ├── AppShell.tsx       # 侧边栏 + 页面骨架（/graph 沉浸模式）
     │   ├── AiOverlay.tsx      # AI 预览/确认浮层
     │   ├── DashboardPanel.tsx # 概览面板
+    │   ├── graph/
+    │   │   ├── KnowledgeUniverse.tsx # 图谱容器（业务数据 + 三层视图状态 + 页面浮层）
+    │   │   ├── GraphCanvas.tsx       # 画布渲染/交互（尺寸测量、force-graph 回调）
+    │   │   ├── GraphBackground.tsx   # 背景环境层（透明画布下的静态纹理）
+    │   │   ├── GraphDetailPanel.tsx  # 右侧知识详情面板（五操作，移动端底部 Drawer）
+    │   │   ├── GraphNavigation.tsx   # 悬浮窄导航（桌面左侧 / 移动底部条）
+    │   │   ├── GraphTopBar.tsx       # 顶部浮层（标识 / 搜索位 / 统计）
+    │   │   ├── GraphSearch.tsx       # 搜索浮层（Ctrl/Cmd+K、结果列表、空态）
+    │   │   ├── GraphContextMenu.tsx  # 节点右键/长按菜单（U4-5，clamp + 键盘）
+    │   │   └── GraphLegend.tsx       # 记忆度浮层图例（可折叠）
+    │   ├── InlineFeedback.tsx # 统一行内反馈（错误 role=alert，其余 aria-live）
+    │   ├── ErrorState.tsx     # 页面级错误态（原因 + 重试 + 安全去向）
     │   ├── SegmentEditCard.tsx# 段编辑卡（含 AI 拆解/聚合入口）
     │   ├── SectionEditor.tsx  # 选区/锚点编辑
     │   ├── MemoryBadge.tsx    # 记忆档位徽标
@@ -180,7 +196,7 @@ knowledge-base/
         ├── notes/page.tsx                 # 文档列表
         ├── notes/[id]/page.tsx            # 文档详情（连续阅读）
         ├── segments/[id]/page.tsx         # 知识点详情（阅读/标注/AI）
-        ├── graph/page.tsx                 # 关系图谱（含 ?fixture= 压测模式）
+        ├── graph/page.tsx                 # 关系图谱薄壳（渲染 KnowledgeUniverse，含 ?fixture= 压测模式）
         ├── graph/mount-utils.ts           # warmup 策略与收敛阈值
         ├── graph/node-sprites.ts          # 节点离屏 sprite 缓存
         ├── graph/color-utils.ts           # 颜色缓存
@@ -324,9 +340,9 @@ knowledge-base/
 
 - 数据：`GET /api/graph` 返回 `{nodes, links}`，节点含 `memory`、`stability`、`viewCount`、`readingMs`、`degree` 等；全量返回（未分页/未聚合）。
 - 交互：节点亮度=记忆度、大小=关联数；点击进知识点；按记忆档位与关联类型（wiki/tag/doc）过滤；拖拽重热。
-- 渲染优化已做：节点属性预计算、`warmupTicks` 按规模自适应（`mount-utils.ts`）、节点 sprite 离屏缓存、API 字段瘦身。
+- 渲染优化已做：节点属性预计算、`warmupTicks` 按规模自适应（`mount-utils.ts`）、节点 sprite 离屏缓存、API 字段瘦身、视口剔除、坐标复用、规模自适应 theta、tooltip 缓存与 deferred 过滤。
 - 压测模式：`/graph?fixture=graph-small|graph-mid|graph-large`，读取 `public/fixtures/`（该目录被 gitignore，需用脚本生成）。
-- 未做：视口裁剪、quadtree、坐标持久化、社区聚合、WebGL。
+- 未做：社区聚合（个人真实库未达阈值）、WebGL / WASM 布局引擎（待依赖决策）。
 
 ### 5.4 标注（划线 + 笔记）
 
@@ -369,7 +385,7 @@ knowledge-base/
 | 预算 | `max_tokens` 默认 2048（拆解类建议 4096），超限抛可读错误 |
 | 重试 | 429/5xx/网络错误指数退避重试 1 次（基 1500ms），其余 4xx 不重试 |
 | 并发护栏 | 进程内信号量 `MAX_CONCURRENT=3`，超出排队 |
-| 超时 | `TIMEOUT_MS=60_000`（当前覆盖整个流式读取，长回答可能被截断） |
+| 超时 | 首字节 60s；流式 chunk 静默 30s，收到数据后重置 |
 | 额度 | 日 token 护栏 `assertDailyTokenBudget`（`llm-calls.ts`） |
 | 分档 | `fast`（摘要/测试）与 `default`；fast 未配置时等于 default |
 | 可观测 | 每次调用/命中写 `llm_calls`；**不记 prompt** |
@@ -390,9 +406,9 @@ knowledge-base/
 | fail-closed | 未配置口令 → 页面跳登录、API 503 |
 | 登录限流 | `login-rate-limit.ts`（失败次数限制） |
 | 开放重定向 | `safeNextPath()` 只允许站内绝对路径 |
-| 安全头 | `X-Frame-Options: DENY`、`nosniff`、`Referrer-Policy`、`Permissions-Policy`；**无 CSP** |
+| 安全头 | `X-Frame-Options: DENY`、`nosniff`、`Referrer-Policy`、`Permissions-Policy`、强制 CSP |
 | 注入防护 | tooltip 等拼接 HTML 处统一 `escapeHtml()` |
-| Key 保护 | 只在服务端流转；`GET /api/settings` 只回尾 4 位；不写日志 |
+| Key 保护 | AES-GCM 加密存储（`SETTINGS_ENCRYPTION_KEY` 或口令派生）；只回尾 4 位；不写日志 |
 
 ### 5.8 R2 原文备份
 
@@ -419,6 +435,7 @@ knowledge-base/
 | GET | `/api/learning/today` | 今日学习推荐 + 近 7 天反馈 |
 | POST | `/api/learning/question` | 基于当前知识段生成主动回忆题 |
 | POST | `/api/learning/reviews` | 保存复习结果，幂等且校验内容版本 |
+| GET | `/api/learning/weekly` | 14 天学习热力与 7 天对比报告 |
 | GET | `/api/segments/[id]/summary` | 取/生成 30 字摘要（LLM，fast 档，缓存） |
 | GET | `/api/segments/[id]/annotations` | 该段标注 |
 | POST | `/api/segments/[id]/annotations` | 新建划线/笔记 |
@@ -430,6 +447,8 @@ knowledge-base/
 | GET / POST | `/api/settings` | 读配置（key 尾号）/ 存 LLM 配置 |
 | GET | `/api/learner-profile` | 画像 |
 | POST | `/api/ai/ask` | 助手 Agent（SSE 流式） |
+| POST | `/api/ai/explain` | 解释阅读选区 |
+| POST | `/api/ai/connect` | 对比两个概念及共同邻居 |
 | POST | `/api/ai/split-preview` / `split-apply` | 编辑态拆解 预览/落地 |
 | POST | `/api/ai/aggregate-preview` / `aggregate-apply` | 编辑态聚合 预览/落地 |
 | POST | `/api/ai/test` | 连通性测试 |
@@ -453,6 +472,7 @@ knowledge-base/
 | `/graph` | 关系图谱（支持 `?fixture=`） |
 | `/ask` | 助手对话（流式、来源引用、改动确认卡） |
 | `/study/[segmentId]` | 主动回忆：先作答、再揭晓答案、记录结果、回看来源 |
+| `/progress` | 学习复盘：14 天热力、周期对比、优先项 |
 | `/settings` | LLM Key/模型、学习者声明、用量查看 |
 
 ---
@@ -488,6 +508,7 @@ npm run dev                       # http://localhost:3000
 |---|---|---|
 | `DATABASE_URL` | 是 | Neon **Pooled** 连接串（`?sslmode=require`） |
 | `AUTH_PASSCODE` | 是 | 登录口令，足够长的随机串 |
+| `SETTINGS_ENCRYPTION_KEY` | 否 | LLM Key 加密主密钥；未配置时从 AUTH_PASSCODE 派生 |
 | `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | 否 | 原文备份 |
 | `LLM_API_KEY` / `LLM_MODEL` | 否 | 回退配置（推荐在设置页填，即存即用） |
 | `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL` | 否 | 用户惯例命名的回退；只给 key 时模型默认 `deepseek-v4-flash` |
@@ -516,7 +537,7 @@ npm run dev                       # http://localhost:3000
 ### 9.5 测试与 CI
 
 - 单测：`src/lib/__tests__/`（memory、splitter、links、rag、llm、llm-cache、annotations、security、proxy、stats-route、view-route、dashboard-panel、segment-edit-card 等）。
-- E2E：`e2e/auth-graph.spec.ts`（登录门 + 图谱加载），配合 `scripts/mock-llm.mjs` 免真实 key。
+- E2E：`e2e/auth-graph.spec.ts`（登录门、图谱、主动回忆、AI 解释、学习复盘），固定网络响应避免依赖真实 key。
 - CI（`.github/workflows/ci.yml`）：test → lint → typecheck → build → 安装 Chromium → E2E。
 
 ---
@@ -540,11 +561,13 @@ npm run dev                       # http://localhost:3000
 - 主动回忆：先作答，再揭晓参考答案，记录没答出 / 部分掌握 / 答对
 - 复习调度与近 7 天反馈：自测数、需巩固数、改善数、活跃天数
 - 概览面板：今日学习、档位分布、今日阅读、最近导入、薄弱推荐、未读推荐
+- 学习复盘：近 7 天自测/巩固/改善/活跃天数、14 天热力、下一步优先项
 
 **可视化**
 
 - 力导向图谱，亮度=记忆度、大小=度数，按档位/关联类型过滤
 - 图谱性能基线优化（预计算、warmup、sprite、字段瘦身、拖拽重热）
+- 图谱视口剔除、坐标复用、规模自适应 theta、tooltip 缓存与 deferred 过滤
 - 压测模式与数据生成器
 
 **AI**
@@ -559,7 +582,7 @@ npm run dev                       # http://localhost:3000
 **工程与安全**
 
 - 单口令全站登录门（Proxy + 路由双层 guard）、登录限流、安全跳转
-- 安全响应头（无 CSP）、HTML 转义
+- 安全响应头（强制 CSP + `frame-ancestors 'none'`）、HTML 转义
 - Neon HTTP batch 原子写、迁移版本表与只读预演
 - Vitest 单测 + Playwright E2E + CI
 - 进程内 TTL 缓存与写后失效
@@ -572,12 +595,13 @@ npm run dev                       # http://localhost:3000
 
 | 主题 | 代表项 |
 |---|---|
-| AI 深度能力 | 「解释这段」、概念关联解释、自测三问、学习周报、pgvector 检索（条件触发） |
-| 图谱规模化 | 视口裁剪、quadtree、坐标持久化、社区聚合、WebGL/WASM（条件触发）、三档压测基线实测 |
-| 产品 Roadmap | 测验模式、PDF/DOCX/网页剪藏、附件图片上传渲染、学习热力图与报表 |
-| 技术债/安全 | CSP、LLM Key 加密存储、流式静默超时按阶段拆分 |
+| AI 深度能力 | 自测三问（待产品边界）、pgvector 检索（条件触发） |
+| 图谱规模化 | 社区聚合（个人真实数据未达阈值）、WebGL/WASM（待依赖决策） |
+| 产品 Roadmap | 正式测验、PDF/DOCX/网页剪藏、附件图片 |
+| 技术债/安全 | 内联样式收紧（CSP Report-Only 审计后再收紧 `style-src`） |
+| 体验与视觉 | 助手对话上下文、首页层级收敛、小字对比度、窄屏弹层与热力图（见 `docs/visual-iteration-plan.md`） |
 
-> **状态更正（2026-10-29 二次复核）**：A1/A2/D3/D5/D6/E1/E2 均已完成，且今日学习、主动回忆、复习记录、推荐调度和轻量反馈已落地；任务清单已更新为 v1.1。
+> **状态更正（2026-10-29 终次复核）**：任务清单 v1.2 已完成 21/29 项；“解释这段、联系两概念、学习周报、三档压测、图谱优化、Key 加密、CSP、流式静默超时”均已落地；剩余 8 项已记录阻塞条件。
 
 ---
 
@@ -611,12 +635,13 @@ npm run dev                       # http://localhost:3000
 
 | 坑 | 说明/规避 |
 |---|---|
+| **Neon HTTP 瞬时故障** | 实测会出现 `Error connecting to database: TypeError: fetch failed`（cause: AggregateError / ETIMEDOUT），同一端点重试即 200。已做三层处置：只读查询 `withDbRetry` 指数退避重试 → 仍失败回退「上一次成功结果」的陈旧快照（响应头 `X-Cache: STALE`）→ 无快照时返回 503 + 中文提示，前端展示可重试错误态。**写路径不走重试**（避免重复写） |
+| **陈旧快照的取舍** | `cache.ts` 的新鲜缓存 TTL 60s，陈旧快照保留 15 分钟；写路径失效时两者一起清掉。学习类端点（今日学习/学习复盘）刻意不做新鲜缓存（TTL=0），避免推荐结果过期 |
 | `next build` 缺 `DATABASE_URL` | `db` 为 Proxy 惰性初始化，勿在模块顶层直接查询 |
 | 进程内缓存多实例不一致 | Vercel 多实例下写后失效只影响当前实例；接受 best-effort |
 | `public/fixtures/*.json` 被 gitignore | 压测数据需 `gen-graph-data.mjs` 重新生成 |
-| 流式静默超时 | 首字节已独立限时；后续 chunk 尚无静默超时，仍属技术债（任务清单 D4） |
-| CSP 缺失但有内联 style | 加 CSP 前须先审计内联样式，否则图谱 tooltip 等会失效 |
-| API key 明文存 DB | 已知技术债（D2）；不要在此基础上扩散使用方式 |
+| CSP 与内联 style | 当前 CSP 允许内联 style；若继续收紧，先运行 Report-Only 审计 |
+| API key 加密主密钥 | 未配置 `SETTINGS_ENCRYPTION_KEY` 时从 AUTH_PASSCODE 派生；改口令会使旧密文不可解 |
 | `deepseek-v4-flash` function calling 未实测 | 上游 400 时走 `agent-notools` 降级；新增工具需考虑降级路径 |
 | 图谱全量返回 | 大库会慢；>8k 需视口裁剪/聚合，但先取压测数据再立项 |
 | 4.5MB 请求体 | 超大 md 分次粘贴；不要假设可一次导入任意大小文件 |
@@ -648,7 +673,7 @@ npm run dev                       # http://localhost:3000
 | 为什么 AI 不能直接改库？ | 铁律：LLM 不可信，一律 preview → 确认 → apply；避免误改/误删 |
 | 图谱为什么暗？ | 亮度就是记忆度，暗灰=未读；这是设计意图，不是 bug |
 | 导入为什么只支持 md？ | 当前设计取舍；PDF/DOCX/图片在 Roadmap，受 4.5MB 与零依赖约束 |
-| 为什么没有 CSP？ | 已知技术债；加之前要先清理内联 style，否则页面白屏 |
+| 为什么没有 CSP？ | 已配置强制 CSP（含 `frame-ancestors 'none'`）；`style-src` 暂保留 `'unsafe-inline'` 以兼容图谱 tooltip 与 React 内联样式，收紧前先跑 Report-Only 审计 |
 | 为什么缓存有时不生效？ | 进程内缓存 per-instance；LLM 缓存有 256 条上限与 TTL |
 | 能多人用吗？ | 不能。单口令、无用户表、无权限模型 |
 | 支持中文/英文？ | 拆解按标题层级与句子边界，中英均适用；界面为中文 |

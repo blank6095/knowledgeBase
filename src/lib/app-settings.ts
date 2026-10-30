@@ -2,6 +2,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { appSettings } from '@/db/schema';
+import { decryptSecret, encryptSecret } from '@/lib/secret-crypto';
 
 export interface LlmSettings {
   apiKey: string;
@@ -15,15 +16,34 @@ const LLM_SETTINGS_KEY = 'llm';
 export async function getLlmSettings(): Promise<LlmSettings | null> {
   const [row] = await db.select().from(appSettings).where(eq(appSettings.key, LLM_SETTINGS_KEY));
   if (!row) return null;
-  const v = row.value as { apiKey?: unknown; model?: unknown; fastModel?: unknown };
-  if (typeof v?.apiKey !== 'string' || !v.apiKey || typeof v?.model !== 'string' || !v.model) return null;
+  const v = row.value as { apiKey?: unknown; apiKeyEnc?: unknown; model?: unknown; fastModel?: unknown };
+  let apiKey = '';
+  if (typeof v?.apiKeyEnc === 'string' && v.apiKeyEnc) {
+    apiKey = (await decryptSecret(v.apiKeyEnc)) ?? '';
+  } else if (typeof v?.apiKey === 'string' && v.apiKey) {
+    // 兼容旧明文行：首次读取时原地迁移，避免密钥长期以明文保留。
+    apiKey = v.apiKey;
+    const apiKeyEnc = await encryptSecret(apiKey).catch(() => null);
+    if (apiKeyEnc) {
+      await db
+        .update(appSettings)
+        .set({ value: { apiKeyEnc, model: v.model, fastModel: v.fastModel }, updatedAt: new Date() })
+        .where(eq(appSettings.key, LLM_SETTINGS_KEY))
+        .catch(() => {});
+    }
+  }
+  if (!apiKey || typeof v?.model !== 'string' || !v.model) return null;
   const fastModel = typeof v?.fastModel === 'string' ? v.fastModel.trim() : '';
-  return { apiKey: v.apiKey, model: v.model, fastModel: fastModel || undefined };
+  return { apiKey, model: v.model, fastModel: fastModel || undefined };
 }
 
 export async function saveLlmSettings(s: LlmSettings): Promise<void> {
+  const apiKeyEnc = await encryptSecret(s.apiKey);
   await db
     .insert(appSettings)
-    .values({ key: LLM_SETTINGS_KEY, value: s })
-    .onConflictDoUpdate({ target: appSettings.key, set: { value: s, updatedAt: new Date() } });
+    .values({ key: LLM_SETTINGS_KEY, value: { apiKeyEnc, model: s.model, fastModel: s.fastModel } })
+    .onConflictDoUpdate({
+      target: appSettings.key,
+      set: { value: { apiKeyEnc, model: s.model, fastModel: s.fastModel }, updatedAt: new Date() },
+    });
 }

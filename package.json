@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "node scripts/run-e2e.mjs",
+    "perf:graph": "node scripts/measure-graph.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file=.env.local scripts/apply-migrations.mjs",
     "db:migrate:check": "node --env-file=.env.local scripts/apply-migrations.mjs --dry-run",

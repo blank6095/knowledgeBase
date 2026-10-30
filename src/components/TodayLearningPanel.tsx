@@ -70,25 +70,28 @@ export function TodayLearningSection({
         <ol className="divide-y divide-line">
           {learning.items.map((item, index) => (
             <li key={item.segmentId}>
+              {/* 窄屏两行布局：标题完整换行，原因/来源与行动各占一行，避免标题被截断 */}
               <Link
                 href={`/study/${item.segmentId}`}
-                className="group flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-surface-hover"
+                className="group flex flex-col gap-1.5 px-5 py-3.5 transition-colors hover:bg-surface-hover sm:flex-row sm:items-center sm:gap-3"
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line font-mono text-tag text-faint">
-                  {index + 1}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    <span className="truncate text-body font-medium text-primary group-hover:text-accent-strong">
+                <span className="flex min-w-0 flex-1 items-start gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line font-mono text-tag text-muted">
+                    {index + 1}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-body font-medium text-primary group-hover:text-accent-strong sm:truncate">
                       {item.title}
                     </span>
-                    <span className="rounded-full bg-accent/10 px-2 py-0.5 text-tag text-accent">{item.reason}</span>
-                  </span>
-                  <span className="mt-0.5 block truncate text-tag text-faint">
-                    {item.documentTitle} · 记忆 {Math.round(item.memory * 100)}%
+                    <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="rounded-full bg-accent/10 px-2 py-0.5 text-tag text-accent">{item.reason}</span>
+                      <span className="text-tag text-muted">
+                        {item.documentTitle} · 记忆 {Math.round(item.memory * 100)}%
+                      </span>
+                    </span>
                   </span>
                 </span>
-                <span className="shrink-0 text-tag text-accent">开始回忆 →</span>
+                <span className="pl-10 text-tag text-accent sm:shrink-0 sm:pl-0">开始回忆 →</span>
               </Link>
             </li>
           ))}

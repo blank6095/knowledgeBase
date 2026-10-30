@@ -1,0 +1,65 @@
+{
+  "baseURL": "http://127.0.0.1:3102",
+  "fixture": "graph-large（实际 8000 节点）",
+  "rounds": 3,
+  "fpsSamples": [
+    2.906,
+    2.886,
+    2.859
+  ],
+  "fpsMedian": 2.886,
+  "fpsMin": 2.859,
+  "fpsMax": 2.906,
+  "typingMsSamples": [
+    536,
+    536,
+    467
+  ],
+  "p95FrameMs": [
+    429.2,
+    436,
+    460.6
+  ],
+  "longTaskMax": 230,
+  "optionCount": [
+    8,
+    8,
+    8
+  ],
+  "engineStopStable": true,
+  "rows": [
+    {
+      "round": 1,
+      "typingMs": 536,
+      "engineStopBefore": null,
+      "fps": 2.9057097195984882,
+      "p95FrameMs": 429.19999999925494,
+      "longTaskMax": 230,
+      "engineStop": null,
+      "optionCount": 8,
+      "nodeCount": 0
+    },
+    {
+      "round": 2,
+      "typingMs": 536,
+      "engineStopBefore": null,
+      "fps": 2.8855864954554598,
+      "p95FrameMs": 436,
+      "longTaskMax": 213,
+      "engineStop": null,
+      "optionCount": 8,
+      "nodeCount": 0
+    },
+    {
+      "round": 3,
+      "typingMs": 467,
+      "engineStopBefore": null,
+      "fps": 2.858640240125273,
+      "p95FrameMs": 460.59999999962747,
+      "longTaskMax": 227,
+      "engineStop": null,
+      "optionCount": 8,
+      "nodeCount": 0
+    }
+  ]
+}

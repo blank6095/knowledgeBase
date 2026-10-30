@@ -1,0 +1,65 @@
+{
+  "checks": {
+    "openShortcut": {
+      "visible": true,
+      "focused": "搜索知识"
+    },
+    "search": {
+      "resultCount": 3,
+      "firstResults": [
+        "HTTP 状态码\n命中 · 标签 · 网络",
+        "OSI 七层模型\n命中 · 标签 · 网络",
+        "TCP 与 UDP\n命中 · 标签 · 网络"
+      ],
+      "apiRequests": [],
+      "engineStop": 6523.299999998882
+    },
+    "empty": {
+      "visible": true,
+      "canvasStillVisible": true
+    },
+    "escape": {
+      "panelVisible": 0,
+      "url": "http://localhost:3000/graph"
+    },
+    "focus": {
+      "targetId": "c2cd410f-c3cf-4d1a-b16c-bfa1b850ce31",
+      "firstTitle": "TCP 与 UDP",
+      "before": {
+        "x": 580.968410100822,
+        "y": 350.91991019374643,
+        "cx": 720,
+        "cy": 500
+      },
+      "after": {
+        "x": 720,
+        "y": 500.00000000000006,
+        "cx": 720,
+        "cy": 500
+      },
+      "dx": 0,
+      "dy": 0,
+      "centered": true,
+      "apiRequests": [],
+      "engineStopUnchanged": true,
+      "moved": true
+    },
+    "regressionDetail": {
+      "opened": true
+    },
+    "nodeCountAfterSearch": 15,
+    "mobile": {
+      "scrollWidth": 375,
+      "innerWidth": 375,
+      "panel": {
+        "left": 12,
+        "right": 363,
+        "top": 80,
+        "width": 351
+      },
+      "noHorizontalOverflow": true
+    }
+  },
+  "consoleErrors": [],
+  "pageErrors": []
+}

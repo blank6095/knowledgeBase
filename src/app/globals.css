@@ -21,7 +21,8 @@
   --color-line-strong: rgba(236, 230, 218, 0.16); /* 强描边 */
   --color-primary: #ece6da; /* 暖白正文 */
   --color-muted: #a49b8c; /* 次要文字 */
-  --color-faint: #6e675c; /* 三级弱文字（装饰性） */
+  --color-faint: #948b7d; /* 弱文字：功能性说明也用它（对 app/surface/elevated 均 ≥4.5:1） */
+  --color-faint-decor: #6e675c; /* 纯装饰弱色：仅序号、分隔线等不影响阅读的内容 */
   --color-accent: #e8b04b; /* 琥珀：灯光/激活/主按钮 */
   --color-accent-strong: #f2c069; /* 琥珀高亮：hover 点亮 */
   --color-accent-ink: #201708; /* 琥珀底上的文字 */
@@ -98,6 +99,14 @@ body::after {
 ::selection {
   background: color-mix(in srgb, var(--color-accent) 25%, transparent);
 }
+
+/*
+ * 文字层级约定（配合 src/lib/ui/contrast.ts 的对比度审计）：
+ * - primary：正文与关键数据；
+ * - muted：辅助说明、元数据；
+ * - faint：功能性弱文字（说明、日期、间隔、标签），对三种底色均 ≥4.5:1；
+ * - faint-decor：仅用于序号、分隔线等装饰，不承载任何信息。
+ */
 
 /* 深度：卡片 = surface + 内描边 + 柔和下阴影；hover 点亮为 elevated 并微升 */
 .card {
@@ -300,4 +309,40 @@ mark.hl-flash {
 @keyframes hl-flash {
   0%, 60% { box-shadow: 0 0 0 3px rgba(232, 176, 75, 0.45); }
   100% { box-shadow: 0 0 0 3px transparent; }
+}
+
+/* 图谱环境背景层（U0-3）：容器底色之上、透明 Canvas 之下的静态纹理层。
+   切换 data-graph-env 只改变 CSS 绘制，不触发数据请求或力导向重排。
+   minimal = 与拆分前的纯色画布完全一致，作为视觉回归对照。 */
+.graph-background {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--color-canvas);
+}
+.graph-background::before,
+.graph-background::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+/* 氛围光：暖琥珀微光为主，冷灰仅作极弱点缀（不引入冷色主调，见 UQ8） */
+.graph-background::before {
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 40%, rgba(232, 176, 75, 0.05), transparent 62%),
+    radial-gradient(ellipse 50% 45% at 82% 18%, rgba(217, 145, 92, 0.04), transparent 70%),
+    radial-gradient(ellipse 55% 50% at 16% 82%, rgba(148, 139, 125, 0.035), transparent 70%);
+}
+/* 细噪点：沿用 body::after 的 SVG 噪声，压低透明度避免干扰节点与标签 */
+.graph-background::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  opacity: 0.16;
+  mix-blend-mode: overlay;
+}
+/* 对照环境：纯色（等价拆分前画布），用于背景切换验收与视觉 A/B */
+.graph-background[data-graph-env="minimal"]::before,
+.graph-background[data-graph-env="minimal"]::after {
+  background: none;
+  opacity: 0;
 }

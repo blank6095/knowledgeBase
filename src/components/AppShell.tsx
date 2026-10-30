@@ -42,6 +42,11 @@ const IcAsk = (p: IconProps) => (
     <circle cx="12" cy="16.2" r="0.2" fill="currentColor" />
   </svg>
 );
+const IcProgress = (p: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+  </svg>
+);
 const IcSettings = (p: IconProps) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
     <circle cx="12" cy="12" r="3" />
@@ -70,6 +75,7 @@ const NAV = [
   { href: '/', label: '概览', icon: IcOverview },
   { href: '/notes', label: '知识库', icon: IcLibrary },
   { href: '/graph', label: '关系图谱', icon: IcGraph },
+  { href: '/progress', label: '学习复盘', icon: IcProgress },
   { href: '/ask', label: '助手', icon: IcAsk },
 ] as const;
 
@@ -92,6 +98,9 @@ function Shell({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false); // 移动端抽屉
 
   if (pathname === '/login') return <>{children}</>;
+
+  /** 沉浸式页面（图谱）：隐藏全站侧边栏/移动端 header/footer，主列交给页面自己编排。 */
+  const immersive = pathname === '/graph';
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -135,7 +144,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <aside
         className={`fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-line bg-surface transition-[transform,width] duration-200 ease-out md:sticky md:top-0 md:z-20 md:h-screen md:translate-x-0 md:inset-y-auto ${
           drawerOpen ? 'translate-x-0' : '-translate-x-full'
-        } ${collapsed ? 'md:w-12' : 'md:w-60'}`}
+        } ${collapsed ? 'md:w-12' : 'md:w-60'} ${immersive ? 'hidden' : ''}`}
       >
         <div className={`flex h-12 shrink-0 items-center gap-2.5 border-b border-line px-3 ${collapsed ? 'md:justify-center md:px-0' : ''}`}>
           <LogoMark className="h-5 w-5 shrink-0 text-accent" />
@@ -183,7 +192,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
       {/* 主列：全幅（图谱需要），阅读类页面自行限宽 */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b border-line bg-app/90 px-3 backdrop-blur md:hidden">
+        <header className={`sticky top-0 z-10 h-12 items-center gap-2 border-b border-line bg-app/90 px-3 backdrop-blur md:hidden ${immersive ? 'hidden' : 'flex'}`}>
           <button
             onClick={() => setDrawerOpen(true)}
             aria-label="打开导航"
@@ -194,8 +203,8 @@ function Shell({ children }: { children: React.ReactNode }) {
           <LogoMark className="h-4 w-4 text-accent" />
           <span className="font-display text-body font-semibold">暗夜书房</span>
         </header>
-        <main className="flex-1 px-4 py-5 md:px-6 md:py-6">{children}</main>
-        <footer className="border-t border-line py-3 text-center text-tag text-faint">
+        <main className={immersive ? 'relative flex-1 overflow-hidden' : 'flex-1 px-4 py-5 md:px-6 md:py-6'}>{children}</main>
+        <footer className={`border-t border-line py-3 text-center text-tag text-faint ${immersive ? 'hidden' : ''}`}>
           暗夜书房 · Neon + Cloudflare R2 + Vercel
         </footer>
       </div>

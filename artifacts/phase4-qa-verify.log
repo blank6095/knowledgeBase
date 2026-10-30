@@ -1,0 +1,22 @@
+PASS  U4-1：详情面板「展开关联」按钮循环 一阶→二阶→收起 — 展开一阶关联(aria-pressed=false) → 展开二阶关联(aria-pressed=true) → 收起关联(aria-pressed=true) → 展开一阶关联(aria-pressed=false)
+PASS  U4-1：一阶/二阶 focus 集合与真实 links BFS 复算一致（非 focus 调光） — seed「TCP 与 UDP」一阶 3/3、二阶 3/3 与 BFS 一致；一阶调光 12 个、二阶调光 12 个；收起后全部恢复
+PASS  U4-1：focus 只改视图（坐标/engineStop/nodes 不变） — nodes 15，engineStop/坐标均未变
+PASS  U4-2 直接路径：双选自动高亮，compare bar 显示节点链 + 关系类型 — 「OSI 七层模型 → TCP 与 UDP」；关系类型可见；路径节点 alpha≈1、非路径 0.29；路径边亮度 106→169
+PASS  U4-2：清除路径 / 高亮路径开关（视觉开关与文案同步） — 清除 → 非路径 1.00；高亮 → 0.29
+PASS  U4-2：路径不修改 links（GET /api/graph 前后一致 + 坐标/engineStop 不变） — edges 16 条与节点契约字段一致（除现算 memory），节点坐标/engineStop 未变
+PASS  U4-2 间接路径：三段节点链 + 两段关系类型 — 「路径：概述 → 默认行为确实一样：都是单例 → 核心区别：多线程 vs 单线程（同文档 / 同文档）」，中间节点 alpha=1.00
+PASS  U4-2 无路径：显示「两个知识点之间没有路径」，且无路径开关 — 「TCP 与 UDP ↔ 概述」无路径文案可见，无路径开关
+PASS  U4-5：桌面右键节点弹出 7 项菜单（含 2 个 disabled + 未实现说明） — 7 项（2 个 disabled）：「聚焦该节点 / 展开一阶关联 / 展开二阶关联 / 阅读知识点 / 编辑知识点」；打开聚焦首项，Esc 关闭
+PASS  U4-5：键盘 ↑↓/Home/End/Enter 可用（Enter 执行聚焦） — ↓→展开一阶关联，End→编辑知识点，Home→聚焦该节点；Enter 聚焦到中心（dx=0.2 dy=0.2），面板「TCP 与 UDP」
+PASS  U4-5：菜单动作「展开一阶/展开二阶」写入 focusDepth — 一阶 → 展开二阶关联；二阶 → 收起关联（depth=2 生效）
+PASS  U4-5：菜单「编辑知识点」→ #edit 编辑态；「阅读知识点」→ /segments — 编辑 → /segments/<id>#edit（出现「✓ 完成编辑」）；阅读 → /segments/<id>
+PASS  U4-5：视口收窄后菜单自动 clamp 不越界（resize 重算） — 锚点 x=977（原视口 1440）；收窄到 600×500 后菜单 left=368 top=168 right=592 bottom=492，未越界
+PASS  U4-5：点击菜单外部关闭 / disabled 项不可点 — disabled 项点击无反应；点击外部关闭菜单
+PASS  回归：搜索（Ctrl+K → 网络 3 条 → Esc 恢复） — 3 条结果，Esc 关闭
+PASS  回归：详情面板/沉浸布局/导航/顶栏/图例/h1 — canvas 100%、sidebar/footer 隐藏、nav 7、顶栏+h1、图例、详情「TCP 与 UDP」均正常
+PASS  回归：设置/筛选/力参数/暂停/双选/拖拽/fixture/空态/骨架 — 四页签/筛选/力滑块、拖拽重排、fixture 500、空态、骨架均正常
+PASS  8k fixture：二阶 focus 与路径激活不崩、帧可接受 — 8k 二阶激活 1362ms：长任务 max=138ms（4 个）、最大帧间隔 249ms、续帧 84 次；路径激活 1252ms（路径文案可见），未崩溃
+PASS  移动端 375×812：touch 长按 500ms 弹菜单、不越界、Esc 关闭 — 长按 500ms 弹菜单，矩形 8,265–232,636 在 375×812 内，无横向溢出，Esc 关闭
+PASS  主页面 0 console/page error — pageerror=0，console.error=0
+
+=== 20/20 passed, 0 failed ===

@@ -71,3 +71,20 @@
 | V3 数据形态 | 全量明细 vs 社区聚合(D2) | 50k fixture 首帧时间、内存增量、最大 Long Task |
 
 每轮只动一个变量，用同一 seed 的 fixture 保证拓扑一致；先跑 V2 中的预计算开关（成本最低、证据最快）。
+
+## 7. 基线实测记录（2026-10-29）
+
+环境：Windows 11 / Intel i7-12700H / Headless Chrome 156 / 1440×900。采集脚本 `npm run perf:graph`，原始数据 `artifacts/graph-baseline.json`。
+
+| 数据档 | 节点 | JSON | 首 tick | 引擎停止 | rAF FPS | p95 帧耗时 | JS heap | 最长 long task |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| graph-small | 500 | 179 KB | 1.04s | 1.67s | 144.3 | 7.9ms | 30.4 MB | 167ms |
+| graph-mid | 5,000 | 2.23 MB | 1.07s | 16.19s | 5.9 | 227.8ms | 56.2 MB | 164ms |
+| graph-large | 20,000 | 3.58 MB | 1.12s | 16.10s | 3.4 | 400.0ms | 47.3 MB | 232ms |
+
+结论：
+
+- 5k 以上瓶颈已从数据解析转向力布局与 Canvas 全量绘制，未达到本方案 45/30fps 目标。
+- 已落地视口剔除、低透明度节点跳过、规模自适应 theta、拖拽重热、sprite 缓存与 deferred 过滤；同色批量绘制因每个节点采用独立径向渐变 sprite 而不再适用。
+- 鼠标命中由 force-graph 的 shadow canvas 单像素查询完成，已是 O(1)，无需额外维护 quadtree。
+- 20k 仍低于 30fps，WebGL 具备立项数据依据；但引入新依赖/改变渲染栈需产品确认，暂不自动实施。

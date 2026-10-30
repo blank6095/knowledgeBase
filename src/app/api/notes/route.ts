@@ -3,8 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { desc, inArray, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { documents, links, segments } from '@/db/schema';
-import { badRequest, guard } from '@/lib/api';
-import { getCache, invalidateCache, setCache } from '@/lib/cache';
+import { badRequest, dbUnavailable, guard } from '@/lib/api';
+import { getCache, invalidateCache } from '@/lib/cache';
+import { withDbRetry } from '@/lib/db-retry';
+import { withStaleFallback } from '@/lib/db-read';
 import { runBatch } from '@/lib/db-batch';
 import { rebuildDocQueries, rebuildLinksQueries } from '@/lib/links';
 import { extractInlineTags } from '@/lib/markdown';
@@ -36,46 +38,63 @@ export async function GET(req: NextRequest) {
   if (cached) return NextResponse.json(cached, { headers: { 'X-Cache': 'HIT' } });
 
   const t0 = performance.now();
-  const [docs, memAgg] = await Promise.all([
-    db.select().from(documents).orderBy(desc(documents.createdAt)),
-    db
-      .select({
-        documentId: segments.documentId,
-        avgMemory: sql<number>`coalesce(avg(
-          case when ${segments.stability} <= 0 or ${segments.lastViewedAt} is null then 0
-          else ${MEMORY_SQL(segments.stability, segments.lastViewedAt)} end
-        ), 0)::float8`,
-      })
-      .from(segments)
-      .groupBy(segments.documentId),
-  ]);
-  const tDb = performance.now();
+  const loadDocs = async (): Promise<DocsPayload> => {
+    const [docs, memAgg] = await Promise.all([
+      withDbRetry(() => db.select().from(documents).orderBy(desc(documents.createdAt)), { label: 'notes.docs' }),
+      withDbRetry(
+        () =>
+          db
+            .select({
+              documentId: segments.documentId,
+              avgMemory: sql<number>`coalesce(avg(
+                case when ${segments.stability} <= 0 or ${segments.lastViewedAt} is null then 0
+                else ${MEMORY_SQL(segments.stability, segments.lastViewedAt)} end
+              ), 0)::float8`,
+            })
+            .from(segments)
+            .groupBy(segments.documentId),
+        { label: 'notes.avgMemory' },
+      ),
+    ]);
 
-  const memoryByDoc = new Map(memAgg.map((r) => [r.documentId, r.avgMemory]));
-  const rows = docs.map((d) => ({
-    id: d.id,
-    title: d.title,
-    source: d.source,
-    tags: d.tags,
-    segmentCount: d.segmentCount,
-    createdAt: d.createdAt,
-    avgMemory: memoryByDoc.get(d.id) ?? 0,
-  }));
-  const t1 = performance.now();
-  console.log(
-    `[perf] GET /api/notes db=${(tDb - t0).toFixed(1)}ms transform=${(t1 - tDb).toFixed(1)}ms total=${(t1 - t0).toFixed(1)}ms docRows=${docs.length} aggRows=${memAgg.length}`,
-  );
+    const memoryByDoc = new Map(memAgg.map((r) => [r.documentId, r.avgMemory]));
+    return {
+      documents: docs.map((d) => ({
+        id: d.id,
+        title: d.title,
+        source: d.source,
+        tags: d.tags,
+        segmentCount: d.segmentCount,
+        createdAt: d.createdAt,
+        avgMemory: memoryByDoc.get(d.id) ?? 0,
+      })),
+    };
+  };
 
-  const payload: DocsPayload = { documents: rows };
-  setCache(DOCS_CACHE_KEY, payload, DOCS_CACHE_TTL_MS);
+  try {
+    // 数据库抖动时回退到陈旧快照（X-Cache: STALE），而不是整页 500
+    const { value: payload, stale } = await withStaleFallback({
+      cacheKey: DOCS_CACHE_KEY,
+      ttlMs: DOCS_CACHE_TTL_MS,
+      run: loadDocs,
+      label: 'notes',
+    });
+    const tDb = performance.now();
+    const t1 = performance.now();
+    console.log(
+      `[perf] GET /api/notes db=${(tDb - t0).toFixed(1)}ms transform=${(t1 - tDb).toFixed(1)}ms total=${(t1 - t0).toFixed(1)}ms docRows=${payload.documents.length}${stale ? ' stale=1' : ''}`,
+    );
 
-  const res = NextResponse.json(payload);
-  res.headers.set('X-Cache', 'MISS');
-  res.headers.set(
-    'Server-Timing',
-    `db;dur=${(tDb - t0).toFixed(1)}, transform;dur=${(t1 - tDb).toFixed(1)}, total;dur=${(t1 - t0).toFixed(1)}`,
-  );
-  return res;
+    const res = NextResponse.json(payload);
+    res.headers.set('X-Cache', stale ? 'STALE' : 'MISS');
+    res.headers.set(
+      'Server-Timing',
+      `db;dur=${(tDb - t0).toFixed(1)}, transform;dur=${(t1 - tDb).toFixed(1)}, total;dur=${(t1 - t0).toFixed(1)}`,
+    );
+    return res;
+  } catch {
+    return dbUnavailable();
+  }
 }
 
 interface ImportBody {

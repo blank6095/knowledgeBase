@@ -21,6 +21,8 @@ import {
   type AnnotationKind,
 } from '@/lib/annotations';
 import { injectMarks, type MarkSpec } from '@/lib/highlight';
+import { clampPopover, POPOVER_WIDTH } from '@/lib/ui/geometry';
+import InlineFeedback from '@/components/InlineFeedback';
 
 interface DocDetail {
   document: { id: string; title: string; tags: string[]; segmentCount: number; createdAt: string; storageKey: string | null };
@@ -150,8 +152,14 @@ const IcToc = (p: React.SVGProps<SVGSVGElement>) => (
 );
 
 const excerpt = (s: string, n = 40) => (s.length > n ? `${s.slice(0, n)}…` : s);
-const clampX = (x: number) => Math.min(Math.max(x, 120), (typeof window === 'undefined' ? 1200 : window.innerWidth) - 120);
 const MIN_READING_MS = 5_000;
+
+/** 浮层尺寸估算：用于碰撞计算（实际渲染宽度与 POPOVER_WIDTH 一致） */
+const POP_SIZE = {
+  color: { width: 220, height: 44 },
+  note: { width: POPOVER_WIDTH, height: 220 },
+  card: { width: POPOVER_WIDTH, height: 190 },
+} as const;
 
 interface SectionReadingSession {
   opened: boolean;
@@ -193,9 +201,36 @@ export default function NoteDetailPage() {
   const [noteText, setNoteText] = useState('');
   const [noteColor, setNoteColor] = useState<AnnotationColor>('amber');
   const [annoMsg, setAnnoMsg] = useState('');
+  const [explainBusy, setExplainBusy] = useState(false);
+  const [explainData, setExplainData] = useState<{ quote: string; explanation: string; segmentTitle: string } | null>(null);
   const [viewCard, setViewCard] = useState<{ x: number; y: number; ann: AnnotationRow } | null>(null);
   const [secNote, setSecNote] = useState<{ x: number; y: number; segId: string } | null>(null);
   const [secNoteText, setSecNoteText] = useState('');
+  const [secNoteMsg, setSecNoteMsg] = useState('');
+  const [annoListMsg, setAnnoListMsg] = useState('');
+
+  /** 视口尺寸：浮层碰撞计算需要（SSR 阶段为 0，此时按锚点原样渲染） */
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    const update = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
+  /** 浮层定位：保证不越界；空间不足时自动翻转/贴边 */
+  const popPosition = (x: number, y: number, size: { width: number; height: number }) =>
+    viewport.width > 0 && viewport.height > 0
+      ? clampPopover({
+          anchorX: x,
+          anchorY: y,
+          width: size.width,
+          height: size.height,
+          viewportWidth: viewport.width,
+          viewportHeight: viewport.height,
+        })
+      : { left: x, top: y, placement: 'bottom' as const, clampedX: false, flipped: false };
+
   const popModeRef = useRef(popMode);
   useEffect(() => {
     popModeRef.current = popMode;
@@ -484,7 +519,7 @@ export default function NoteDetailPage() {
       setNoteText('');
       setPopMode('color');
       setSelPop({
-        x: clampX(rect.left + rect.width / 2),
+        x: rect.left + rect.width / 2,
         y: Math.max(rect.top - 10, 56),
         segId: sec.dataset.segId,
         quote,
@@ -544,8 +579,34 @@ export default function NoteDetailPage() {
     }
   };
 
+  const explainSelection = async () => {
+    if (!selPop || explainBusy) return;
+    setExplainBusy(true);
+    setAnnoMsg('');
+    try {
+      const result = await api<{
+        explanation: string;
+        segment: { id: string; title: string; documentTitle: string };
+      }>('/api/ai/explain', {
+        method: 'POST',
+        body: JSON.stringify({ segmentId: selPop.segId, quote: selPop.quote }),
+      });
+      setExplainData({
+        quote: selPop.quote,
+        explanation: result.explanation,
+        segmentTitle: result.segment.title,
+      });
+      setSelPop(null);
+    } catch (error) {
+      setAnnoMsg(error instanceof Error ? error.message : '解释失败');
+    } finally {
+      setExplainBusy(false);
+    }
+  };
+
   const saveSecNote = async () => {
     if (!secNote || !secNoteText.trim()) return;
+    setSecNoteMsg('');
     try {
       await api(`/api/segments/${secNote.segId}/annotations`, {
         method: 'POST',
@@ -554,15 +615,21 @@ export default function NoteDetailPage() {
       setSecNote(null);
       setSecNoteText('');
       await reloadAnnotations();
-    } catch {
-      /* 单用户场景，失败静默重试由用户重触发 */
+    } catch (e) {
+      // 失败必须让用户看见：弹层保持打开，便于直接重试
+      setSecNoteMsg(e instanceof Error ? e.message : '保存失败，请重试');
     }
   };
 
   const deleteAnnotation = async (annId: string) => {
-    await api(`/api/annotations/${annId}`, { method: 'DELETE' }).catch(() => null);
-    setViewCard(null);
-    await reloadAnnotations();
+    setAnnoListMsg('');
+    try {
+      await api(`/api/annotations/${annId}`, { method: 'DELETE' });
+      setViewCard(null);
+      await reloadAnnotations();
+    } catch (e) {
+      setAnnoListMsg(e instanceof Error ? e.message : '删除失败，请重试');
+    }
   };
 
   const gotoAnnotation = (a: AnnotationRow) => {
@@ -681,7 +748,7 @@ export default function NoteDetailPage() {
     const ann = annotations?.find((a) => a.id === aid);
     if (!ann) return;
     const r = (mark as HTMLElement).getBoundingClientRect();
-    setViewCard({ x: clampX(r.left + r.width / 2), y: Math.max(r.top - 8, 56), ann });
+    setViewCard({ x: r.left + r.width / 2, y: Math.max(r.top - 8, 56), ann });
   };
 
   return (
@@ -880,7 +947,7 @@ export default function NoteDetailPage() {
                         title="本节笔记"
                         onClick={(e) => {
                           const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                          setViewCard({ x: clampX(r.left), y: Math.max(r.top - 8, 56), ann: notes[notes.length - 1] });
+                          setViewCard({ x: r.left, y: Math.max(r.top - 8, 56), ann: notes[notes.length - 1] });
                         }}
                         className="ml-1 inline-flex items-center gap-0.5 rounded px-1 text-tag text-muted transition-colors duration-150 hover:text-accent"
                       >
@@ -893,7 +960,7 @@ export default function NoteDetailPage() {
                       onClick={(e) => {
                         const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
                         setSecNoteText('');
-                        setSecNote({ x: clampX(r.left + 40), y: Math.max(r.top - 8, 56), segId: s.id });
+                        setSecNote({ x: r.left + 40, y: Math.max(r.top - 8, 56), segId: s.id });
                       }}
                       className="inline-flex items-center rounded px-1 text-tag text-faint opacity-0 transition-opacity duration-150 hover:text-accent focus-visible:opacity-100 group-hover/sec:opacity-100"
                     >
@@ -954,7 +1021,12 @@ export default function NoteDetailPage() {
                 })}
               </ul>
               {invalidIds.size > 0 && (
-                <p className="mt-2 border-t border-line pt-2 text-tag text-faint">失效标注：原文已被编辑，锚点无法重定位，可删除后重新划线。</p>
+                <p className="mt-2 border-t border-line pt-2 text-tag text-muted">失效标注：原文已被编辑，锚点无法重定位，可删除后重新划线。</p>
+              )}
+              {annoListMsg && (
+                <div className="mt-2 border-t border-line pt-2">
+                  <InlineFeedback tone="danger">{annoListMsg}</InlineFeedback>
+                </div>
               )}
             </details>
           )}
@@ -995,11 +1067,14 @@ export default function NoteDetailPage() {
       {selPop && (
         <div
           data-anno-pop
-          className="fixed z-50 -translate-x-1/2 -translate-y-full"
-          style={{ left: selPop.x, top: selPop.y }}
+          className="fixed z-50"
+          style={(() => {
+            const pos = popPosition(selPop.x, selPop.y, popMode === 'color' ? POP_SIZE.color : POP_SIZE.note);
+            return { left: pos.left, top: pos.top };
+          })()}
         >
           {popMode === 'color' ? (
-            <div className="flex items-center gap-1.5 rounded-lg border border-line bg-elevated px-2 py-1.5 shadow-xl">
+            <div className="flex w-max max-w-[calc(100vw-1.5rem)] items-center gap-1.5 rounded-lg border border-line bg-elevated px-2 py-1.5 shadow-xl">
               {ANNOTATION_COLOR_ORDER.map((c) => (
                 <button
                   key={c}
@@ -1017,10 +1092,19 @@ export default function NoteDetailPage() {
               >
                 ✎ 笔记
               </button>
+              <button
+                onClick={explainSelection}
+                disabled={explainBusy}
+                className="rounded px-1.5 py-0.5 text-tag text-accent transition-colors duration-150 hover:text-accent-strong disabled:opacity-50"
+              >
+                {explainBusy ? '解释中…' : '✦ 解释'}
+              </button>
             </div>
           ) : (
-            <div className="w-72 rounded-lg border border-line bg-elevated p-2.5 shadow-xl">
-              <p className="mb-1.5 truncate text-tag text-faint" title={selPop.quote}>“{excerpt(selPop.quote, 60)}”</p>
+            <div className="w-72 max-w-[calc(100vw-1.5rem)] rounded-lg border border-line bg-elevated p-2.5 shadow-xl">
+              <p className="mb-1.5 truncate text-tag text-muted" title={selPop.quote}>
+                “{excerpt(selPop.quote, 60)}”
+              </p>
               <textarea
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
@@ -1040,7 +1124,9 @@ export default function NoteDetailPage() {
                   />
                 ))}
                 <div className="flex-1" />
-                <button onClick={() => setSelPop(null)} className="rounded px-2 py-1 text-tag text-muted transition-colors duration-150 hover:text-primary">取消</button>
+                <button onClick={() => setSelPop(null)} className="rounded px-2 py-1 text-tag text-muted transition-colors duration-150 hover:text-primary">
+                  取消
+                </button>
                 <button
                   onClick={() => createAnnotation('note', noteColor, noteText)}
                   className="rounded bg-accent px-2.5 py-1 text-tag font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
@@ -1048,7 +1134,11 @@ export default function NoteDetailPage() {
                   保存
                 </button>
               </div>
-              {annoMsg && <p className="mt-1 text-tag text-danger">{annoMsg}</p>}
+              {annoMsg && (
+                <div className="mt-1">
+                  <InlineFeedback tone="danger">{annoMsg}</InlineFeedback>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1058,14 +1148,17 @@ export default function NoteDetailPage() {
       {viewCard && (
         <div
           data-anno-pop
-          className="fixed z-50 w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-full rounded-lg border border-line bg-elevated p-3 shadow-xl"
-          style={{ left: viewCard.x, top: viewCard.y }}
+          className="fixed z-50 w-72 max-w-[calc(100vw-1.5rem)] rounded-lg border border-line bg-elevated p-3 shadow-xl"
+          style={(() => {
+            const pos = popPosition(viewCard.x, viewCard.y, POP_SIZE.card);
+            return { left: pos.left, top: pos.top };
+          })()}
         >
           {viewCard.ann.quote && (
-            <p className="mb-1.5 border-l-2 border-accent/50 pl-2 text-minor leading-relaxed text-faint">{excerpt(viewCard.ann.quote, 90)}</p>
+            <p className="mb-1.5 border-l-2 border-accent/50 pl-2 text-minor leading-relaxed text-muted">{excerpt(viewCard.ann.quote, 90)}</p>
           )}
           {viewCard.ann.note && <p className="whitespace-pre-wrap text-body leading-relaxed text-primary">{viewCard.ann.note}</p>}
-          <p className="mt-2 flex items-center justify-between gap-2 text-tag text-faint">
+          <p className="mt-2 flex items-center justify-between gap-2 text-tag text-muted">
             <span className="truncate">
               {formatDate(viewCard.ann.createdAt)} · {viewCard.ann.segmentTitle}
             </span>
@@ -1073,6 +1166,11 @@ export default function NoteDetailPage() {
               删除
             </button>
           </p>
+          {annoListMsg && (
+            <div className="mt-1">
+              <InlineFeedback tone="danger">{annoListMsg}</InlineFeedback>
+            </div>
+          )}
         </div>
       )}
 
@@ -1080,8 +1178,11 @@ export default function NoteDetailPage() {
       {secNote && (
         <div
           data-anno-pop
-          className="fixed z-50 w-72 -translate-x-1/2 -translate-y-full rounded-lg border border-line bg-elevated p-2.5 shadow-xl"
-          style={{ left: secNote.x, top: secNote.y }}
+          className="fixed z-50 w-72 max-w-[calc(100vw-1.5rem)] rounded-lg border border-line bg-elevated p-2.5 shadow-xl"
+          style={(() => {
+            const pos = popPosition(secNote.x, secNote.y, POP_SIZE.note);
+            return { left: pos.left, top: pos.top };
+          })()}
         >
           <textarea
             value={secNoteText}
@@ -1092,7 +1193,9 @@ export default function NoteDetailPage() {
             placeholder="本节笔记…"
           />
           <div className="mt-1.5 flex justify-end gap-2">
-            <button onClick={() => setSecNote(null)} className="rounded px-2 py-1 text-tag text-muted transition-colors duration-150 hover:text-primary">取消</button>
+            <button onClick={() => setSecNote(null)} className="rounded px-2 py-1 text-tag text-muted transition-colors duration-150 hover:text-primary">
+              取消
+            </button>
             <button
               onClick={saveSecNote}
               disabled={!secNoteText.trim()}
@@ -1101,6 +1204,11 @@ export default function NoteDetailPage() {
               保存
             </button>
           </div>
+          {secNoteMsg && (
+            <div className="mt-1">
+              <InlineFeedback tone="danger">{secNoteMsg}</InlineFeedback>
+            </div>
+          )}
         </div>
       )}
 
@@ -1133,6 +1241,29 @@ export default function NoteDetailPage() {
             <div className="md-body mt-1 text-minor">
               <Markdown remarkPlugins={[remarkGfm]}>{aggPreview.content}</Markdown>
             </div>
+          </div>
+        </AiOverlay>
+      )}
+
+      {explainData && (
+        <AiOverlay
+          title="AI 解释这段"
+          subtitle={explainData.segmentTitle}
+          onClose={() => setExplainData(null)}
+          footer={
+            <button
+              onClick={() => setExplainData(null)}
+              className="rounded-lg border border-line px-4 py-1.5 text-minor text-muted hover:bg-surface-hover hover:text-primary"
+            >
+              关闭
+            </button>
+          }
+        >
+          <p className="border-l-2 border-accent/40 pl-3 text-minor leading-relaxed text-faint">
+            “{explainData.quote}”
+          </p>
+          <div className="md-body mt-4 text-body">
+            <Markdown remarkPlugins={[remarkGfm]}>{explainData.explanation}</Markdown>
           </div>
         </AiOverlay>
       )}

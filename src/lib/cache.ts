@@ -16,8 +16,15 @@ interface CacheEntry {
 const DEFAULT_TTL_MS = 60_000;
 /** 容量上限：超出后按插入顺序淘汰最旧条目 */
 const MAX_ENTRIES = 64;
+/**
+ * 陈旧快照保留时长：新鲜缓存过期后仍保留更久，
+ * 用于数据库瞬时不可用时的降级返回（宁可给 slightly old 的数据，也不要整页报错）。
+ */
+const STALE_TTL_MS = 15 * 60_000;
 
 const store = new Map<string, CacheEntry>();
+/** 上一次成功结果的快照（比新鲜缓存活得久，只在降级路径使用） */
+const staleStore = new Map<string, CacheEntry>();
 
 /** 读取缓存：过期条目立即删除并视为未命中 */
 export function getCache<T>(key: string): T | undefined {
@@ -44,17 +51,50 @@ export function setCache<T>(key: string, value: T, ttlMs = DEFAULT_TTL_MS): void
     store.delete(key);
   }
   store.set(key, { at: Date.now(), ttlMs, value });
+
+  // 同时留一份陈旧快照，供数据库不可用时降级返回
+  staleStore.delete(key);
+  staleStore.set(key, { at: Date.now(), ttlMs: STALE_TTL_MS, value });
+  while (staleStore.size > MAX_ENTRIES) {
+    const oldestKey = staleStore.keys().next().value;
+    if (oldestKey === undefined) break;
+    staleStore.delete(oldestKey);
+  }
+}
+
+/**
+ * 读取陈旧快照（降级用）：新鲜缓存已过期或不可用时仍可拿到上一次成功的结果。
+ * 超过 STALE_TTL_MS 视为无快照。
+ */
+export function getStaleCache<T>(key: string): T | undefined {
+  const entry = staleStore.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.at >= entry.ttlMs) {
+    staleStore.delete(key);
+    return undefined;
+  }
+  return entry.value as T;
 }
 
 /** 失效：精确命中只删该 key；否则删除所有以该字符串为前缀的 key */
 export function invalidateCache(prefixOrKey: string): void {
-  if (store.delete(prefixOrKey)) return;
-  for (const key of store.keys()) {
-    if (key.startsWith(prefixOrKey)) store.delete(key);
-  }
+  const drop = (map: Map<string, CacheEntry>) => {
+    if (map.delete(prefixOrKey)) return;
+    for (const key of map.keys()) {
+      if (key.startsWith(prefixOrKey)) map.delete(key);
+    }
+  };
+  drop(store);
+  drop(staleStore);
 }
 
 /** 测试钩子：清空全部缓存 */
 export function clearAllCache(): void {
+  store.clear();
+  staleStore.clear();
+}
+
+/** 测试钩子：仅让新鲜缓存过期（保留陈旧快照），用于验证降级路径 */
+export function expireFreshEntries(): void {
   store.clear();
 }

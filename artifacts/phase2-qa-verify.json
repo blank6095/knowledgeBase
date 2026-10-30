@@ -1,0 +1,99 @@
+{
+  "baseURL": "http://127.0.0.1:3102",
+  "capturedAt": "2026-10-30T12:45:33.645Z",
+  "total": 18,
+  "passed": 18,
+  "failed": 0,
+  "results": [
+    {
+      "name": "Ctrl+K 打开搜索浮层并聚焦输入（aria-expanded=false 空查询）",
+      "ok": true,
+      "detail": "activeElement=combobox[搜索知识]，aria-expanded=false，摘要「共 15 个知识点」"
+    },
+    {
+      "name": "搜索「网络」：3 条真实结果、命中原因格式、输入期间 0 数据请求且 engineStop 不变",
+      "ok": true,
+      "detail": "3 条：HTTP 状态码 / OSI 七层模型 / TCP 与 UDP；请求 0 次，engineStop 未变（5492ms），节点 15 不变"
+    },
+    {
+      "name": "四态视觉：命中≈1、一阶邻居≈0.75、无关≈0.15（受控 3 节点 canvas 像素）",
+      "ok": true,
+      "detail": "hit=1.00，near=0.87，far=0.15（受控 3 节点：命中 / 一阶邻居 / 无关）"
+    },
+    {
+      "name": "命中路径连线提亮 + 加粗（受控 2 命中节点，连线中点亮度上升）",
+      "ok": true,
+      "detail": "命中-命中连边均值 64.2 → 126.4，像素数 215 → 245（提亮=true，加粗=false；代码 1.8× 宽 + shade(+0.35)）"
+    },
+    {
+      "name": "↑↓ 切换高亮且 aria-activedescendant 同步",
+      "ok": true,
+      "detail": "aria-activedescendant 0 → 1 → 回到第 1 条"
+    },
+    {
+      "name": "Esc：关闭浮层、清空查询、无关节点透明度恢复（全图恢复）",
+      "ok": true,
+      "detail": "浮层关闭、URL /graph、无关节点 alpha 恢复 1.00"
+    },
+    {
+      "name": "空结果：显示「没有找到匹配知识」且图谱完整保留（canvas + 节点数不变）",
+      "ok": true,
+      "detail": "空态文案可见，canvas 仍在，节点 15 不变，aria-expanded=false（设计）"
+    },
+    {
+      "name": "Enter 聚焦：250–400ms 内平滑移动到画布中心（dx=dy=0）、0 请求、engineStop 不变",
+      "ok": true,
+      "detail": "「OSI 七层模型」聚焦到中心 (720, 500)，dx=0.0 dy=0.0，耗时 303ms，请求 0 次，engineStop 未变"
+    },
+    {
+      "name": "点击结果同样聚焦视口（且不跳页）",
+      "ok": true,
+      "detail": "「TCP 与 UDP」点击聚焦 280ms，dx=1.0 dy=0.4，URL /graph"
+    },
+    {
+      "name": "搜索只改视图：退出搜索后坐标快照与 nodes/links 数量不变",
+      "ok": true,
+      "detail": "nodes 15、engineStop 与坐标快照均与搜索前一致（未过滤/删除）"
+    },
+    {
+      "name": "8k fixture：搜索「网络」可见结果 ≤8 但画布按全部 matchedIds 绘制（limit 不截断视觉）",
+      "ok": true,
+      "detail": "可见结果 8（limit 8），expected matched≈705，隐藏命中节点 alpha=1.00（按全量 matchedIds 绘制）"
+    },
+    {
+      "name": "回归：搜索退出后单击节点仍打开详情面板（阶段 1 语义）",
+      "ok": true,
+      "detail": "面板打开（标题「TCP 与 UDP」）并可关闭"
+    },
+    {
+      "name": "回归：阶段 1 布局/导航/顶栏/图例仍正常",
+      "ok": true,
+      "detail": "canvas 100%、sidebar/footer 隐藏、nav 7 项、顶栏、h1 sr-only、图例展开/收起"
+    },
+    {
+      "name": "回归：设置面板/筛选/力参数/暂停/箭头（阶段 0-1 能力）",
+      "ok": true,
+      "detail": "四页签 + 筛选搜索 + 暂停 + 4 力滑块正常"
+    },
+    {
+      "name": "回归：双选模式与空白单击",
+      "ok": true,
+      "detail": "双选 1/2 且不跳页"
+    },
+    {
+      "name": "回归：空态 / 骨架",
+      "ok": true,
+      "detail": "空态文案 + 加载骨架均正常"
+    },
+    {
+      "name": "移动端 375×812：搜索浮层不溢出、可输入、空态可见、0 控制台错误",
+      "ok": true,
+      "detail": "浮层 left=12 right=363 width=351（视口 375），无横向溢出，输入可用"
+    },
+    {
+      "name": "主页面 0 console/page error",
+      "ok": true,
+      "detail": "pageerror=0，console.error=0"
+    }
+  ]
+}

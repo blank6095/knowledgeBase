@@ -9,6 +9,7 @@ import { deriveLearnerProfileCached, getLearnerDeclaration, profileToPromptBlock
 import { buildKbOverview } from '@/lib/kb-overview';
 import { AGENT_TOOLS, mergeToolCallDelta, validateActions, type AgentAction } from '@/lib/agent-tools';
 import { logLlmCall } from '@/lib/llm-calls';
+import { readWithIdleTimeout } from '@/lib/stream-utils';
 import { cacheKey, getCachedOutput, saveCachedOutput } from '@/lib/llm-cache';
 
 /**
@@ -27,6 +28,7 @@ import { cacheKey, getCachedOutput, saveCachedOutput } from '@/lib/llm-cache';
 
 const MAX_TOOL_ROUNDS = 3;
 const HISTORY_LIMIT = 10;
+const STREAM_IDLE_TIMEOUT_MS = 30_000;
 
 interface SourceItem {
   segmentId: string;
@@ -195,7 +197,7 @@ export async function POST(req: NextRequest) {
             const reader = handle.response.body!.getReader();
             let buf = '';
             for (;;) {
-              const { done, value } = await reader.read();
+              const { done, value } = await readWithIdleTimeout(reader, STREAM_IDLE_TIMEOUT_MS);
               if (done) break;
               buf += decoder.decode(value, { stream: true });
               const lines = buf.split('\n');

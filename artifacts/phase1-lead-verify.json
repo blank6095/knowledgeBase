@@ -1,0 +1,78 @@
+{
+  "checks": {
+    "immersive": {
+      "canvasTop": 0,
+      "canvasHeight": 1000,
+      "viewport": {
+        "w": 1440,
+        "h": 1000
+      },
+      "navVisible": true,
+      "scrollWidth": 1440,
+      "innerWidth": 1440,
+      "canvasFill": true,
+      "noPageScroll": true,
+      "sidebarHidden": true,
+      "footerHidden": true
+    },
+    "topbar": {
+      "brand": true,
+      "searchPlaceholder": "搜索知识、概念、标签…CtrlK",
+      "stats": 1
+    },
+    "nav": {
+      "items": [
+        "知识宇宙",
+        "知识库",
+        "今日学习",
+        "学习复盘",
+        "AI 助手",
+        "外观主题（主题系统（阶段 3 交付））",
+        "退出登录"
+      ],
+      "navCount": 1
+    },
+    "legendCollapsed": true,
+    "legendExpanded": true,
+    "settingsPanel": true,
+    "detailPanel": {
+      "visible": true,
+      "hasTitle": true,
+      "excerpt": "知识点默认行为确实一样：都是单例✕单线程·记忆度 未读0%·关联 2路径：默认行为确实一样：都是单例暂无摘要（首次查看灯点摘要卡时生成）直接关联概述同文档核心区别：多线程 vs 单线程同文档阅读知识开始复习展开一阶关联AI 解释编辑知识点",
+      "url": "http://localhost:3000/graph"
+    },
+    "focus": {
+      "pressed": "true"
+    },
+    "editDeepLink": {
+      "url": "http://localhost:3000/segments/c17bb517-00a7-4702-804b-35e5ec2511c2#edit",
+      "editingVisible": true
+    },
+    "doubleClick": {
+      "url": "http://localhost:3000/segments/c2cd410f-c3cf-4d1a-b16c-bfa1b850ce31",
+      "noHash": true
+    },
+    "backgroundClick": {
+      "panelVisible": 0
+    },
+    "compareMode": {
+      "url": "http://localhost:3000/graph",
+      "text": "已选 1/2：TCP 与 UDP"
+    },
+    "fixtureMode": {
+      "stats": 1,
+      "rendered": 500
+    },
+    "mobile": {
+      "scrollWidth": 375,
+      "innerWidth": 375,
+      "nav": true,
+      "navBottom": 800,
+      "viewportH": 812,
+      "noHorizontalOverflow": true
+    },
+    "mobileDetailVisible": true
+  },
+  "consoleErrors": [],
+  "pageErrors": []
+}

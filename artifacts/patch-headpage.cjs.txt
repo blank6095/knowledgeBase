@@ -1,0 +1,21 @@
+const fs = require('fs');
+const srcPath = 'D:/Project/knowledgeBase/artifacts/head-page.tsx';
+const destPath = 'D:/Project/knowledgeBase/src/app/graph/page.tsx';
+let c = fs.readFileSync(srcPath, 'utf8');
+
+if (!c.includes('declare global')) {
+  c = c.replace(
+    "import { drawSprite, getNodeSprite, glowBucket, radiusBucket, type NodePaint } from './node-sprites';",
+    "import { drawSprite, getNodeSprite, glowBucket, radiusBucket, type NodePaint } from './node-sprites';\n\ndeclare global {\n  interface Window {\n    __kbGraphFirstTick?: number;\n    __kbGraphEngineStop?: number;\n  }\n}",
+  );
+}
+c = c.replace(
+  '  onNodeDragEnd?: (n: never) => void;',
+  '  onNodeDragEnd?: (n: never) => void;\n  onEngineTick?: () => void;\n  onEngineStop?: () => void;',
+);
+c = c.replace(
+  '                onNodeDragEnd={onNodeDragEnd}',
+  '                onNodeDragEnd={onNodeDragEnd}\n                onEngineTick={() => {\n                  if (window.__kbGraphFirstTick === undefined) window.__kbGraphFirstTick = performance.now();\n                }}\n                onEngineStop={() => {\n                  window.__kbGraphEngineStop = performance.now();\n                }}',
+);
+fs.writeFileSync(destPath, c);
+console.log('patched lines:', c.split(/\r?\n/).length);

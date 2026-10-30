@@ -52,6 +52,29 @@ const MAX_WARMUP_TICKS = 120;
  */
 export const CONVERGE_ALPHA_MIN = 0.01;
 
+/** Barnes-Hut 精度与速度的规模分档；小图保持默认精度。 */
+export function manyBodyThetaFor(nodeCount: number): number {
+  if (nodeCount >= 10_000) return 1.3;
+  if (nodeCount >= 5_000) return 1.2;
+  if (nodeCount >= 2_000) return 1.0;
+  return 0.9;
+}
+
+export function nodeInsideViewport(
+  screenX: number,
+  screenY: number,
+  canvasWidth: number,
+  canvasHeight: number,
+  radius: number,
+): boolean {
+  return (
+    screenX >= -radius &&
+    screenX <= canvasWidth + radius &&
+    screenY >= -radius &&
+    screenY <= canvasHeight + radius
+  );
+}
+
 /** 容器长时间测不出尺寸时的兜底尺寸（仅用于解锁挂载，不参与常规路径） */
 export const FALLBACK_SIZE = { w: 900, h: 560 };
 /** 兜底触发延时：正常测量在首帧内完成，留出 300ms 给隐藏/过渡态恢复 */

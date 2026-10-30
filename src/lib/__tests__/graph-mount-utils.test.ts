@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { TICK_COST_WORST, WARMUP_BUDGET_MS, sizeChanged, warmupTicksFor } from '@/app/graph/mount-utils';
+import {
+  TICK_COST_WORST,
+  WARMUP_BUDGET_MS,
+  manyBodyThetaFor,
+  nodeInsideViewport,
+  sizeChanged,
+  warmupTicksFor,
+} from '@/app/graph/mount-utils';
 
 /**
  * 每 tick 成本：由 `node artifacts/measure-tick-cost.mjs` 实测产出
@@ -7,6 +14,24 @@ import { TICK_COST_WORST, WARMUP_BUDGET_MS, sizeChanged, warmupTicksFor } from '
  * cost(ticks) = 首个 tick + (ticks-1) × 中位 tick，用于校验预热预算。
  */
 const cost = (firstMs: number, medianMs: number, ticks: number) => firstMs + Math.max(0, ticks - 1) * medianMs;
+
+describe('manyBodyThetaFor：规模自适应', () => {
+  it('随节点规模提高 theta，小图保持默认精度', () => {
+    expect(manyBodyThetaFor(500)).toBe(0.9);
+    expect(manyBodyThetaFor(2_000)).toBe(1.0);
+    expect(manyBodyThetaFor(5_000)).toBe(1.2);
+    expect(manyBodyThetaFor(20_000)).toBe(1.3);
+  });
+});
+
+describe('nodeInsideViewport：视口剔除', () => {
+  it('保留视口及光晕边界附近节点，剔除远处节点', () => {
+    expect(nodeInsideViewport(100, 100, 800, 600, 20)).toBe(true);
+    expect(nodeInsideViewport(-19, 100, 800, 600, 20)).toBe(true);
+    expect(nodeInsideViewport(-21, 100, 800, 600, 20)).toBe(false);
+    expect(nodeInsideViewport(900, 100, 800, 600, 20)).toBe(false);
+  });
+});
 
 describe('warmupTicksFor：按节点规模自适应预热', () => {
   it('空图不预热', () => {

@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { asc, desc, eq, gte, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { documents, links, readingEvents, segments } from '@/db/schema';
-import { guard } from '@/lib/api';
-import { getCache, setCache } from '@/lib/cache';
+import { dbUnavailable, guard } from '@/lib/api';
+import { getCache } from '@/lib/cache';
+import { withDbRetry } from '@/lib/db-retry';
+import { withStaleFallback } from '@/lib/db-read';
 import { MEMORY_TIER_ORDER, type MemoryTier } from '@/lib/memory';
 
 const CACHE_KEY = 'stats';
@@ -45,102 +47,132 @@ export async function GET(req: NextRequest) {
 
   // 今日首推与薄弱清单共用一条 SQL：已读但记忆薄弱（m<0.4）的段里，
   // 按 薄弱程度(1-m) × 图谱中心性(度数+1) 排序；suggestion 取第一行，weakTop3 取前三行。
-  const weakPromise = db
-    .select({
-      id: segments.id,
-      title: segments.title,
-      memory: sql<number>`(${m})::float`,
-      degree: sql<number>`count(${links.id})::int`,
-    })
-    .from(segments)
-    .leftJoin(links, or(eq(links.fromId, segments.id), eq(links.toId, segments.id)))
-    .where(sql`${read} and (${m}) < 0.4`)
-    .groupBy(segments.id, segments.title, segments.lastViewedAt, segments.stability)
-    .orderBy(desc(sql`(1 - (${m})) * (count(${links.id}) + 1)`))
-    .limit(3)
-    .catch(() => []);
+  const weakPromise = withDbRetry(
+    () =>
+      db
+        .select({
+          id: segments.id,
+          title: segments.title,
+          memory: sql<number>`(${m})::float`,
+          degree: sql<number>`count(${links.id})::int`,
+        })
+        .from(segments)
+        .leftJoin(links, or(eq(links.fromId, segments.id), eq(links.toId, segments.id)))
+        .where(sql`${read} and (${m}) < 0.4`)
+        .groupBy(segments.id, segments.title, segments.lastViewedAt, segments.stability)
+        .orderBy(desc(sql`(1 - (${m})) * (count(${links.id}) + 1)`))
+        .limit(3),
+    { label: 'stats.weakTop3' },
+  ).catch(() => []);
 
   // 未读精选：最新导入且未读的段，按文档创建时间倒序、段内顺序正序取前三。
-  const unreadPromise = db
-    .select({
-      segmentId: segments.id,
-      title: segments.title,
-      documentId: documents.id,
-      documentTitle: documents.title,
-      createdAt: documents.createdAt,
-    })
-    .from(segments)
-    .innerJoin(documents, eq(segments.documentId, documents.id))
-    .where(sql`not (${read})`)
-    .orderBy(desc(documents.createdAt), asc(segments.orderIndex))
-    .limit(3)
-    .catch(() => []);
+  const unreadPromise = withDbRetry(
+    () =>
+      db
+        .select({
+          segmentId: segments.id,
+          title: segments.title,
+          documentId: documents.id,
+          documentTitle: documents.title,
+          createdAt: documents.createdAt,
+        })
+        .from(segments)
+        .innerJoin(documents, eq(segments.documentId, documents.id))
+        .where(sql`not (${read})`)
+        .orderBy(desc(documents.createdAt), asc(segments.orderIndex))
+        .limit(3),
+    { label: 'stats.unreadTop3' },
+  ).catch(() => []);
 
-  const [tierRow, todayRow, recentDocs, weakRows, unreadRows] = await Promise.all([
-    db
-      .select({
-        total: sql<number>`count(*)::int`,
-        unread: sql<number>`count(*) filter (where not (${read}))::int`,
-        weak: sql<number>`count(*) filter (where ${read} and ${m} < 0.4)::int`,
-        medium: sql<number>`count(*) filter (where ${read} and ${m} >= 0.4 and ${m} < 0.75)::int`,
-        strong: sql<number>`count(*) filter (where ${read} and ${m} >= 0.75)::int`,
-      })
-      .from(segments),
-    db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(readingEvents)
-      .where(gte(readingEvents.startedAt, startOfDay)),
-    db
-      .select({ id: documents.id, title: documents.title, segmentCount: documents.segmentCount, createdAt: documents.createdAt })
-      .from(documents)
-      .orderBy(desc(documents.createdAt))
-      .limit(5),
-    weakPromise,
-    unreadPromise,
-  ]);
-  const tDb = performance.now();
+  const loadStats = async (): Promise<StatsPayload> => {
+    const [tierRow, todayRow, recentDocs, weakRows, unreadRows] = await Promise.all([
+      withDbRetry(
+        () =>
+          db
+            .select({
+              total: sql<number>`count(*)::int`,
+              unread: sql<number>`count(*) filter (where not (${read}))::int`,
+              weak: sql<number>`count(*) filter (where ${read} and ${m} < 0.4)::int`,
+              medium: sql<number>`count(*) filter (where ${read} and ${m} >= 0.4 and ${m} < 0.75)::int`,
+              strong: sql<number>`count(*) filter (where ${read} and ${m} >= 0.75)::int`,
+            })
+            .from(segments),
+        { label: 'stats.tier' },
+      ),
+      withDbRetry(
+        () =>
+          db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(readingEvents)
+            .where(gte(readingEvents.startedAt, startOfDay)),
+        { label: 'stats.readToday' },
+      ),
+      withDbRetry(
+        () =>
+          db
+            .select({ id: documents.id, title: documents.title, segmentCount: documents.segmentCount, createdAt: documents.createdAt })
+            .from(documents)
+            .orderBy(desc(documents.createdAt))
+            .limit(5),
+        { label: 'stats.recent' },
+      ),
+      weakPromise,
+      unreadPromise,
+    ]);
 
-  const weakTop3 = weakRows.map((row) => ({
-    segmentId: row.id,
-    title: row.title,
-    memory: Math.round(row.memory * 100) / 100,
-    degree: row.degree,
-  }));
-  const unreadTop3 = unreadRows.map((row) => ({
-    segmentId: row.segmentId,
-    title: row.title,
-    documentId: row.documentId,
-    documentTitle: row.documentTitle,
-    createdAt: row.createdAt,
-  }));
+    const weakTop3 = weakRows.map((row) => ({
+      segmentId: row.id,
+      title: row.title,
+      memory: Math.round(row.memory * 100) / 100,
+      degree: row.degree,
+    }));
+    const unreadTop3 = unreadRows.map((row) => ({
+      segmentId: row.segmentId,
+      title: row.title,
+      documentId: row.documentId,
+      documentTitle: row.documentTitle,
+      createdAt: row.createdAt,
+    }));
 
-  const payload: StatsPayload = {
-    total: tierRow[0]?.total ?? 0,
-    byTier: {
-      unread: tierRow[0]?.unread ?? 0,
-      weak: tierRow[0]?.weak ?? 0,
-      medium: tierRow[0]?.medium ?? 0,
-      strong: tierRow[0]?.strong ?? 0,
-    },
-    tierOrder: MEMORY_TIER_ORDER,
-    readToday: todayRow[0]?.count ?? 0,
-    recentDocuments: recentDocs,
-    suggestion: weakTop3[0] ?? null,
-    weakTop3,
-    unreadTop3,
+    return {
+      total: tierRow[0]?.total ?? 0,
+      byTier: {
+        unread: tierRow[0]?.unread ?? 0,
+        weak: tierRow[0]?.weak ?? 0,
+        medium: tierRow[0]?.medium ?? 0,
+        strong: tierRow[0]?.strong ?? 0,
+      },
+      tierOrder: MEMORY_TIER_ORDER,
+      readToday: todayRow[0]?.count ?? 0,
+      recentDocuments: recentDocs,
+      suggestion: weakTop3[0] ?? null,
+      weakTop3,
+      unreadTop3,
+    };
   };
-  const t1 = performance.now();
-  console.log(
-    `[perf] GET /api/stats db=${(tDb - t0).toFixed(1)}ms transform=${(t1 - tDb).toFixed(1)}ms total=${(t1 - t0).toFixed(1)}ms aggRows=1`,
-  );
 
-  setCache(CACHE_KEY, payload, CACHE_TTL_MS);
+  try {
+    // 数据库抖动时回退到上一次成功的快照（响应头标 STALE），避免整页报错
+    const { value: payload, stale } = await withStaleFallback({
+      cacheKey: CACHE_KEY,
+      ttlMs: CACHE_TTL_MS,
+      run: loadStats,
+      label: 'stats',
+    });
+    const tDb = performance.now();
+    const t1 = performance.now();
+    console.log(
+      `[perf] GET /api/stats db=${(tDb - t0).toFixed(1)}ms transform=${(t1 - tDb).toFixed(1)}ms total=${(t1 - t0).toFixed(1)}ms aggRows=1${stale ? ' stale=1' : ''}`,
+    );
 
-  const res = NextResponse.json(payload);
-  res.headers.set('X-Cache', 'MISS');
-  res.headers.set(
-    'Server-Timing',
-    `db;dur=${(tDb - t0).toFixed(1)}, transform;dur=${(t1 - tDb).toFixed(1)}, total;dur=${(t1 - t0).toFixed(1)}`,
-  );
-  return res;
+    const res = NextResponse.json(payload);
+    res.headers.set('X-Cache', stale ? 'STALE' : 'MISS');
+    res.headers.set(
+      'Server-Timing',
+      `db;dur=${(tDb - t0).toFixed(1)}, transform;dur=${(t1 - tDb).toFixed(1)}, total;dur=${(t1 - t0).toFixed(1)}`,
+    );
+    return res;
+  } catch {
+    return dbUnavailable();
+  }
 }

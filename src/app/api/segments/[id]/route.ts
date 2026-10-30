@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { eq, inArray, or } from 'drizzle-orm';
 import { db } from '@/db';
 import { documents, links, segments } from '@/db/schema';
-import { badRequest, guard, isUuid, notFound } from '@/lib/api';
+import { badRequest, dbUnavailable, guard, isUuid, notFound } from '@/lib/api';
 import { invalidateCache } from '@/lib/cache';
+import { withDbRetry } from '@/lib/db-retry';
 import { memoryOf } from '@/lib/memory';
 import { extractInlineTags } from '@/lib/markdown';
 import { runBatch } from '@/lib/db-batch';
@@ -26,37 +27,62 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!isUuid(id)) return notFound();
 
   const t0 = performance.now();
-  const [segRows, edges] = await Promise.all([
-    db.select().from(segments).where(eq(segments.id, id)),
-    db
-      .select({ fromId: links.fromId, toId: links.toId, kind: links.kind, weight: links.weight })
-      .from(links)
-      .where(or(eq(links.fromId, id), eq(links.toId, id))),
-  ]);
+  let segRows: (typeof segments.$inferSelect)[];
+  let edges: { fromId: string; toId: string; kind: string; weight: number }[];
+  try {
+    [segRows, edges] = await Promise.all([
+      withDbRetry(() => db.select().from(segments).where(eq(segments.id, id)), { label: 'segment.row' }),
+      withDbRetry(
+        () =>
+          db
+            .select({ fromId: links.fromId, toId: links.toId, kind: links.kind, weight: links.weight })
+            .from(links)
+            .where(or(eq(links.fromId, id), eq(links.toId, id))),
+        { label: 'segment.edges' },
+      ),
+    ]);
+  } catch {
+    // 数据库瞬时不可用且无缓存可兜底：返回 503，前端展示可重试错误态
+    return dbUnavailable();
+  }
   const t1 = performance.now();
   const seg = segRows[0];
   if (!seg) return notFound('知识点不存在');
 
   const targetIds = [...new Set(edges.map((e) => (e.fromId === id ? e.toId : e.fromId)))];
-  const [docRows, neighborRows] = await Promise.all([
-    db
-      .select({ id: documents.id, title: documents.title })
-      .from(documents)
-      .where(eq(documents.id, seg.documentId)),
-    targetIds.length
-      ? db
-          .select({
-            id: segments.id,
-            title: segments.title,
-            stability: segments.stability,
-            lastViewedAt: segments.lastViewedAt,
-            orderIndex: segments.orderIndex,
-            documentId: segments.documentId,
-          })
-          .from(segments)
-          .where(inArray(segments.id, targetIds))
-      : Promise.resolve([] as NeighborRow[]),
-  ]);
+  let docRows: { id: string; title: string }[];
+  let neighborRows: NeighborRow[];
+  try {
+    [docRows, neighborRows] = await Promise.all([
+      withDbRetry(
+        () =>
+          db
+            .select({ id: documents.id, title: documents.title })
+            .from(documents)
+            .where(eq(documents.id, seg.documentId)),
+        { label: 'segment.document' },
+      ),
+      targetIds.length
+        ? withDbRetry(
+            () =>
+              db
+                .select({
+                  id: segments.id,
+                  title: segments.title,
+                  stability: segments.stability,
+                  lastViewedAt: segments.lastViewedAt,
+                  orderIndex: segments.orderIndex,
+                  documentId: segments.documentId,
+                })
+                .from(segments)
+                .where(inArray(segments.id, targetIds)),
+            { label: 'segment.neighbors' },
+          )
+        : Promise.resolve([] as NeighborRow[]),
+    ]);
+  } catch {
+    return dbUnavailable();
+  }
   const t2 = performance.now();
 
   const now = new Date();
