@@ -1,0 +1,128 @@
+{
+  "checks": {
+    "landing": {
+      "pathname": "/graph",
+      "url": "http://localhost:3000/graph"
+    },
+    "defaultTheme": {
+      "htmlEnv": "deep-space",
+      "bgEnv": "deep-space",
+      "accent": "#5cc8e6",
+      "app": "#0a1020",
+      "engineStop": 5260.5
+    },
+    "panel": {
+      "visible": true
+    },
+    "environments": [
+      {
+        "id": "digital",
+        "htmlEnv": "digital",
+        "bgEnv": "digital",
+        "accent": "#66d9ff",
+        "app": "#070b12",
+        "engineStop": 5260.5,
+        "engineStopUnchanged": true,
+        "apiRequests": 0
+      },
+      {
+        "id": "aurora",
+        "htmlEnv": "aurora",
+        "bgEnv": "aurora",
+        "accent": "#7be0c0",
+        "app": "#08131a",
+        "engineStop": 5260.5,
+        "engineStopUnchanged": true,
+        "apiRequests": 0
+      },
+      {
+        "id": "minimal",
+        "htmlEnv": "minimal",
+        "bgEnv": "minimal",
+        "accent": "#cfe0ef",
+        "app": "#0f1216",
+        "engineStop": 5260.5,
+        "engineStopUnchanged": true,
+        "apiRequests": 0
+      }
+    ],
+    "styles": [
+      {
+        "style": "晶体",
+        "htmlEnv": "minimal"
+      },
+      {
+        "style": "线框",
+        "htmlEnv": "minimal"
+      },
+      {
+        "style": "能量球",
+        "htmlEnv": "minimal"
+      },
+      {
+        "style": "光点",
+        "htmlEnv": "minimal"
+      }
+    ],
+    "persistBeforeReload": {
+      "stored": "{\"version\":1,\"environment\":\"minimal\",\"nodeStyle\":\"orb\",\"glow\":1.4,\"background\":1}",
+      "htmlEnv": "minimal"
+    },
+    "afterReload": {
+      "htmlEnv": "minimal",
+      "bgEnv": "minimal",
+      "accent": "#cfe0ef",
+      "app": "#0f1216",
+      "engineStop": 1160,
+      "stored": "{\"version\":1,\"environment\":\"minimal\",\"nodeStyle\":\"orb\",\"glow\":1.4,\"background\":1}"
+    },
+    "notes": {
+      "navCount": 1,
+      "sidebarAside": 0,
+      "scrollWidth": 1440,
+      "innerWidth": 1440,
+      "mainRect": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 338.75,
+        "top": 0,
+        "right": 1440,
+        "bottom": 338.75,
+        "left": 0
+      },
+      "navRect": {
+        "x": 12,
+        "y": 300.5,
+        "width": 56,
+        "height": 399,
+        "top": 300.5,
+        "right": 68,
+        "bottom": 699.5,
+        "left": 12
+      },
+      "noHorizontalOverflow": true
+    },
+    "mobileNotes": {
+      "scrollWidth": 375,
+      "innerWidth": 375,
+      "navRect": {
+        "x": 12,
+        "y": 742,
+        "width": 351,
+        "height": 58,
+        "top": 742,
+        "right": 363,
+        "bottom": 800,
+        "left": 12
+      },
+      "noHorizontalOverflow": true
+    },
+    "graphNav": {
+      "navCount": 1,
+      "items": 6
+    }
+  },
+  "consoleErrors": [],
+  "pageErrors": []
+}

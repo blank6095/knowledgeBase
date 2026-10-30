@@ -346,3 +346,153 @@ mark.hl-flash {
   background: none;
   opacity: 0;
 }
+
+
+/* ============================================================
+ * 阶段 3 · 冷色环境（UQ8 拍板：切换冷色）
+ * <html data-graph-env> 控制 4 套环境；默认 deep-space（冷墨蓝）。
+ * 记忆度（未读→长明）的琥珀梯度是数据语义色，由 MemoryBadge/图例自身色值
+ * 提供，不随这些 UI token 改变。
+ * ============================================================ */
+html[data-graph-env="deep-space"] {
+  --color-app: #0a1020;
+  --color-surface: #101a2f;
+  --color-surface-hover: #17243d;
+  --color-elevated: #1a2944;
+  --color-line: rgba(168, 196, 230, 0.1);
+  --color-line-strong: rgba(168, 196, 230, 0.2);
+  --color-primary: #e7eef9;
+  --color-muted: #9fb0c8;
+  --color-faint: #8296b0;
+  --color-faint-decor: #55657c;
+  --color-accent: #5cc8e6;
+  --color-accent-strong: #8ee1f7;
+  --color-accent-ink: #06121c;
+  --color-danger: #e58a86;
+  --color-success: #7fc7a6;
+  --color-warn: #e0b36a;
+  --color-canvas: #060c18;
+  --ambient-glow: rgba(92, 200, 230, 0.07);
+  --ambient-glow-2: rgba(120, 160, 255, 0.05);
+}
+
+html[data-graph-env="digital"] {
+  --color-app: #070b12;
+  --color-surface: #0c121c;
+  --color-surface-hover: #121b28;
+  --color-elevated: #141f30;
+  --color-line: rgba(120, 190, 255, 0.12);
+  --color-line-strong: rgba(120, 190, 255, 0.22);
+  --color-primary: #e6f3ff;
+  --color-muted: #8fa8c0;
+  --color-faint: #748ba3;
+  --color-faint-decor: #4a5c6e;
+  --color-accent: #66d9ff;
+  --color-accent-strong: #a8ecff;
+  --color-accent-ink: #041018;
+  --color-danger: #e8899a;
+  --color-success: #73d6b2;
+  --color-warn: #d9c27a;
+  --color-canvas: #04070c;
+  --ambient-glow: rgba(102, 217, 255, 0.08);
+  --ambient-glow-2: rgba(70, 140, 255, 0.05);
+}
+
+html[data-graph-env="aurora"] {
+  --color-app: #08131a;
+  --color-surface: #0c1a22;
+  --color-surface-hover: #12242d;
+  --color-elevated: #142a33;
+  --color-line: rgba(140, 220, 200, 0.12);
+  --color-line-strong: rgba(140, 220, 200, 0.22);
+  --color-primary: #e4f4ef;
+  --color-muted: #8fb2aa;
+  --color-faint: #769b93;
+  --color-faint-decor: #4b6a63;
+  --color-accent: #7be0c0;
+  --color-accent-strong: #a7f0d6;
+  --color-accent-ink: #04130f;
+  --color-danger: #e0968d;
+  --color-success: #8dd9a9;
+  --color-warn: #d8c07a;
+  --color-canvas: #050d12;
+  --ambient-glow: rgba(123, 224, 192, 0.08);
+  --ambient-glow-2: rgba(96, 160, 255, 0.04);
+}
+
+html[data-graph-env="minimal"] {
+  --color-app: #0f1216;
+  --color-surface: #161a20;
+  --color-surface-hover: #1d232b;
+  --color-elevated: #20262f;
+  --color-line: rgba(200, 215, 235, 0.1);
+  --color-line-strong: rgba(200, 215, 235, 0.2);
+  --color-primary: #e8edf3;
+  --color-muted: #a2adba;
+  --color-faint: #87929f;
+  --color-faint-decor: #5b6673;
+  --color-accent: #cfe0ef;
+  --color-accent-strong: #e8f3fb;
+  --color-accent-ink: #0a0e13;
+  --color-danger: #dc9a96;
+  --color-success: #9fc7b0;
+  --color-warn: #cdbd8f;
+  --color-canvas: #0a0d11;
+  --ambient-glow: rgba(180, 205, 235, 0.05);
+  --ambient-glow-2: rgba(140, 170, 210, 0.03);
+}
+
+/* 全域环境光（非图谱页也随环境变冷） */
+body::before {
+  background:
+    radial-gradient(ellipse 90% 55% at 50% -12%, var(--ambient-glow), transparent 45%),
+    radial-gradient(ellipse 70% 50% at 85% 110%, var(--ambient-glow-2), transparent 60%);
+}
+
+/* 图谱背景：4 套冷色环境（静态 CSS，无视频/粒子/WebGL） */
+.graph-background[data-graph-env="deep-space"]::before {
+  background:
+    radial-gradient(ellipse 65% 50% at 50% 38%, rgba(92, 200, 230, 0.08), transparent 65%),
+    radial-gradient(ellipse 45% 40% at 82% 16%, rgba(120, 160, 255, 0.06), transparent 70%),
+    radial-gradient(ellipse 55% 45% at 16% 84%, rgba(90, 110, 180, 0.05), transparent 70%);
+}
+.graph-background[data-graph-env="deep-space"]::after {
+  background-image:
+    radial-gradient(1px 1px at 24px 36px, rgba(220, 240, 255, 0.55), transparent 60%),
+    radial-gradient(1px 1px at 118px 82px, rgba(170, 210, 255, 0.4), transparent 60%),
+    radial-gradient(1.5px 1.5px at 66px 142px, rgba(255, 255, 255, 0.45), transparent 60%),
+    radial-gradient(1px 1px at 156px 24px, rgba(200, 230, 255, 0.35), transparent 60%);
+  background-size: 180px 180px;
+  opacity: 0.5;
+  mix-blend-mode: screen;
+}
+
+.graph-background[data-graph-env="digital"]::before {
+  background:
+    linear-gradient(rgba(102, 217, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(102, 217, 255, 0.07) 1px, transparent 1px),
+    radial-gradient(ellipse 60% 50% at 50% 40%, rgba(102, 217, 255, 0.08), transparent 68%);
+  background-size: 40px 40px, 40px 40px, 100% 100%;
+}
+.graph-background[data-graph-env="digital"]::after {
+  background: none;
+  opacity: 0;
+}
+
+.graph-background[data-graph-env="aurora"]::before {
+  background:
+    radial-gradient(ellipse 55% 70% at 24% 10%, rgba(123, 224, 192, 0.12), transparent 65%),
+    radial-gradient(ellipse 60% 55% at 78% 92%, rgba(96, 160, 255, 0.1), transparent 70%),
+    radial-gradient(ellipse 40% 40% at 55% 45%, rgba(150, 120, 255, 0.05), transparent 70%);
+}
+.graph-background[data-graph-env="aurora"]::after {
+  background-image: linear-gradient(180deg, rgba(123, 224, 192, 0.04), transparent 35%);
+  opacity: 1;
+  mix-blend-mode: screen;
+}
+
+.graph-background[data-graph-env="minimal"]::before,
+.graph-background[data-graph-env="minimal"]::after {
+  background: none;
+  opacity: 0;
+}

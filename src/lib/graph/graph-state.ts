@@ -62,23 +62,23 @@ export interface ConnectData {
 }
 
 /*
- * Canvas 内绘制的色值：canvas API 无法解析 CSS 变量，与 globals.css @theme 同步维护。
- * bg = --color-canvas #0f0d0b｜label = --color-muted #a49b8c｜hoverLabel = --color-primary #ece6da
+ * Canvas 内绘制的色值：canvas API 无法解析 CSS 变量，与 globals.css 冷色默认值同步维护。
+ * bg = --color-canvas #060c18｜label = --color-muted #9fb0c8｜hoverLabel = --color-primary #e7eef9
  */
 export const CANVAS = {
-  bg: '#0f0d0b',
-  label: '#a49b8c',
-  hoverLabel: '#ece6da',
+  bg: '#060c18',
+  label: '#9fb0c8',
+  hoverLabel: '#e7eef9',
 } as const;
 
-/** 深底低饱和连线色（不抢节点）：canvas 绘制用，同上同步维护 */
+/** 深底低饱和连线色（不抢节点）：canvas 绘制用，同上同步维护（阶段 3 冷色） */
 export const KINDS = [
-  { kind: 'wiki', label: '双链', color: '#a9825a' },
-  { kind: 'tag', label: '标签', color: '#5d6a77' },
-  { kind: 'doc', label: '同文档', color: '#3a362f' },
+  { kind: 'wiki', label: '双链', color: '#6f9fc4' },
+  { kind: 'tag', label: '标签', color: '#5f8f86' },
+  { kind: 'doc', label: '同文档', color: '#5b6780' },
 ] as const;
 
-export const TABS = ['筛选', '分组', '显示', '力'] as const;
+export const TABS = ['筛选', '分组', '显示', '力', '主题', '地图'] as const;
 export type TabKey = (typeof TABS)[number];
 
 export const DEFAULT_FORCES: Forces = { center: 1, charge: 60, linkStrength: 1, linkDistance: 30 };

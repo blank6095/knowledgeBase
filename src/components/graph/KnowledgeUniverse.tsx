@@ -9,7 +9,7 @@
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api } from '@/lib/client';
@@ -21,6 +21,14 @@ import { manyBodyThetaFor } from '@/app/graph/mount-utils';
 import type { GraphPayload } from '@/lib/graph/graph-types';
 import { buildSearchIndex, reasonLabel, searchGraph } from '@/lib/graph/graph-search';
 import { collectNeighborIds, pathEdgeKey, shortestPath } from '@/lib/graph/graph-focus';
+import {
+  computeMapMarks,
+  countMapMarks,
+  MAP_MARK_META,
+  type MapMarkFlags,
+  type MapMarkType,
+  type TodayLearningLite,
+} from '@/lib/graph/graph-map';
 import {
   DOUBLE_CLICK_THRESHOLD_MS,
   isDoubleClick,
@@ -54,13 +62,30 @@ import GraphDetailPanel, { type GraphDetailData, type GraphDetailNeighbor } from
 import GraphLegend from './GraphLegend';
 import GraphNavigation, { type GraphNavItem } from './GraphNavigation';
 import GraphSearch from './GraphSearch';
+import GraphThemePanel from './GraphThemePanel';
 import GraphTopBar from './GraphTopBar';
+import {
+  applyGraphEnvironment,
+  DEFAULT_GRAPH_PREFERENCES,
+  type GraphEnvironmentId,
+  type GraphNodeStyleId,
+} from '@/lib/graph/graph-theme';
+import {
+  getGraphPreferencesSnapshot,
+  getServerGraphPreferencesSnapshot,
+  resetGraphPreferences,
+  subscribeGraphPreferences,
+  updateGraphPreferences,
+} from '@/lib/graph/graph-preferences';
 
 const KIND_LABELS: Record<string, string> = { wiki: '双链', tag: '标签', doc: '同文档' };
 
 /** 初始状态只构造一次；状态更新全部走 setState 替换，不做原地修改。 */
 const INITIAL_VISUAL = createInitialVisualState();
 const INITIAL_INTERACTION = createInitialInteractionState();
+
+/** 水合探测订阅：无外部事件，仅用于第一次客户端提交后把快照切到 true。 */
+const subscribeHydration = () => () => {};
 
 interface RefItem {
   id: string;
@@ -169,6 +194,29 @@ export default function KnowledgeUniverse() {
   const [pathVisible, setPathVisible] = useState(true);
   /** U4-5 节点右键/长按菜单（视口坐标） */
   const [contextMenu, setContextMenu] = useState<{ node: CanvasNode; x: number; y: number } | null>(null);
+  /** U4-3 学习地图：四类标记独立通道（外圈/弧/点线），不改记忆度颜色与节点大小 */
+  const [mapTypes, setMapTypes] = useState<Record<MapMarkType, boolean>>({ weak: false, due: false, today: false, hub: false });
+  const [todayItems, setTodayItems] = useState<TodayLearningLite[]>([]);
+  const [todayError, setTodayError] = useState(false);
+  /** U3：外观偏好走外部 store（localStorage + useSyncExternalStore），避免 effect 内 setState */
+  const preferences = useSyncExternalStore(
+    subscribeGraphPreferences,
+    getGraphPreferencesSnapshot,
+    getServerGraphPreferencesSnapshot,
+  );
+  /**
+   * 水合前一律渲染默认外观，保证 SSR 与首帧客户端输出一致；水合后再切到已保存偏好。
+   * getServerSnapshot=false / getSnapshot=true 的订阅稳定，不会触发重复渲染。
+   */
+  const hydrated = useSyncExternalStore(
+    subscribeHydration,
+    () => true,
+    () => false,
+  );
+  const environment = hydrated ? preferences.environment : DEFAULT_GRAPH_PREFERENCES.environment;
+  const nodeStyle = hydrated ? preferences.nodeStyle : DEFAULT_GRAPH_PREFERENCES.nodeStyle;
+  const glow = hydrated ? preferences.glow : DEFAULT_GRAPH_PREFERENCES.glow;
+  const background = hydrated ? preferences.background : DEFAULT_GRAPH_PREFERENCES.background;
   const clickRef = useRef<ClickRecord | null>(null);
   const singleClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const detailRequest = useRef(0);
@@ -192,6 +240,20 @@ export default function KnowledgeUniverse() {
       })
       .catch((e) => setError(e.message));
   }, []);
+
+  // U3-5：水合后应用环境到 <html data-graph-env>（只切 CSS，不请求、不重排）
+  useEffect(() => {
+    if (!hydrated) return;
+    applyGraphEnvironment(preferences.environment);
+  }, [hydrated, preferences.environment]);
+
+  const changeEnvironment = (id: GraphEnvironmentId) => updateGraphPreferences({ environment: id });
+  const changeNodeStyle = (id: GraphNodeStyleId) => updateGraphPreferences({ nodeStyle: id });
+  const changeGlow = (value: number) => updateGraphPreferences({ glow: value });
+  const changeBackground = (value: number) => updateGraphPreferences({ background: value });
+  const resetAppearance = () => resetGraphPreferences();
+  const toggleMapType = (type: MapMarkType) => setMapTypes((prev) => ({ ...prev, [type]: !prev[type] }));
+  const setAllMapTypes = (on: boolean) => setMapTypes({ weak: on, due: on, today: on, hub: on });
 
   // 卸载时清理单击延迟定时器
   useEffect(
@@ -227,6 +289,52 @@ export default function KnowledgeUniverse() {
     [searchResult],
   );
   const hoverSet = useMemo(() => computeHoverSet(hoverId, adjacency), [hoverId, adjacency]);
+
+  // U4-3 学习地图：只有启用标记时才拉取今日学习（失败降级为仅薄弱/枢纽）
+  const mapEnabled = Object.values(mapTypes).some(Boolean);
+  useEffect(() => {
+    if (!mapEnabled) return;
+    let cancelled = false;
+    api<{ items?: { segmentId?: unknown; reasonCode?: unknown }[] }>('/api/learning/today')
+      .then((data) => {
+        if (cancelled) return;
+        const rows: TodayLearningLite[] = [];
+        for (const item of data.items ?? []) {
+          if (typeof item.segmentId === 'string' && typeof item.reasonCode === 'string') {
+            rows.push({ segmentId: item.segmentId, reasonCode: item.reasonCode });
+          }
+        }
+        setTodayItems(rows);
+        setTodayError(false);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTodayItems([]);
+          setTodayError(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mapEnabled]);
+
+  const mapMarks = useMemo<Map<string, MapMarkFlags> | null>(() => {
+    if (!mapEnabled || !nodes) return null;
+    const all = computeMapMarks(nodes, adjacency, todayItems);
+    const filtered = new Map<string, MapMarkFlags>();
+    for (const [id, flags] of all) {
+      const next: MapMarkFlags = { ...flags };
+      for (const type of Object.keys(next) as MapMarkType[]) {
+        if (!mapTypes[type]) next[type] = false;
+      }
+      if (Object.values(next).some(Boolean)) filtered.set(id, next);
+    }
+    return filtered;
+  }, [mapEnabled, nodes, adjacency, todayItems, mapTypes]);
+  const mapCounts = useMemo(
+    () => (mapMarks ? countMapMarks(mapMarks) : { weak: 0, due: 0, today: 0, hub: 0 }),
+    [mapMarks],
+  );
 
   const deferredTierOn = useDeferredValue(tierOn);
   const deferredKindOn = useDeferredValue(kindOn);
@@ -502,7 +610,15 @@ export default function KnowledgeUniverse() {
     { key: 'today', label: '今日学习', href: '/' },
     { key: 'progress', label: '学习复盘', href: '/progress' },
     { key: 'assistant', label: 'AI 助手', href: '/ask' },
-    { key: 'appearance', label: '外观主题', disabled: true, hint: '主题系统（阶段 3 交付）' },
+    {
+      key: 'appearance',
+      label: '外观主题',
+      active: panelOpen && tab === '主题',
+      onSelect: () => {
+        setPanelOpen(true);
+        setTab('主题');
+      },
+    },
   ];
 
   const legendTiers = MEMORY_TIER_ORDER.map((tier) => ({
@@ -540,7 +656,7 @@ export default function KnowledgeUniverse() {
           <GraphCanvas
             graphData={graphData}
             nodePaints={nodePaints}
-            visual={{ arrows, fadeThreshold, sizeMult, linkWidthMult }}
+            visual={{ arrows, fadeThreshold, sizeMult, linkWidthMult, nodeStyle, glowMult: glow }}
             interaction={{
               matchedIds,
               hoverSet,
@@ -551,9 +667,12 @@ export default function KnowledgeUniverse() {
               neighborIds,
               pathNodeIds,
               pathEdgeKeys,
+              mapMarks,
             }}
             fgRef={fgRef}
             tooltipCache={tooltipCache}
+            graphEnv={environment}
+            graphEnvIntensity={background}
             onNodeClick={onNodeClick}
             onNodeHover={(node) => setHoverId(node ? node.id : null)}
             onNodeDrag={onNodeDrag}
@@ -588,6 +707,15 @@ export default function KnowledgeUniverse() {
                   >
                     退出
                   </button>
+                  {comparePath && (
+                    <button
+                      onClick={() => router.push(`/ask?path=${comparePath.nodeIds.join(',')}`)}
+                      className="rounded-md border border-line px-2 py-1 text-tag text-muted hover:bg-surface-hover hover:text-primary"
+                      title="把当前路径作为上下文带去 AI 助手"
+                    >
+                      问 AI
+                    </button>
+                  )}
                   <button
                     onClick={explainConnection}
                     disabled={compareIds.length !== 2 || connectBusy}
@@ -610,8 +738,38 @@ export default function KnowledgeUniverse() {
 
           <GraphLegend tiers={legendTiers} gradient={legendGradient} />
 
-          {/* 右侧动作簇：联系两概念 + 图谱设置（阶段 3 起并入主题面板） */}
+          {mapEnabled && (
+            <div className="absolute bottom-8 left-3 z-10 hidden flex-wrap gap-2 md:flex">
+              {(Object.keys(MAP_MARK_META) as MapMarkType[])
+                .filter((type) => mapTypes[type])
+                .map((type) => (
+                  <span
+                    key={type}
+                    className="flex items-center gap-1.5 rounded-full border border-line bg-surface/85 px-2 py-0.5 text-tag text-muted backdrop-blur"
+                  >
+                    <i className="h-1.5 w-1.5 rounded-full" style={{ background: MAP_MARK_META[type].color }} />
+                    {MAP_MARK_META[type].label} {mapCounts[type]}
+                  </span>
+                ))}
+            </div>
+          )}
+
+          {/* 右侧动作簇：学习地图 + 联系两概念 + 图谱设置 */}
           <div className="absolute right-3 top-16 z-20 flex items-center gap-2 md:right-4">
+            <button
+              onClick={() => {
+                setPanelOpen(true);
+                setTab('地图');
+              }}
+              aria-pressed={mapEnabled}
+              className={`flex min-h-11 items-center rounded-lg border px-3 text-tag transition-colors duration-150 ${
+                mapEnabled
+                  ? 'border-accent bg-accent/15 text-accent-strong'
+                  : 'border-line bg-surface/90 text-muted backdrop-blur hover:bg-surface-hover hover:text-primary'
+              }`}
+            >
+              ◉ 学习地图
+            </button>
             <button
               onClick={() => {
                 setCompareMode((value) => !value);
@@ -640,7 +798,7 @@ export default function KnowledgeUniverse() {
           </div>
 
           {panelOpen && (
-            <div className="absolute right-3 top-32 z-30 w-[300px] max-w-[calc(100vw-1.5rem)] rounded-xl border border-line bg-elevated p-3 text-tag shadow-2xl md:right-4">
+            <div className="absolute right-3 top-32 z-30 max-h-[calc(100dvh-9rem)] w-[300px] max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-line bg-elevated p-3 text-tag shadow-2xl md:right-4">
               <div className="mb-3 flex gap-0.5 border-b border-line pb-2">
                 {TABS.map((t) => (
                   <button
@@ -782,6 +940,72 @@ export default function KnowledgeUniverse() {
                   <LabeledSlider label="连接距离" value={forces.linkDistance} min={10} max={200} step={5} onChange={(v) => onForce({ linkDistance: v })} />
                 </div>
               )}
+
+              {tab === '主题' && (
+                <GraphThemePanel
+                  environment={environment}
+                  nodeStyle={nodeStyle}
+                  glow={glow}
+                  background={background}
+                  onEnvironmentChange={changeEnvironment}
+                  onNodeStyleChange={changeNodeStyle}
+                  onGlowChange={changeGlow}
+                  onBackgroundChange={changeBackground}
+                  onReset={resetAppearance}
+                />
+              )}
+
+              {tab === '地图' && (
+                <div className="space-y-3">
+                  <p className="leading-relaxed text-muted">
+                    学习地图用独立的<b>外圈 / 弧线 / 点线</b>标记，不改变记忆度颜色与节点大小。
+                  </p>
+                  {(Object.keys(MAP_MARK_META) as MapMarkType[]).map((type) => {
+                    const meta = MAP_MARK_META[type];
+                    return (
+                      <label
+                        key={type}
+                        className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-line bg-app/60 px-2.5 py-2 transition-colors hover:bg-surface-hover/60"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-1 accent-accent"
+                          checked={mapTypes[type]}
+                          onChange={() => toggleMapType(type)}
+                        />
+                        <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: meta.color }} />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center justify-between gap-2 text-primary">
+                            {meta.label}
+                            <span className="font-mono text-tag tabular-nums text-faint">
+                              {mapEnabled ? mapCounts[type] : 0}
+                            </span>
+                          </span>
+                          <span className="mt-0.5 block text-tag leading-relaxed text-faint">{meta.description}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setAllMapTypes(true)}
+                      className="flex-1 rounded-md border border-line px-2 py-1.5 text-muted transition-colors hover:bg-surface-hover hover:text-primary"
+                    >
+                      全部显示
+                    </button>
+                    <button
+                      onClick={() => setAllMapTypes(false)}
+                      className="flex-1 rounded-md border border-line px-2 py-1.5 text-muted transition-colors hover:bg-surface-hover hover:text-primary"
+                    >
+                      清除标记
+                    </button>
+                  </div>
+                  {todayError && <p className="text-warn">今日学习数据加载失败，仅显示薄弱 / 枢纽。</p>}
+                  <p className="text-tag leading-relaxed text-faint">
+                    枢纽口径：关联度数 Top 10%（至少 1 个、度数 ≥2）；到期/今日来自 `/api/learning/today`；薄弱阈值 memory &lt; 40%。
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -797,7 +1021,7 @@ export default function KnowledgeUniverse() {
               onReview={() => router.push(`/study/${selectedId}`)}
               onEdit={() => router.push(`/segments/${selectedId}#edit`)}
               onCycleFocus={() => setFocusDepth((depth) => (depth === 0 ? 1 : depth === 1 ? 2 : 0))}
-              onAsk={() => router.push('/ask')}
+              onAsk={() => router.push(selectedId ? `/ask?segment=${selectedId}` : '/ask')}
               onSelectNeighbor={(id) => selectNode(id)}
             />
           )}

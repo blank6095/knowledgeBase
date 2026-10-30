@@ -11,7 +11,7 @@ test('未登录访问页面会进入登录页', async ({ page }) => {
   await expect(page.getByPlaceholder('访问口令')).toBeVisible();
 });
 
-test('登录 next 参数不允许跳出当前站点', async ({ page }) => {
+test('登录 next 参数不允许跳出当前站点（非法 next 回图谱）', async ({ page }) => {
   await page.route('**/api/stats', (route) =>
     route.fulfill({
       json: {
@@ -39,7 +39,7 @@ test('登录 next 参数不允许跳出当前站点', async ({ page }) => {
   await page.goto('/login?next=//example.com');
   await page.getByPlaceholder('访问口令').fill(PASSCODE);
   await page.getByRole('button', { name: '进入' }).click();
-  await page.waitForURL('http://127.0.0.1:3100/');
+  await page.waitForURL('http://127.0.0.1:3100/graph');
   expect(new URL(page.url()).origin).toBe('http://127.0.0.1:3100');
 });
 

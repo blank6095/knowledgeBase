@@ -1,0 +1,15 @@
+PASS  计数复算：图例/面板四类计数与真实 /api/graph + /api/learning/today 一致 — weak=13 due=0 today=3 hub=1（面板+4 图例一致）
+PASS  启用仅 1 次 /api/learning/today；切换勾选不重复请求 — 启用 1 次（GET），切换类型后仍为 1 次
+PASS  逐类通道：薄弱=全环（近半径）、枢纽=更外环、两类都非单向弧 — weak 全环 diff=109（ur=29/ll=27）；hub 外环 diff=160（ur=30/ll=37，far=14）
+PASS  颜色与半径语义不变：启用前后同节点中心 9×9 像素完全一致 — 中心 9×9 最大像素差=0（中心 RGB=140,118,79），记忆度颜色/核心半径不变（外环为独立通道）
+PASS  四类叠加不互相覆盖（全开时 weak/hub 全环 + 图例 4 chips 同时存在） — 4 chips + 节点周边 diff=109（ur=29/ll=27），多通道共存
+PASS  到期弧（右上）与今日弧（左下）方向可区分（受控 today 数据） — due 右上(ur=40/ll=0)，today 左下(ur=29/ll=64)，计数 1/1
+PASS  失败降级：/api/learning/today abort → 提示 + 仅薄弱/枢纽仍绘制 — 提示可见；weak=13 仍绘制，due/today=0，pageerror=0
+PASS  清除标记 → 图例消失、画布恢复基线（同一节点 on/off 对照） — 启用 diff=109；清除后 diff=0（≤12 AA 噪声阈值），图例 0 chips
+PASS  移动端 375：地图入口可用、面板不越界、无横向溢出 — 面板 63–363，无横向溢出
+PASS  回归：搜索/详情/右键/一阶 focus/路径/主题/筛选/力/fixture/空态/骨架 — 搜索 3 条、右键 7 项、详情/一阶 focus、六页签/4 力滑块正常
+PASS  回归：拖拽/fixture/空态/骨架/主题持久化 — 拖拽重排、fixture 500、空态、骨架正常
+PASS  8k 地图 smoke：启用全四类不崩、帧可接受 — 8k map 全开 1390ms：longTask max=135ms、帧间隔 max=331ms、续帧 112，未崩溃
+PASS  主流程 0 console/page error — pageerror=0，console.error=0
+
+=== 13/13 passed, 0 failed ===

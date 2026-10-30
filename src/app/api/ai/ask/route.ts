@@ -11,6 +11,7 @@ import { AGENT_TOOLS, mergeToolCallDelta, validateActions, type AgentAction } fr
 import { logLlmCall } from '@/lib/llm-calls';
 import { readWithIdleTimeout } from '@/lib/stream-utils';
 import { cacheKey, getCachedOutput, saveCachedOutput } from '@/lib/llm-cache';
+import { buildContextPromptBlock, normalizeSegmentIds, type AskContextSegment } from '@/lib/ai/ask-context';
 
 /**
  * 知识库助手 Agent（v15 范式替换：检索式问答 → 自主决定何时检索的对话 Agent）。
@@ -20,6 +21,9 @@ import { cacheKey, getCachedOutput, saveCachedOutput } from '@/lib/llm-cache';
  *   propose_actions 只提议不执行——LLM 输出永不直接写库，由前端确认卡走 v10 端点；
  * - 循环上限 3 轮工具调用，超限直答收尾；每轮写 llm_calls(kind='ask-agent')；
  * - 多轮对话：客户端携 history（≤10 条），服务端无状态；
+ * - 可选上下文（U4-4）：客户端可携 `context.segmentIds`（最多 4 个合法 UUID，来源 /ask?segment=|path=）；
+ *   服务端只查这些 id 且确认存在后，把「标题 + 摘要」作为独立数据段注入 system prompt。
+ *   非法/不存在/查库失败一律静默忽略，不报错、不改变既有 query/history 行为与响应结构；
  * - ask 缓存仅覆盖无工具、无改动提议的直接回答（24h TTL）；工具材料在请求前不可知，不重放陈旧检索结果；
  * - 本版移除：ADVICE_RE/advice 路由与教练 prompt、材料不足死胡同文案（Agent 凭常驻上下文如实回答取代）；
  * - Step 0 说明：deepseek-v4-flash 的 function calling 未实测（本环境无 API Key 无法验证）；
@@ -66,7 +70,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: status.hint }, { status: 503 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { query?: unknown; history?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { query?: unknown; history?: unknown; context?: unknown };
   const query = typeof body.query === 'string' ? body.query.trim().slice(0, 500) : '';
   if (!query) return badRequest('请输入问题');
   const history: ChatMessage[] = Array.isArray(body.history)
@@ -81,6 +85,12 @@ export async function POST(req: NextRequest) {
         .slice(-HISTORY_LIMIT)
         .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }))
     : [];
+  // 前端 /ask?segment=|path= 带入的选中上下文：只接受合法 UUID，去重后最多 4 个，其余静默丢弃
+  const contextIds = normalizeSegmentIds(
+    body.context && typeof body.context === 'object'
+      ? (body.context as { segmentIds?: unknown }).segmentIds
+      : undefined,
+  );
 
   // 空库静态早退：导入引导（Agent 无从答起，不调模型）
   const [{ total }] = await db.select({ total: sql<number>`count(*)::int` }).from(segments);
@@ -93,20 +103,24 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // 常驻上下文两块（任一失败置空串，不阻断）
-  const [overviewBlock, profileBlock] = await Promise.all([
+  // 常驻上下文三块（任一失败置空，不阻断）：概览 + 画像 + 本次选中的知识点
+  const [overviewBlock, profileBlock, contextSegments] = await Promise.all([
     buildKbOverview().catch(() => ''),
     (async () =>
       profileToPromptBlock(
         await deriveLearnerProfileCached().catch(() => null),
         await getLearnerDeclaration().catch(() => ''),
       ))().catch(() => ''),
+    loadContextSegments(contextIds),
   ]);
+  const contextBlock = buildContextPromptBlock(contextSegments);
 
   const system = [
     '你是个人知识库「暗夜书房」的助手，常驻了解下面的知识库概览与学习者画像。',
     overviewBlock,
     profileBlock,
+    // 选中知识只作为数据段；无上下文时完全不注入，保持旧 prompt 不变
+    ...(contextBlock ? [contextBlock] : []),
     '',
     '行为规则：',
     '1. 凭上下文能答的直接答；需要库内具体细节（某知识点全文、精确表述）时，先调 search_knowledge / read_segment 再回答；',
@@ -118,7 +132,8 @@ export async function POST(req: NextRequest) {
   const askCacheKey = cacheKey(
     'ask',
     status.config.model,
-    JSON.stringify({ query, history, overviewBlock, profileBlock }),
+    // 无上下文时指纹与旧版逐字一致（不失效既有缓存）；有上下文时把数据段一并纳入，避免命中无上下文答案
+    JSON.stringify({ query, history, overviewBlock, profileBlock, ...(contextBlock ? { contextBlock } : {}) }),
   );
   const cachedAnswer = await getCachedOutput<{ answer: string; mode: 'agent' | 'agent-notools' }>(askCacheKey).catch(
     () => null,
@@ -417,4 +432,28 @@ async function enrichActions(actions: AgentAction[]): Promise<EnrichedAction[]> 
     const cur = docMap.get(a.documentId);
     return cur ? { ...a, current: { title: cur.title, tags: cur.tags } } : ({ ...a } as EnrichedAction);
   });
+}
+
+interface ContextSegmentRow extends AskContextSegment {
+  id: string;
+}
+
+/**
+ * 读取「当前上下文」知识点（U4-4）：只对已通过 UUID 校验、去重、封顶的 id 做一次查询，
+ * 不扩大查询面；按请求顺序（路径顺序）返回。数据库异常或个别 id 不存在都静默忽略，
+ * 调用方拿到的可能是空数组 —— 不报错、不中断对话。
+ */
+async function loadContextSegments(ids: string[]): Promise<ContextSegmentRow[]> {
+  if (ids.length === 0) return [];
+  let rows: ContextSegmentRow[];
+  try {
+    rows = await db
+      .select({ id: segments.id, title: segments.title, content: segments.content, summary: segments.summary })
+      .from(segments)
+      .where(inArray(segments.id, ids));
+  } catch {
+    return [];
+  }
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return ids.map((id) => byId.get(id)).filter((row): row is ContextSegmentRow => Boolean(row));
 }

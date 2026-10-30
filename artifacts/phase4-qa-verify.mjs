@@ -438,7 +438,7 @@ try {
   await check('U4-2：路径不修改 links（GET /api/graph 前后一致 + 坐标/engineStop 不变）', async () => {
     const again = await (await apiCtx.get('/api/graph')).json();
     // memory 是读取时现算的派生字段（随时间变化），比较其余契约字段是否被修改
-    const stripMemory = (p) => ({ nodes: p.nodes.map(({ memory, ...rest }) => rest), edges: p.edges });
+    const stripMemory = (p) => ({ nodes: p.nodes.map((node) => Object.fromEntries(Object.entries(node).filter(([key]) => key !== 'memory'))), edges: p.edges });
     assert(JSON.stringify(stripMemory(again)) === JSON.stringify(stripMemory(payload)), '图谱数据被修改（nodes/edges 契约字段变化）');
     const s = await snapshot(page);
     assert(s.engineStop === base.engineStop, 'engineStop 变化');

@@ -1,0 +1,29 @@
+
+> knowledge-base@0.1.0 test:e2e
+> node scripts/run-e2e.mjs
+
+▲ Next.js 16.4.3 (Turbopack)
+- Local:         http://127.0.0.1:3100
+- Network:       http://127.0.0.1:3100
+- Environments: .env.local
+✓ Ready in 637ms
+✓ Running next.config.ts took 38ms
+⨯ Another next dev server is already running.
+
+- Local:        http://localhost:3000
+- PID:          23572
+- Dir:          D:\Project\knowledgeBase
+- Log:          .next\dev\logs\next-development.log
+
+You can access the existing server at http://localhost:3000,
+or run taskkill /PID 23572 /F to stop it and start a new one.
+[?25h
+file:///D:/Project/knowledgeBase/scripts/run-e2e.mjs:42
+    if (server.exitCode !== null) throw new Error(`Next 启动失败，退出码 ${server.exitCode}`);
+                                        ^
+
+Error: Next 启动失败，退出码 1
+    at waitForServer (file:///D:/Project/knowledgeBase/scripts/run-e2e.mjs:42:41)
+    at async file:///D:/Project/knowledgeBase/scripts/run-e2e.mjs:54:3
+
+Node.js v22.20.0

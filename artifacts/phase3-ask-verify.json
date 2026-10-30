@@ -1,0 +1,42 @@
+{
+  "checks": {
+    "ids": [
+      "c2cd410f-c3cf-4d1a-b16c-bfa1b850ce31",
+      "cfd0465f-349a-4481-91bf-433db22fe3f7"
+    ],
+    "single": {
+      "chips": [
+        "移除上下文《TCP 与 UDP》"
+      ],
+      "bodyText": "知识宇宙\n知识库\n今日学习\n学习复盘\nAI 助手\n外观主题\n进入知识宇宙后调整\n设置\n退出登录\n助手\n\n了解你的知识库与学习进度：可以问答、查细节、也能帮你改标题、整理段落（每一步都会先给你确认）。\n\n当前上下文 · 1 个知识点\n\n全部清除\nTCP 与 UDP\n×\n\n已带入该知识点，发送前可继续修改问题。\n\n我下一步学什么？\n我最薄弱的是什么？\n帮我规划本周复习\n发送\n\n可以直接问，也可以让它改标题、拆段落——改动前都会先经你确认。\n\n知识宇宙 · Neon + Cloudflare R2 + Vercel",
+      "inputPlaceholder": "例如：解释这个知识点"
+    },
+    "requestBody": "{\"query\":\"解释这个知识点\",\"history\":[],\"context\":{\"segmentIds\":[\"c2cd410f-c3cf-4d1a-b16c-bfa1b850ce31\"]}}",
+    "invalid": {
+      "contextHeading": 0,
+      "chips": 0
+    },
+    "path": {
+      "chips": 2,
+      "suggestion": "解释这些知识点之间的关系"
+    },
+    "clearChips": {
+      "url": "/ask",
+      "loading": 0,
+      "chips": 0,
+      "contextSection": 0
+    },
+    "removeChip": {
+      "url": "/ask?segment=cfd0465f-349a-4481-91bf-433db22fe3f7",
+      "loading": 0,
+      "chips": 1
+    },
+    "detailAskUrl": "http://localhost:3000/ask?segment=c2cd410f-c3cf-4d1a-b16c-bfa1b850ce31",
+    "notesFooter": {
+      "footerTop": 957,
+      "viewportH": 1000
+    }
+  },
+  "consoleErrors": [],
+  "pageErrors": []
+}

@@ -30,6 +30,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="zh-CN"
       data-scroll-behavior="smooth"
+      data-graph-env="deep-space"
       className={`${geistSans.variable} ${geistMono.variable} ${notoSerifSc.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-app text-primary antialiased">

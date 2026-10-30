@@ -30,7 +30,7 @@ describe('safeNextPath', () => {
 
   it.each([null, '', 'https://evil.example', '//evil.example', '/\\evil.example', 'javascript:alert(1)'])(
     '拒绝站外跳转 %s',
-    (value) => expect(safeNextPath(value)).toBe('/'),
+    (value) => expect(safeNextPath(value)).toBe('/graph'),
   );
 });
 

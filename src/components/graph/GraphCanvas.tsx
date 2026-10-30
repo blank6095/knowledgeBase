@@ -33,7 +33,9 @@ import {
   type GraphLink,
 } from '@/lib/graph/graph-state';
 import { pathEdgeKey } from '@/lib/graph/graph-focus';
+import { MAP_MARK_META, type MapMarkFlags } from '@/lib/graph/graph-map';
 import GraphBackground, { type GraphEnvironmentId } from './GraphBackground';
+import type { GraphNodeStyleId } from '@/lib/graph/graph-theme';
 
 declare global {
   interface Window {
@@ -83,6 +85,9 @@ export interface GraphCanvasProps {
     fadeThreshold: number;
     sizeMult: number;
     linkWidthMult: number;
+    /** U3-3 节点风格；U3-4 光晕强度倍率 */
+    nodeStyle: GraphNodeStyleId;
+    glowMult: number;
   };
   interaction: {
     matchedIds: Set<string> | null;
@@ -97,11 +102,14 @@ export interface GraphCanvasProps {
     /** U4-2 双节点路径高亮：路径节点集合与无向边 key 集合 */
     pathNodeIds?: Set<string> | null;
     pathEdgeKeys?: Set<string> | null;
+    /** U4-3 学习地图标记（独立环/弧通道，不改变记忆度颜色与节点大小） */
+    mapMarks?: Map<string, MapMarkFlags> | null;
   };
   fgRef: RefObject<FGInstance | null>;
   tooltipCache: RefObject<Map<string, string>>;
-  /** 背景环境（U0-3 先支持默认深空；切换 UI 属 U3-4） */
+  /** 背景环境（U3-2：4 套冷色环境）与背景强度 */
   graphEnv?: GraphEnvironmentId;
+  graphEnvIntensity?: number;
   onNodeClick: (node: CanvasNode) => void;
   onNodeHover: (node: CanvasNode | null) => void;
   onNodeDrag: (node: CanvasNode) => void;
@@ -122,6 +130,7 @@ export default function GraphCanvas({
   fgRef,
   tooltipCache,
   graphEnv,
+  graphEnvIntensity,
   onNodeClick,
   onNodeHover,
   onNodeDrag,
@@ -130,9 +139,9 @@ export default function GraphCanvas({
   onNodeContextMenu,
   children,
 }: GraphCanvasProps) {
-  const { matchedIds, hoverSet, hoverId, compareIds, labelIds, focusIds, neighborIds, pathNodeIds, pathEdgeKeys } =
+  const { matchedIds, hoverSet, hoverId, compareIds, labelIds, focusIds, neighborIds, pathNodeIds, pathEdgeKeys, mapMarks } =
     interaction;
-  const { arrows, fadeThreshold, sizeMult, linkWidthMult } = visual;
+  const { arrows, fadeThreshold, sizeMult, linkWidthMult, nodeStyle, glowMult } = visual;
 
   const wrapRef = useRef<HTMLDivElement>(null);
   /** 容器实测尺寸：null = 尚未测量；此时不挂载 Graph，避免先用硬编码尺寸画一遍再重设 */
@@ -251,9 +260,13 @@ export default function GraphCanvas({
     const r = Math.max(2.2, (1.6 + Math.sqrt(node.degree ?? 0)) * sizeMult);
     // 悬停视觉放大 1.15×（命中半径 paintPointerArea 不变）；搜索命中再放大 1.12×
     const drawR = (isHover || isCompared ? r * 1.15 : r) * (isHit ? 1.12 : 1);
-    // 灯光隐喻：光晕半径∝记忆度；悬停白热加倍；搜索命中外发光增强
+    // 灯光隐喻：光晕半径∝记忆度；悬停白热加倍；搜索命中外发光增强；U3-4 光晕倍率
     const glow =
-      (2 + 10 * node.memory) * Math.min(1.5, sizeMult) * (isHover || isCompared ? 2 : 1) * (isHit ? 1.7 : 1);
+      (2 + 10 * node.memory) *
+      Math.min(1.5, sizeMult) *
+      (isHover || isCompared ? 2 : 1) *
+      (isHit ? 1.7 : 1) *
+      Math.max(0.35, glowMult);
 
     // 视口剔除：回调使用图坐标，getTransform 可得到当前画布像素坐标。
     const matrix = ctx.getTransform();
@@ -263,9 +276,45 @@ export default function GraphCanvas({
     if (!nodeInsideViewport(screenX, screenY, ctx.canvas.width, ctx.canvas.height, pixelRadius)) return;
 
     // 径向渐变光球（中心亮→边缘暗）：离屏 sprite 命中则仅 drawImage
-    const sprite = getNodeSprite(paint, radiusBucket(drawR), glowBucket(glow), isHover || isCompared);
+    const sprite = getNodeSprite(paint, radiusBucket(drawR), glowBucket(glow), isHover || isCompared, nodeStyle);
     ctx.globalAlpha = alpha;
     drawSprite(ctx, sprite, x, y);
+
+    // U4-3 学习地图：独立环/弧/点线通道，不改变记忆度颜色与节点半径
+    const mark = mapMarks?.get(node.id);
+    if (mark) {
+      const line = 1.3 / globalScale;
+      ctx.globalAlpha = alpha * 0.9;
+      ctx.lineWidth = line;
+      if (mark.hub) {
+        ctx.setLineDash([1.5 / globalScale, 4 / globalScale]);
+        ctx.strokeStyle = MAP_MARK_META.hub.color;
+        ctx.beginPath();
+        ctx.arc(x, y, drawR + 6.5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (mark.weak) {
+        ctx.setLineDash([3 / globalScale, 3 / globalScale]);
+        ctx.strokeStyle = MAP_MARK_META.weak.color;
+        ctx.beginPath();
+        ctx.arc(x, y, drawR + 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      if (mark.due) {
+        ctx.strokeStyle = MAP_MARK_META.due.color;
+        ctx.beginPath();
+        ctx.arc(x, y, drawR + 4.5, -Math.PI * 0.35, Math.PI * 0.15);
+        ctx.stroke();
+      }
+      if (mark.today) {
+        ctx.strokeStyle = MAP_MARK_META.today.color;
+        ctx.beginPath();
+        ctx.arc(x, y, drawR + 4.5, Math.PI * 0.65, Math.PI * 1.15);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
 
     // 标签：悬停常显；邻接固定 0.85（高度数枢纽限前 12）；其余按褪色阈值渐显
     let labelAlpha = Math.max(0, Math.min(1, (globalScale - fadeThreshold) * 1.6)) * alpha;
@@ -331,7 +380,7 @@ export default function GraphCanvas({
       }}
     >
       {/* 背景层：容器底色之上、Canvas 之下的静态纹理；Canvas 背景透明（U0-3） */}
-      <GraphBackground env={graphEnv} />
+      <GraphBackground env={graphEnv} intensity={graphEnvIntensity} />
       {!ready && (
         <div className="absolute inset-0" role="status" aria-label="布局中">
           <div className="skeleton absolute inset-0 rounded-none bg-transparent opacity-40" />

@@ -1,0 +1,50 @@
+{
+  "checks": {
+    "expected": {
+      "nodes": 15,
+      "weak": 13,
+      "hub": 1,
+      "due": 0,
+      "todayCount": 3
+    },
+    "mapEnabled": {
+      "todayRequests": 1,
+      "legend": "薄弱 13\n到期复习 0\n今日推荐 3\n重要枢纽 1",
+      "panelLabels": [
+        "薄弱\n0\n记忆度 < 40%",
+        "到期复习\n0\n今天到期需复习",
+        "今日推荐\n0\n今日学习推荐",
+        "重要枢纽\n0\n关联度数 Top 10%"
+      ]
+    },
+    "colorUnchanged": {
+      "beforeColor": [
+        232,
+        196,
+        132,
+        255
+      ],
+      "afterColor": [
+        232,
+        196,
+        132,
+        255
+      ]
+    },
+    "weakOnly": {
+      "legend": "薄弱 13"
+    },
+    "mobile": {
+      "scrollWidth": 375,
+      "innerWidth": 375,
+      "panel": {
+        "left": 0,
+        "right": 375,
+        "width": 375
+      },
+      "noHorizontalOverflow": true
+    }
+  },
+  "consoleErrors": [],
+  "pageErrors": []
+}

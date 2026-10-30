@@ -94,7 +94,8 @@ try {
   await login.goto(`${baseURL}/login`);
   await login.getByPlaceholder('访问口令').fill(passcode);
   await login.getByRole('button', { name: '进入' }).click();
-  await login.waitForURL(`${baseURL}/`);
+  // U1-1 拍板后登录默认落 /graph；这里只要求离开登录页，兼容 next 参数与后续首屏策略调整
+  await login.waitForURL((url) => !new URL(url).pathname.startsWith('/login'), { timeout: 60_000 });
   await login.close();
 
   const results = [];

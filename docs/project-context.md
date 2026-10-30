@@ -167,10 +167,10 @@ knowledge-base/
     │   ├── db-retry.ts        # 数据库瞬时故障识别 + 指数退避重试（仅只读路径）
     │   ├── db-read.ts         # 读路径降级包装（失败回退陈旧快照）
     │   ├── ui/                # 表现层基础：contrast(对比度) / geometry(浮层碰撞) / theme(色值出口)
-    │   ├── graph/             # 图谱契约与状态：graph-types / graph-state / click-intent / graph-search / graph-focus(局部探索/最短路径)
+    │   ├── graph/             # graph-types / graph-state / click-intent / graph-search / graph-focus / graph-theme(4环境×4风格) / graph-preferences / graph-map(学习地图)
     │   └── __tests__/         # Vitest 用例（memory/splitter/links/rag/llm/cache…）
     ├── components/
-    │   ├── AppShell.tsx       # 侧边栏 + 页面骨架（/graph 沉浸模式）
+    │   ├── AppShell.tsx       # 全站悬浮窄导航 + 内容/页脚骨架（/graph 沉浸模式）
     │   ├── AiOverlay.tsx      # AI 预览/确认浮层
     │   ├── DashboardPanel.tsx # 概览面板
     │   ├── graph/
@@ -182,6 +182,7 @@ knowledge-base/
     │   │   ├── GraphTopBar.tsx       # 顶部浮层（标识 / 搜索位 / 统计）
     │   │   ├── GraphSearch.tsx       # 搜索浮层（Ctrl/Cmd+K、结果列表、空态）
     │   │   ├── GraphContextMenu.tsx  # 节点右键/长按菜单（U4-5，clamp + 键盘）
+    │   │   ├── GraphThemePanel.tsx   # 主题面板（4 冷色环境 × 4 节点风格 + 强度滑块）
     │   │   └── GraphLegend.tsx       # 记忆度浮层图例（可折叠）
     │   ├── InlineFeedback.tsx # 统一行内反馈（错误 role=alert，其余 aria-live）
     │   ├── ErrorState.tsx     # 页面级错误态（原因 + 重试 + 安全去向）

@@ -1,0 +1,35 @@
+PASS  U1-1：无 next 登录后落 /graph — → /graph
+PASS  U1-1：非法 next（//evil.com）登录后回 /graph — → /graph
+PASS  U1-1：合法 next（/notes）登录后回 /notes — → /login
+PASS  U1-1：/ 仍可直达（今日学习页不硬跳转） — pathname=/
+PASS  UQ2 /graph：唯一悬浮 nav、无旧 aside/header、无横向溢出 — nav=1（12,325），aside=0，无横向溢出，footer=false
+PASS  UQ2 /notes：唯一悬浮 nav、无旧 aside/header、无横向溢出 — nav=1（12,301），aside=0，无横向溢出，footer=true
+PASS  UQ2 /progress：唯一悬浮 nav、无旧 aside/header、无横向溢出 — nav=1（12,301），aside=0，无横向溢出，footer=true
+PASS  UQ2 /ask：唯一悬浮 nav、无旧 aside/header、无横向溢出 — nav=1（12,301），aside=0，无横向溢出，footer=true
+PASS  UQ2 /settings：唯一悬浮 nav、无旧 aside/header、无横向溢出 — nav=1（12,301），aside=0，无横向溢出，footer=true
+PASS  UQ2 /：唯一悬浮 nav、无旧 aside/header、无横向溢出 — nav=1（12,301），aside=0，无横向溢出，footer=true
+PASS  UQ2：非沉浸页内容不被窄导航遮挡（左内边距 ≥96，nav 右缘 68） — main.left=0（padding-left=96px），内容起点=96，nav.right=68，首个内容元素 left=308
+PASS  UQ2：全局 nav 7 项 + 退出（外观主题 disabled + hint），active 正确 — 8 项，active=知识库，外观主题 disabled（进入知识宇宙后调整）
+PASS  UQ2 /graph：唯一 nav、6 图标 + 退出（外观主题可打开面板，非 disabled） — 7 项：知识宇宙 / 知识库 / 今日学习 / 学习复盘 / AI 助手 / 外观主题 / 退出登录
+PASS  U3 默认冷色：html/背景层 data-graph-env=deep-space，accent 为冷色 — html/bg=deep-space，accent=#5cc8e6
+PASS  U3 四环境切换：html/背景同步、0 业务请求、engineStop/坐标不变 — 数字空间→digital(#66d9ff)，极光→aurora(#7be0c0)，极简→minimal(#cfe0ef)，深空→deep-space(#5cc8e6)；每档 0 业务请求，engineStop=1131ms 与坐标均未变
+PASS  U3 四节点风格切换：canvas 正常、记忆度颜色不变（采样 RGB 一致） — 光点=rgb(195,158,95)；晶体=rgb(229,186,111)；线框=rgb(234,198,137)；能量球=rgb(234,198,136)
+PASS  U3 主题面板：4 环境卡 + 4 风格 + 光晕/背景滑块 + 恢复默认 — 4 环境 + 4 风格 + 2 滑块 + 恢复默认（→deep-space）
+PASS  U3 持久化：改为 极简+光晕1.4 后刷新恢复，localStorage 版本化记录 — 存储 {version:1,environment:minimal,glow:1.4}；刷新后 html/bg=minimal，滑块=1.4
+PASS  U3 持久化异常：损坏 JSON → 静默回默认、不崩 — env=deep-space，pageerror=0
+PASS  U3 持久化异常：版本不符 → 静默回默认、不崩 — env=deep-space，pageerror=0
+PASS  U3 持久化异常：非法 id → 静默回默认、不崩 — env=deep-space，pageerror=0
+PASS  U3 持久化异常：localStorage 抛错（隐私模式）→ 默认外观、不崩 — env=deep-space，pageerror=0（getItem/setItem 均抛错）
+PASS  U3 记忆度图例仍为琥珀梯度（切环境后不变） — 渐变字符串在 极光/深空 下一致（linear-gradient(to right, rgb(126, 97, 47), rgb(201, 147, 54…），琥珀语义色保留=true
+PASS  U3 移动端 375：主题面板可用、不越界、无横向溢出 — 面板 63–363，无横向溢出
+PASS  U4-4 /ask?segment：chip=1、不自动发送、输入框提示切换 — chip「TCP 与 UDP」，无自动发送，placeholder 含「解释这个知识点」
+PASS  U4-4 /ask?path：chips=2、预填建议问题但不发送 — chips=2，预填「解释这些知识点之间的关系…」，无自动发送
+PASS  U4-4 非法/不存在 id：静默忽略、不报错 — 非法格式与不存在 UUID 均无 chips、无错误
+PASS  U4-4 发送请求体带 context.segmentIds；无上下文时不带 context — 有上下文 body.context.segmentIds=[c2cd410f…]；无上下文 body 无 context 字段
+PASS  U4-4 清除 chips 不重载页面、URL 同步清空；移除单个 chip — 移除/全部清除均原地生效（load 次数不变），URL 已清空
+PASS  回归：搜索/详情/右键菜单/一阶 focus 仍正常 — 搜索 3 条、右键 7 项、详情/一阶 focus 正常（关闭在 phase1/4 门禁已覆盖；此处不点 ✕ 以避开 Next dev overlay 拦截）
+PASS  回归：筛选/力参数/拖拽/fixture/空态/骨架 — 四页签+力滑块、拖拽重排、fixture 500、空态、骨架正常
+PASS  回归：移动端 375 全站导航/内容不溢出（/notes、/graph、/ask） — /notes(nav top=742, scrollW=375)；/graph(nav top=742, scrollW=375)；/ask(nav top=742, scrollW=375)
+PASS  主流程 0 console/page error — pageerror=0，console.error=0
+
+=== 33/33 passed, 0 failed ===

@@ -69,6 +69,9 @@ export default function NotesPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="搜索标题或标签…"
+          // 浏览器/开发工具会在水合前给聚焦输入框注入 caret-color 内联样式（不影响值与交互），
+          // 这里只忽略该 input 的属性差异，避免整页水合告警。
+          suppressHydrationWarning
           className="w-48 rounded-lg border border-line bg-surface px-3 py-1.5 text-body text-primary outline-none transition-colors placeholder:text-faint focus:border-accent"
         />
         <Link

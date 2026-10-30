@@ -20,6 +20,8 @@ export interface GraphNavItem {
   active?: boolean;
   disabled?: boolean;
   hint?: string;
+  /** 无 href 的入口（如打开主题面板）：点击回调 */
+  onSelect?: () => void;
 }
 
 export interface GraphNavigationProps {
@@ -204,7 +206,7 @@ export default function GraphNavigation({ items, onLogout }: GraphNavigationProp
                   aria-label={ariaLabel}
                   aria-current={active ? 'page' : undefined}
                   aria-disabled={disabled || undefined}
-                  onClick={disabled ? (event) => event.preventDefault() : undefined}
+                  onClick={disabled ? (event) => event.preventDefault() : item.onSelect}
                   className={itemClass}
                 >
                   {marker}

@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-30T13:30:23.481Z",
+  "capturedAt": "2026-10-30T15:17:56.068Z",
   "environment": {
     "platform": "win32",
     "cpu": "12th Gen Intel(R) Core(TM) i7-12700H",
@@ -11,34 +11,34 @@
       "fixture": "graph-small",
       "nodes": 500,
       "fixtureBytes": 179537,
-      "firstTickMs": 1097.5,
-      "engineStopMs": 1786.7000000011176,
-      "fps": 135.72624790657844,
-      "p95FrameMs": 13.600000001490116,
-      "heapBytes": 20788034,
-      "maxLongTaskMs": 181
+      "firstTickMs": 926.5,
+      "engineStopMs": 1564.4000000003725,
+      "fps": 142.24751066857652,
+      "p95FrameMs": 7.7999999998137355,
+      "heapBytes": 20387773,
+      "maxLongTaskMs": 205
     },
     {
       "fixture": "graph-mid",
       "nodes": 5000,
       "fixtureBytes": 2234824,
-      "firstTickMs": 1415.2999999988824,
-      "engineStopMs": 16556.299999998882,
-      "fps": 4.536663403453043,
-      "p95FrameMs": 284,
-      "heapBytes": 80661531,
-      "maxLongTaskMs": 215
+      "firstTickMs": 1172.5,
+      "engineStopMs": 16167.600000000559,
+      "fps": 5.677750623319059,
+      "p95FrameMs": 223.29999999981374,
+      "heapBytes": 67008878,
+      "maxLongTaskMs": 180
     },
     {
       "fixture": "graph-large",
       "nodes": 20000,
       "fixtureBytes": 3579419,
-      "firstTickMs": 1500.199999999255,
-      "engineStopMs": 16727.099999999627,
-      "fps": 2.4282453499105943,
-      "p95FrameMs": 607,
-      "heapBytes": 91064212,
-      "maxLongTaskMs": 258
+      "firstTickMs": 1233.5,
+      "engineStopMs": 16464.700000000186,
+      "fps": 3.154114906831871,
+      "p95FrameMs": 370,
+      "heapBytes": 122780091,
+      "maxLongTaskMs": 141
     }
   ]
 }
