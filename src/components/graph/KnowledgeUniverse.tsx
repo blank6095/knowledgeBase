@@ -1037,22 +1037,25 @@ export default function KnowledgeUniverse() {
         nodeCount={nodes?.length ?? 0}
         edgeCount={links.length}
         fixture={fixture}
+        searchOpen={searchOpen}
+        searchOverlay={
+          <GraphSearch
+            open={searchOpen}
+            query={searchQuery}
+            results={searchResults}
+            total={nodes?.length ?? 0}
+            onOpenChange={setSearchOpen}
+            onQueryChange={setSearchQuery}
+            onSelect={(id) => {
+              setContextMenu(null);
+              focusSearchResult(id);
+            }}
+            onClear={() => setSearchQuery('')}
+          />
+        }
         onSearchClick={() => setSearchOpen(true)}
       />
       <GraphNavigation items={navItems} onLogout={logout} />
-      <GraphSearch
-        open={searchOpen}
-        query={searchQuery}
-        results={searchResults}
-        total={nodes?.length ?? 0}
-        onOpenChange={setSearchOpen}
-        onQueryChange={setSearchQuery}
-        onSelect={(id) => {
-          setContextMenu(null);
-          focusSearchResult(id);
-        }}
-        onClear={() => setSearchQuery('')}
-      />
       {contextMenu && (
         <GraphContextMenu
           x={contextMenu.x}

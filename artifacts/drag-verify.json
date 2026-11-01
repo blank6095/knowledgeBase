@@ -1,0 +1,42 @@
+{
+  "capturedAt": "2026-10-31T19:43:52.179Z",
+  "environment": {
+    "platform": "win32",
+    "cpu": "12th Gen Intel(R) Core(TM) i7-12700H",
+    "viewport": "1440x900"
+  },
+  "results": [
+    {
+      "fixture": "graph-small",
+      "grabbedId": "n150",
+      "dragStats": {
+        "count": 229,
+        "fps": 143.6,
+        "avgMs": 7,
+        "p95Ms": 7.8
+      },
+      "bboxShift": null,
+      "settleMs": 219,
+      "settleTimedOut": false,
+      "stopCountAfter": 1,
+      "stopTsAdvanced": true,
+      "canvasClassAfter": "clickable"
+    },
+    {
+      "fixture": "graph-mid",
+      "grabbedId": "n3934",
+      "dragStats": {
+        "count": 117,
+        "fps": 73.2,
+        "avgMs": 13.7,
+        "p95Ms": 31.3
+      },
+      "bboxShift": null,
+      "settleMs": 2353,
+      "settleTimedOut": false,
+      "stopCountAfter": 1,
+      "stopTsAdvanced": true,
+      "canvasClassAfter": ""
+    }
+  ]
+}

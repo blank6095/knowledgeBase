@@ -1,0 +1,13 @@
+PASS  默认关闭：小地图不出现 — 无小地图（默认关闭）
+PASS  显示 tab 勾选后出现 168×112 小地图，且 0 业务请求 — 168×112 @右下角（right=1417 bottom=883），0 业务请求
+PASS  点击小地图跳转相机：center 变化、zoom 不变、engineStop/坐标不变、0 请求 — center (0.0,0.0) → (-295.3,207.1)，zoom=1.62 不变，engineStop/坐标不变，0 请求
+PASS  拖动小地图连续跳转相机（pointer 拖动），0 请求、engineStop 不变 — 拖动后 center 位移=476.9，engineStop 不变，0 请求
+PASS  小地图视口矩形随相机刷新（画布像素随点击变化） — 视口矩形重绘（像素和 9000523 → 6524457）
+PASS  取消勾选后小地图消失 — 小地图已移除
+PASS  桌面布局：小地图不与图例/导航/操作区重叠 — 小地图(1249,771–1417,883) 不与图例/入口重叠
+PASS  移动端 375：小地图不遮挡底部导航、不越界、无横向溢出 — 小地图 188–356 / 583–695，导航 top=742，不重叠、无横向溢出
+PASS  8k fixture 开启小地图：不崩、记录 long task/帧间隔 — 8k 开启 2951ms：longTask max=400ms、帧间隔 max=607ms、续帧 97，未崩溃
+PASS  回归：搜索/详情/右键/一阶 focus/显示 tab 与主题/地图 tab 仍正常 — 搜索 3 条、右键 7 项、详情/一阶 focus、六页签 + 4 力滑块正常
+PASS  主流程 0 console/page error — pageerror=0，console.error=0
+
+=== 11/11 passed, 0 failed ===

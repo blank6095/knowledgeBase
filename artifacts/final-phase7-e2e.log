@@ -1,0 +1,131 @@
+
+> knowledge-base@0.1.0 test:e2e
+> node scripts/run-e2e.mjs
+
+▲ Next.js 16.4.3 (Turbopack)
+- Local:         http://127.0.0.1:3100
+- Network:       http://127.0.0.1:3100
+- Environments: .env.local
+✓ Ready in 667ms
+✓ Running next.config.ts took 46ms
+- Cache Components enabled
+- Partial Prefetching enabled
+
+ GET /login 200 in 1188ms (next.js: 930ms, proxy.ts: 78ms, application-code: 180ms)
+
+Running 6 tests using 6 workers
+
+(node:21704) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11900) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:25076) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:25336) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:25068) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28372) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Route /login is rendering with server caches disabled. For this navigation, Component Metadata in React DevTools will not accurately reflect what is statically prerenderable and runtime prefetchable. See more info here: https://nextjs.org/docs/messages/cache-bypass-in-dev
+ GET /login?next=//example.com 200 in 528ms (next.js: 47ms, proxy.ts: 19ms, application-code: 463ms)
+ GET /login 200 in 523ms (next.js: 114ms, proxy.ts: 112ms, application-code: 296ms)
+ GET /login?next=/notes/test-note-id 200 in 558ms (next.js: 127ms, proxy.ts: 33ms, application-code: 398ms)
+ GET /login?next=/progress 200 in 512ms (next.js: 133ms, proxy.ts: 110ms, application-code: 269ms)
+ GET /login?next=/study/33333333-3333-4333-8333-333333333333 200 in 484ms (next.js: 158ms, proxy.ts: 101ms, application-code: 225ms)
+ GET /login?next=/graph 200 in 499ms (next.js: 202ms, proxy.ts: 102ms, application-code: 195ms)
+ GET /login?next=%2Fnotes 200 in 207ms (next.js: 64ms, proxy.ts: 33ms, application-code: 111ms)
+  ok 2 e2e\auth-graph.spec.ts:5:5 › 未登录访问页面会进入登录页 (1.8s)
+ POST /api/auth/login 200 in 1503ms (next.js: 940ms, proxy.ts: 55ms, application-code: 508ms)
+ POST /api/auth/login 200 in 1517ms (next.js: 1070ms, proxy.ts: 56ms, application-code: 391ms)
+ POST /api/auth/login 200 in 1502ms (next.js: 1153ms, proxy.ts: 75ms, application-code: 274ms)
+ POST /api/auth/login 200 in 1413ms (next.js: 1085ms, proxy.ts: 281ms, application-code: 48ms)
+ POST /api/auth/login 200 in 1139ms (next.js: 1023ms, proxy.ts: 86ms, application-code: 30ms)
+Route /progress is rendering with server caches disabled. For this navigation, Component Metadata in React DevTools will not accurately reflect what is statically prerenderable and runtime prefetchable. See more info here: https://nextjs.org/docs/messages/cache-bypass-in-dev
+Route /graph is rendering with server caches disabled. For this navigation, Component Metadata in React DevTools will not accurately reflect what is statically prerenderable and runtime prefetchable. See more info here: https://nextjs.org/docs/messages/cache-bypass-in-dev
+ GET /progress 200 in 1836ms (next.js: 286ms, proxy.ts: 24ms, application-code: 1526ms)
+ GET /graph 200 in 1892ms (next.js: 1082ms, proxy.ts: 46ms, application-code: 765ms)
+ GET /graph 200 in 1848ms (next.js: 1341ms, proxy.ts: 25ms, application-code: 481ms)
+  ok 1 e2e\auth-graph.spec.ts:14:5 › 登录 next 参数不允许跳出当前站点（非法 next 回图谱） (8.1s)
+  ok 5 e2e\auth-graph.spec.ts:187:5 › 学习复盘展示周期对比和 14 天热力 (8.1s)
+Route /study/[segmentId] is rendering with server caches disabled. For this navigation, Component Metadata in React DevTools will not accurately reflect what is statically prerenderable and runtime prefetchable. See more info here: https://nextjs.org/docs/messages/cache-bypass-in-dev
+  ok 6 e2e\auth-graph.spec.ts:46:5 › 登录后可加载 mock 知识图谱 (8.5s)
+ GET /study/33333333-3333-4333-8333-333333333333 200 in 3.6s (next.js: 1533ms, proxy.ts: 34ms, generate-params: 1925ms, application-code: 119ms)
+Route /notes/[id] is rendering with server caches disabled. For this navigation, Component Metadata in React DevTools will not accurately reflect what is statically prerenderable and runtime prefetchable. See more info here: https://nextjs.org/docs/messages/cache-bypass-in-dev
+ GET /notes/test-note-id 200 in 3.8s (next.js: 1729ms, proxy.ts: 40ms, generate-params: 1913ms, application-code: 126ms)
+  x  4 e2e\auth-graph.spec.ts:81:5 › 主动回忆先作答，再揭晓答案并记录结果 (8.7s)
+  x  3 e2e\auth-graph.spec.ts:126:5 › 选中正文后可请求 AI 解释且不跳转 (8.8s)
+
+
+  1) e2e\auth-graph.spec.ts:81:5 › 主动回忆先作答，再揭晓答案并记录结果 ──────────────────────────────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('HashMap 如何处理哈希冲突？')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByText('HashMap 如何处理哈希冲突？') with timeout 5000ms
+      - waiting for getByText('HashMap 如何处理哈希冲突？')
+        - waiting for "http://127.0.0.1:3100/study/33333333-3333-4333-8333-333333333333" navigation to finish...
+
+
+      115 |   await page.waitForURL('**/study/**');
+      116 |
+    > 117 |   await expect(page.getByText('HashMap 如何处理哈希冲突？')).toBeVisible();
+          |                                                     ^
+      118 |   await expect(page.getByText('主要使用链地址法')).toHaveCount(0);
+      119 |   await page.getByLabel('你的回答').fill('链地址法，长链表会树化');
+      120 |   await page.getByRole('button', { name: '查看参考答案' }).click();
+        at D:\Project\knowledgeBase\e2e\auth-graph.spec.ts:117:53
+
+    Error Context: test-results\auth-graph-主动回忆先作答，再揭晓答案并记录结果\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\auth-graph-主动回忆先作答，再揭晓答案并记录结果\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\auth-graph-主动回忆先作答，再揭晓答案并记录结果\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) e2e\auth-graph.spec.ts:126:5 › 选中正文后可请求 AI 解释且不跳转 ─────────────────────────────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: '索引' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('heading', { name: '索引' }) with timeout 5000ms
+      - waiting for getByRole('heading', { name: '索引' })
+        - waiting for "http://127.0.0.1:3100/notes/test-note-id" navigation to finish...
+
+
+      165 |   await page.getByRole('button', { name: '进入' }).click();
+      166 |   await page.waitForURL('**/notes/test-note-id');
+    > 167 |   await expect(page.getByRole('heading', { name: '索引' })).toBeVisible();
+          |                                                           ^
+      168 |
+      169 |   await page.evaluate(() => {
+      170 |     const paragraph = document.querySelector('.md-body p');
+        at D:\Project\knowledgeBase\e2e\auth-graph.spec.ts:167:59
+
+    Error Context: test-results\auth-graph-选中正文后可请求-AI-解释且不跳转\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\auth-graph-选中正文后可请求-AI-解释且不跳转\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\auth-graph-选中正文后可请求-AI-解释且不跳转\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    e2e\auth-graph.spec.ts:81:5 › 主动回忆先作答，再揭晓答案并记录结果 ───────────────────────────────────────────────
+    e2e\auth-graph.spec.ts:126:5 › 选中正文后可请求 AI 解释且不跳转 ──────────────────────────────────────────────
+  4 passed (10.4s)

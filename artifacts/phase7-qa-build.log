@@ -1,0 +1,76 @@
+
+> knowledge-base@0.1.0 build
+> next build
+
+▲ Next.js 16.4.3 (Turbopack)
+- Environments: .env.local
+✓ Running next.config.ts took 27ms
+- Cache Components enabled
+- Partial Prefetching enabled
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 1250ms
+  Running TypeScript ...
+  Finished TypeScript in 2.6s ...
+  Collecting page data using 19 workers ...
+  Generating static pages using 19 workers (0/35) ...
+  Generating static pages using 19 workers (8/35) 
+  Generating static pages using 19 workers (17/35) 
+  Generating static pages using 19 workers (26/35) 
+✓ Generating static pages using 19 workers (35/35) in 756ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api/ai/aggregate-apply
+├ ƒ /api/ai/aggregate-preview
+├ ƒ /api/ai/ask
+├ ƒ /api/ai/config
+├ ƒ /api/ai/connect
+├ ƒ /api/ai/explain
+├ ƒ /api/ai/split-apply
+├ ƒ /api/ai/split-preview
+├ ƒ /api/ai/test
+├ ƒ /api/ai/usage
+├ ƒ /api/annotations/[id]
+├ ƒ /api/auth/login
+├ ƒ /api/auth/logout
+├ ƒ /api/graph
+├ ƒ /api/learner-profile
+├ ƒ /api/learning/question
+├ ƒ /api/learning/reviews
+├ ƒ /api/learning/today
+├ ƒ /api/learning/weekly
+├ ƒ /api/notes
+├ ƒ /api/notes/[id]
+├ ƒ /api/notes/[id]/annotations
+├ ƒ /api/notes/[id]/segments
+├ ƒ /api/segments/[id]
+├ ƒ /api/segments/[id]/annotations
+├ ƒ /api/segments/[id]/move
+├ ƒ /api/segments/[id]/summary
+├ ƒ /api/segments/[id]/view
+├ ƒ /api/settings
+├ ƒ /api/stats
+├ ○ /ask
+├ ○ /graph
+├ ○ /import
+├ ○ /login
+├ ○ /notes
+├   /notes/[id]
+│ └ ◐ /notes/[id]
+├ ○ /progress
+├   /segments/[id]
+│ └ ◐ /segments/[id]
+├ ○ /settings
+└   /study/[segmentId]
+  └ ◐ /study/[segmentId]
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)             prerendered as static content
+◐  (Partial Prerender)  prerendered as static HTML with dynamic server-streamed content
+ƒ  (Dynamic)            server-rendered on demand
+

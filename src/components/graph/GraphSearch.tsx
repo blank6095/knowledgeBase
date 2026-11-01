@@ -41,9 +41,13 @@ export interface GraphSearchProps {
   onClear: () => void;
 }
 
-/** 顶部中央玻璃浮层：480–560px，移动端随视口收窄（见 U2-2）。 */
-const PANEL_CLASS =
-  'absolute left-1/2 top-20 z-30 w-[min(560px,calc(100vw-1.5rem))] -translate-x-1/2 overflow-hidden rounded-2xl border border-line-strong bg-surface/85 shadow-2xl backdrop-blur-xl';
+/** 输入框复用顶栏搜索按钮的同一布局槽位与外观，结果区独立绝对定位。 */
+const ROOT_CLASS =
+  'pointer-events-auto relative z-30 w-full md:min-w-[360px] md:max-w-[560px] lg:min-w-[480px]';
+const SHELL_CLASS =
+  'flex h-11 w-full items-center gap-2 rounded-xl border border-line bg-surface/65 px-3 text-left text-minor text-faint shadow-lg backdrop-blur-xl';
+const DROPDOWN_CLASS =
+  'absolute right-0 top-[calc(100%+0.5rem)] w-[min(560px,calc(100vw-1.5rem))] overflow-hidden rounded-xl border border-line-strong bg-surface/90 shadow-2xl backdrop-blur-xl md:left-1/2 md:right-auto md:-translate-x-1/2';
 
 /** 与 GraphTopBar 搜索位一致的键位提示视觉。 */
 const KBD_CLASS =
@@ -162,9 +166,9 @@ export default function GraphSearch({
     <section
       ref={panelRef}
       aria-label="搜索知识"
-      className={PANEL_CLASS}
+      className={ROOT_CLASS}
     >
-      <div className="flex items-center gap-2 border-b border-line px-3">
+      <div data-testid="graph-search-shell" className={SHELL_CLASS}>
         <SearchIcon />
         <input
           ref={inputRef}
@@ -186,7 +190,8 @@ export default function GraphSearch({
             onQueryChange(event.target.value);
           }}
           onKeyDown={handleInputKeyDown}
-          className="h-12 min-w-0 flex-1 bg-transparent text-body text-primary outline-none placeholder:text-faint"
+          style={{ outline: 'none' }}
+          className="h-full min-w-0 flex-1 bg-transparent text-minor text-primary outline-none placeholder:text-faint focus-visible:outline-none"
         />
         <span aria-hidden className="hidden shrink-0 items-center gap-1 sm:flex">
           <kbd className={KBD_CLASS}>Ctrl</kbd>
@@ -194,6 +199,7 @@ export default function GraphSearch({
         </span>
       </div>
 
+      <div className={DROPDOWN_CLASS}>
       {results.length > 0 && (
         <ul
           id={listboxId}
@@ -255,6 +261,7 @@ export default function GraphSearch({
         <p aria-hidden className="hidden shrink-0 sm:block">
           ↑↓ 切换 · Enter 选中 · Esc 清除
         </p>
+      </div>
       </div>
     </section>
   );

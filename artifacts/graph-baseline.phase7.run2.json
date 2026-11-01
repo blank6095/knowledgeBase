@@ -1,0 +1,44 @@
+{
+  "capturedAt": "2026-10-31T11:02:59.834Z",
+  "environment": {
+    "platform": "win32",
+    "cpu": "12th Gen Intel(R) Core(TM) i7-12700H",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+    "viewport": "1440x900"
+  },
+  "results": [
+    {
+      "fixture": "graph-small",
+      "nodes": 500,
+      "fixtureBytes": 179537,
+      "firstTickMs": 1070.3000000000466,
+      "engineStopMs": 1724.6000000000931,
+      "fps": 140.2895656515227,
+      "p95FrameMs": 11.599999999860302,
+      "heapBytes": 20284636,
+      "maxLongTaskMs": 272
+    },
+    {
+      "fixture": "graph-mid",
+      "nodes": 5000,
+      "fixtureBytes": 2234824,
+      "firstTickMs": 1380.1000000000931,
+      "engineStopMs": 16502.199999999953,
+      "fps": 3.9548679772013493,
+      "p95FrameMs": 382.89999999990687,
+      "heapBytes": 68886437,
+      "maxLongTaskMs": 236
+    },
+    {
+      "fixture": "graph-large",
+      "nodes": 20000,
+      "fixtureBytes": 3579419,
+      "firstTickMs": 1421.1000000000931,
+      "engineStopMs": 16675.800000000047,
+      "fps": 2.172810893025228,
+      "p95FrameMs": 611.6999999999534,
+      "heapBytes": 86988258,
+      "maxLongTaskMs": 370
+    }
+  ]
+}

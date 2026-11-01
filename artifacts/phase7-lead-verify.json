@@ -1,0 +1,38 @@
+{
+  "checks": {
+    "shown": {
+      "minimap": 1,
+      "engineStop": 5219.599999999977
+    },
+    "clickJump": {
+      "before": {
+        "x": 0,
+        "y": 0,
+        "zoom": 1.6219205321529067
+      },
+      "after": {
+        "x": -285.4989051369223,
+        "y": 160.66564013640198,
+        "zoom": 1.6219205321529067
+      },
+      "moved": true,
+      "engineStopUnchanged": true,
+      "apiRequests": 0
+    },
+    "mobile": {
+      "scrollWidth": 375,
+      "innerWidth": 375,
+      "minimap": {
+        "left": 188,
+        "right": 356,
+        "top": 583,
+        "bottom": 695
+      },
+      "navTop": 742,
+      "overlapNav": false,
+      "noHorizontalOverflow": true
+    }
+  },
+  "consoleErrors": [],
+  "pageErrors": []
+}

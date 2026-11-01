@@ -1,5 +1,7 @@
 'use client';
 
+import type { ReactNode } from 'react';
+
 /**
  * 图谱页顶部悬浮条（U1-4）。
  *
@@ -15,6 +17,8 @@ export interface GraphTopBarProps {
   edgeCount: number;
   fixture?: string | null;
   searchHint?: string;
+  searchOpen?: boolean;
+  searchOverlay?: ReactNode;
   onSearchClick?: () => void;
 }
 
@@ -41,6 +45,8 @@ export default function GraphTopBar({
   edgeCount,
   fixture,
   searchHint,
+  searchOpen = false,
+  searchOverlay,
   onSearchClick,
 }: GraphTopBarProps) {
   const hint = searchHint ?? DEFAULT_SEARCH_HINT;
@@ -62,23 +68,27 @@ export default function GraphTopBar({
 
       {/* 搜索位：占位文案 + Ctrl K；点击回传，本体属 U2-2 */}
       <div className="flex min-w-0 flex-1 justify-center md:px-2">
-        <button
-          type="button"
-          onClick={() => onSearchClick?.()}
-          aria-label="搜索知识（Ctrl K）"
-          className="pointer-events-auto flex h-11 w-full items-center gap-2 rounded-xl border border-line bg-surface/65 px-3 text-left text-minor text-faint shadow-lg backdrop-blur-xl transition-colors duration-150 hover:border-line-strong hover:bg-surface-hover/70 hover:text-muted md:min-w-[360px] md:max-w-[560px] lg:min-w-[480px]"
-        >
-          <IcSearch />
-          <span className="min-w-0 flex-1 truncate">{hint}</span>
-          <span aria-hidden className="hidden shrink-0 items-center gap-1 sm:flex">
-            <kbd className="rounded border border-line bg-app/60 px-1.5 py-0.5 font-mono text-[0.65rem] leading-none text-faint">
-              Ctrl
-            </kbd>
-            <kbd className="rounded border border-line bg-app/60 px-1.5 py-0.5 font-mono text-[0.65rem] leading-none text-faint">
-              K
-            </kbd>
-          </span>
-        </button>
+        {searchOpen ? (
+          searchOverlay
+        ) : (
+          <button
+            type="button"
+            onClick={() => onSearchClick?.()}
+            aria-label="搜索知识（Ctrl K）"
+            className="pointer-events-auto flex h-11 w-full items-center gap-2 rounded-xl border border-line bg-surface/65 px-3 text-left text-minor text-faint shadow-lg backdrop-blur-xl transition-colors duration-150 hover:border-line-strong hover:bg-surface-hover/70 hover:text-muted md:min-w-[360px] md:max-w-[560px] lg:min-w-[480px]"
+          >
+            <IcSearch />
+            <span className="min-w-0 flex-1 truncate">{hint}</span>
+            <span aria-hidden className="hidden shrink-0 items-center gap-1 sm:flex">
+              <kbd className="rounded border border-line bg-app/60 px-1.5 py-0.5 font-mono text-[0.65rem] leading-none text-faint">
+                Ctrl
+              </kbd>
+              <kbd className="rounded border border-line bg-app/60 px-1.5 py-0.5 font-mono text-[0.65rem] leading-none text-faint">
+                K
+              </kbd>
+            </span>
+          </button>
+        )}
       </div>
 
       {/* 统计 + 压测徽标 */}

@@ -1,0 +1,103 @@
+
+> knowledge-base@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.5 D:/Project/knowledgeBase
+
+ ✓ src/lib/__tests__/db-retry.test.ts (11 tests) 297ms
+stderr | src/lib/__tests__/db-resilience-route.test.ts > GET /api/stats · 数据库瞬时不可用 > 无快照可用时返回 503 与中文提示（前端据此展示可重试错误态）
+[db-retry] stats.weakTop3 第 1 次失败（ETIMEDOUT: fetch failed），32ms 后重试
+[db-retry] stats.unreadTop3 第 1 次失败（ETIMEDOUT: fetch failed），5ms 后重试
+[db-retry] stats.tier 第 1 次失败（ETIMEDOUT: fetch failed），65ms 后重试
+[db-retry] stats.readToday 第 1 次失败（ETIMEDOUT: fetch failed），11ms 后重试
+[db-retry] stats.recent 第 1 次失败（ETIMEDOUT: fetch failed），74ms 后重试
+
+stdout | src/lib/__tests__/db-resilience-route.test.ts > GET /api/stats · 数据库瞬时不可用 > 有上一次成功的快照时返回 200 且标记 STALE（页面继续可用）
+[perf] GET /api/stats db=0.3ms transform=0.0ms total=0.3ms aggRows=1
+
+stderr | src/lib/__tests__/db-resilience-route.test.ts > GET /api/stats · 数据库瞬时不可用 > 有上一次成功的快照时返回 200 且标记 STALE（页面继续可用）
+[db-retry] stats.weakTop3 第 1 次失败（ETIMEDOUT: fetch failed），73ms 后重试
+[db-retry] stats.unreadTop3 第 1 次失败（ETIMEDOUT: fetch failed），76ms 后重试
+[db-retry] stats.tier 第 1 次失败（ETIMEDOUT: fetch failed），46ms 后重试
+[db-retry] stats.readToday 第 1 次失败（ETIMEDOUT: fetch failed），6ms 后重试
+[db-retry] stats.recent 第 1 次失败（ETIMEDOUT: fetch failed），70ms 后重试
+
+stderr | src/lib/__tests__/db-resilience-route.test.ts > GET /api/stats · 数据库瞬时不可用 > 有上一次成功的快照时返回 200 且标记 STALE（页面继续可用）
+[db-fallback] stats 数据库不可用，返回陈旧快照（ETIMEDOUT: fetch failed）
+
+stdout | src/lib/__tests__/db-resilience-route.test.ts > GET /api/stats · 数据库瞬时不可用 > 有上一次成功的快照时返回 200 且标记 STALE（页面继续可用）
+[perf] GET /api/stats db=9.2ms transform=0.0ms total=9.2ms aggRows=1 stale=1
+
+ ✓ src/lib/__tests__/db-resilience-route.test.ts (2 tests) 50ms
+ ✓ src/lib/__tests__/security.test.ts (15 tests) 23ms
+ ✓ src/lib/__tests__/dashboard-panel.test.ts (23 tests) 112ms
+ ✓ src/lib/__tests__/learning-plan.test.ts (9 tests) 23ms
+stdout | src/lib/__tests__/stats-route.test.ts > GET /api/stats > 首次请求 MISS：返回全部旧字段与新增 weakTop3/unreadTop3
+[perf] GET /api/stats db=1.5ms transform=0.0ms total=1.5ms aggRows=1
+
+stdout | src/lib/__tests__/stats-route.test.ts > GET /api/stats > 第二次请求 HIT：跳过全部查询且响应体与 MISS 完全一致
+[perf] GET /api/stats db=0.2ms transform=0.0ms total=0.2ms aggRows=1
+
+stdout | src/lib/__tests__/stats-route.test.ts > GET /api/stats > 空库：weakTop3/unreadTop3 为空数组、suggestion 为 null，计数回落 0
+[perf] GET /api/stats db=0.2ms transform=0.0ms total=0.2ms aggRows=1
+
+stdout | src/lib/__tests__/stats-route.test.ts > GET /api/stats > 薄弱查询失败时降级为空清单，不影响其余统计
+[perf] GET /api/stats db=0.6ms transform=0.0ms total=0.6ms aggRows=1
+
+stdout | src/lib/__tests__/stats-route.test.ts > GET /api/stats > 未读精选查询失败时也降级为空清单
+[perf] GET /api/stats db=0.5ms transform=0.0ms total=0.5ms aggRows=1
+
+stdout | src/lib/__tests__/stats-route.test.ts > GET /api/stats > 失效后重新 MISS：invalidateCache(stats) 让下一次请求重新查库
+[perf] GET /api/stats db=0.2ms transform=0.0ms total=0.2ms aggRows=1
+
+stdout | src/lib/__tests__/stats-route.test.ts > GET /api/stats > 失效后重新 MISS：invalidateCache(stats) 让下一次请求重新查库
+[perf] GET /api/stats db=0.2ms transform=0.0ms total=0.2ms aggRows=1
+
+ ✓ src/lib/__tests__/stats-route.test.ts (7 tests) 33ms
+ ✓ src/lib/__tests__/llm-calls.test.ts (3 tests) 25ms
+ ✓ src/lib/__tests__/graph-search.test.ts (12 tests) 18ms
+ ✓ src/lib/__tests__/stream-utils.test.ts (2 tests) 20ms
+ ✓ src/lib/__tests__/splitter.test.ts (15 tests) 16ms
+ ✓ src/lib/__tests__/graph-focus.test.ts (14 tests) 17ms
+ ✓ src/lib/__tests__/today-learning-panel.test.ts (2 tests) 15ms
+ ✓ src/lib/__tests__/ui-feedback.test.tsx (6 tests) 14ms
+ ✓ src/lib/__tests__/graph-map.test.ts (7 tests) 14ms
+ ✓ src/lib/__tests__/ask-context.test.ts (38 tests) 12ms
+ ✓ src/lib/__tests__/proxy.test.ts (3 tests) 12ms
+ ✓ src/lib/__tests__/reviews-route.test.ts (4 tests) 15ms
+ ✓ src/lib/__tests__/secret-crypto.test.ts (3 tests) 11ms
+ ✓ src/lib/__tests__/memory.test.ts (12 tests) 9ms
+ ✓ src/lib/__tests__/cache.test.ts (9 tests) 9ms
+ ✓ src/lib/__tests__/view-route.test.ts (3 tests) 11ms
+ ✓ src/lib/__tests__/graph-preferences.test.ts (9 tests) 8ms
+ ✓ src/lib/__tests__/ui-contrast.test.ts (12 tests) 7ms
+ ✓ src/lib/__tests__/rag.test.ts (8 tests) 6ms
+ ✓ src/lib/__tests__/agent-tools.test.ts (7 tests) 7ms
+ ✓ src/lib/__tests__/graph-mount-utils.test.ts (13 tests) 6ms
+ ✓ src/lib/__tests__/llm.test.ts (11 tests) 7ms
+ ✓ src/lib/__tests__/ui-theme.test.ts (5 tests) 5ms
+ ✓ src/lib/__tests__/cache-stale.test.ts (5 tests) 5ms
+ ✓ src/lib/__tests__/links.test.ts (3 tests) 13ms
+ ✓ src/lib/__tests__/recall-question.test.ts (3 tests) 5ms
+ ✓ src/lib/__tests__/graph-search-visuals.test.ts (5 tests) 5ms
+ ✓ src/lib/__tests__/llm-cache.test.ts (5 tests) 5ms
+ ✓ src/lib/__tests__/llm-cache-write.test.ts (2 tests) 5ms
+ ✓ src/lib/__tests__/ui-geometry.test.ts (8 tests) 4ms
+ ✓ src/lib/__tests__/markdown.test.ts (3 tests) 4ms
+ ✓ src/lib/__tests__/click-intent.test.ts (6 tests) 4ms
+ ✓ src/lib/__tests__/graph-minimap.test.ts (6 tests) 5ms
+ ✓ src/lib/__tests__/login-rate-limit.test.ts (3 tests) 4ms
+ ✓ src/lib/__tests__/annotations.test.ts (6 tests) 5ms
+ ✓ src/lib/__tests__/annotation-migrate.test.ts (3 tests) 4ms
+ ✓ src/lib/__tests__/learner-profile.test.ts (4 tests) 4ms
+ ✓ src/lib/__tests__/segment-edit-card.test.tsx (3 tests) 3ms
+
+ Test Files  43 passed (43)
+      Tests  330 passed (330)
+   Start at  18:51:17
+   Duration  7.35s (import 80%, tests 11%, transform 6%, worker 3%)
+
+    Isolate  43 workers spawned · ~136ms startup each (spawn + environment, per file)
+             at least ~2.79s faster with isolate: false — reuses workers across files instead of one per file
+
