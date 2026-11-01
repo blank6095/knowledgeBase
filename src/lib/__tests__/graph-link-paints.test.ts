@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeLinkPaints, type LinkPaintContext } from '@/lib/graph/graph-state';
-import { KINDS } from '@/lib/graph/graph-state';
+import { computeLinkColor, computeLinkWidth, KINDS } from '@/lib/graph/graph-state';
 import type { GraphLink } from '@/lib/graph/graph-types';
 
 const link = (source: string, target: string, kind = 'wiki', weight = 1): GraphLink => ({
@@ -10,83 +9,51 @@ const link = (source: string, target: string, kind = 'wiki', weight = 1): GraphL
   weight,
 });
 
-const baseCtx: LinkPaintContext = {
-  matchedIds: null,
-  neighborIds: null,
-  pathEdgeKeys: null,
-  hoverSet: null,
-  hoverId: null,
-  focusIds: null,
-  linkWidthMult: 1,
-};
+const noSearch = { matchedIds: null, neighborIds: null };
 
-describe('computeLinkPaints：连线绘制参数预计算', () => {
-  it('无交互态时输出各关系类型的基础色与权重宽度', () => {
-    const a = link('a', 'b', 'wiki', 1);
-    const b = link('b', 'c', 'tag', 0.8);
-    const paints = computeLinkPaints([a, b], baseCtx);
-
-    expect(paints.get(a)).toEqual({ color: KINDS[0].color, width: 1 });
-    expect(paints.get(b)).toEqual({ color: KINDS[1].color, width: Math.max(0.5, 0.8) });
+describe('连线绘制参数：computeLinkColor + computeLinkWidth', () => {
+  it('无交互态时输出各关系类型基础色与权重宽度', () => {
+    const wiki = link('a', 'b', 'wiki', 1);
+    const tag = link('b', 'c', 'tag', 0.8);
+    expect(computeLinkColor(wiki, noSearch, null, null)).toBe(KINDS[0].color);
+    expect(computeLinkColor(tag, noSearch, null, null)).toBe(KINDS[1].color);
+    expect(computeLinkWidth(wiki, null, 1)).toBe(1);
+    expect(computeLinkWidth(tag, null, 1)).toBe(0.8);
   });
 
-  it('悬停端点时宽度 ×1.8', () => {
-    const l = link('a', 'b');
-    const paints = computeLinkPaints([l], { ...baseCtx, hoverId: 'a' });
-    expect(paints.get(l)?.width).toBeCloseTo(1.8, 5);
+  it('悬停端点时颜色提亮、宽度 ×1.8', () => {
+    const value = link('a', 'b');
+    const hoverSet = new Set(['a', 'b']);
+    expect(computeLinkColor(value, noSearch, hoverSet, 'a')).not.toBe(KINDS[0].color);
+    expect(computeLinkWidth(value, 'a', 1)).toBeCloseTo(1.8, 5);
   });
 
-  it('浮层搜索：两端命中走路径提亮色 + 1.8× 宽度；无关边压暗', () => {
+  it('搜索命中路径使用提亮色并应用调用方传入的宽度加成', () => {
     const hit = link('a', 'b');
     const unrelated = link('c', 'd');
-    const paints = computeLinkPaints([hit, unrelated], {
-      ...baseCtx,
-      matchedIds: new Set(['a', 'b']),
-      neighborIds: new Set(),
-    });
-
-    expect(paints.get(hit)?.color).not.toBe(KINDS[0].color); // 命中路径提亮
-    expect(paints.get(hit)?.width).toBeCloseTo(1.8, 5);
-    expect(paints.get(unrelated)?.color).toBe(`${KINDS[0].color}20`); // 压暗
-    expect(paints.get(unrelated)?.width).toBe(1);
+    const search = { matchedIds: new Set(['a', 'b']), neighborIds: new Set<string>() };
+    expect(computeLinkColor(hit, search, null, null)).not.toBe(KINDS[0].color);
+    expect(computeLinkColor(unrelated, search, null, null)).toBe(`${KINDS[0].color}20`);
+    expect(computeLinkWidth(hit, null, 1, 1.8)).toBeCloseTo(1.8, 5);
+    expect(computeLinkWidth(unrelated, null, 1, 1)).toBe(1);
   });
 
-  it('双节点路径边宽度 ×2.2，其余边压暗', () => {
+  it('最短路径边应用 2.2× 宽度加成', () => {
     const onPath = link('a', 'b');
     const offPath = link('c', 'd');
-    const paints = computeLinkPaints([onPath, offPath], {
-      ...baseCtx,
-      pathEdgeKeys: new Set(['a|b']),
-    });
-
-    expect(paints.get(onPath)?.width).toBeCloseTo(2.2, 5);
-    expect(paints.get(offPath)?.color).toBe(`${KINDS[0].color}20`);
+    const search = { ...noSearch, pathEdgeKeys: new Set(['a|b']) };
+    expect(computeLinkWidth(onPath, null, 1, 1, 2.2)).toBeCloseTo(2.2, 5);
+    expect(computeLinkColor(offPath, search, null, null)).toBe(`${KINDS[0].color}20`);
   });
 
-  it('聚焦集合外的边压暗（聚焦优先于悬停）', () => {
-    const inFocus = link('a', 'b');
-    const outFocus = link('c', 'd');
-    const paints = computeLinkPaints([inFocus, outFocus], {
-      ...baseCtx,
-      hoverId: 'c',
-      focusIds: new Set(['a', 'b']),
-    });
-
-    expect(paints.get(outFocus)?.color).toBe(`${KINDS[0].color}20`);
-    expect(paints.get(inFocus)?.color).toBe(KINDS[0].color);
+  it('按 linkWidthMult 缩放，并始终钳制到最小 0.5', () => {
+    const value = link('a', 'b', 'wiki', 1);
+    expect(computeLinkWidth(value, null, 2)).toBe(2);
+    expect(computeLinkWidth(link('a', 'b', 'tag', 0.1), null, 1)).toBe(0.5);
   });
 
-  it('按 linkWidthMult 缩放宽度', () => {
-    const l = link('a', 'b', 'wiki', 1);
-    const paints = computeLinkPaints([l], { ...baseCtx, linkWidthMult: 2 });
-    expect(paints.get(l)?.width).toBe(2);
-  });
-
-  it('以边对象引用为键：同一对象重复计算结果稳定', () => {
-    const l = link('a', 'b');
-    const first = computeLinkPaints([l], baseCtx);
-    const second = computeLinkPaints([l], baseCtx);
-    expect(first.get(l)).toEqual(second.get(l));
-    expect(first.size).toBe(1);
+  it('未知关系类型退回默认深色，不抛错', () => {
+    const unknown = link('a', 'b', 'unknown');
+    expect(computeLinkColor(unknown, noSearch, null, null)).toBe(KINDS[2].color);
   });
 });
