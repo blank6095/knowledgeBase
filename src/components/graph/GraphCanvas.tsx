@@ -48,6 +48,12 @@ declare global {
   }
 }
 
+/**
+ * 触屏命中半径下限（屏幕像素）：粗指针设备上把节点命中区撑到直径 24px。
+ * 只是可点，不是视觉半径——节点本身仍按记忆度大小绘制。
+ */
+const TOUCH_HIT_PX = 12;
+
 // 力导向图依赖 window，仅浏览器渲染
 const Graph = dynamic(() => import('react-force-graph-2d'), { ssr: false }) as unknown as ComponentType<{
   graphData: unknown;
@@ -56,7 +62,7 @@ const Graph = dynamic(() => import('react-force-graph-2d'), { ssr: false }) as u
   backgroundColor?: string;
   nodeLabel?: (n: never) => string;
   nodeCanvasObject?: (n: never, ctx: CanvasRenderingContext2D, globalScale: number) => void;
-  nodePointerAreaPaint?: (n: never, color: string, ctx: CanvasRenderingContext2D) => void;
+  nodePointerAreaPaint?: (n: never, color: string, ctx: CanvasRenderingContext2D, globalScale: number) => void;
   linkColor?: (l: never) => string;
   linkWidth?: (l: never) => number;
   linkDirectionalArrowLength?: number;
@@ -144,6 +150,18 @@ export default function GraphCanvas({
   const { arrows, fadeThreshold, sizeMult, linkWidthMult, nodeStyle, glowMult } = visual;
 
   const wrapRef = useRef<HTMLDivElement>(null);
+  /** 粗指针（触屏）检测：命中区下限只对触屏生效，鼠标端保持原有命中范围 */
+  const coarsePointer = useRef(false);
+  useEffect(() => {
+    const mq = window.matchMedia?.('(pointer: coarse)');
+    if (!mq) return;
+    coarsePointer.current = mq.matches;
+    const onChange = (event: MediaQueryListEvent) => {
+      coarsePointer.current = event.matches;
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
   /** 容器实测尺寸：null = 尚未测量；此时不挂载 Graph，避免先用硬编码尺寸画一遍再重设 */
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   /** 放行挂载 Graph：测量完成后再等一帧，dev 下 StrictMode 的双次挂载会在此合并 */
@@ -333,8 +351,12 @@ export default function GraphCanvas({
     ctx.globalAlpha = 1;
   };
 
-  const paintPointerArea = (node: CanvasNode, color: string, ctx: CanvasRenderingContext2D) => {
-    const r = Math.max(4, (1.6 + Math.sqrt(node.degree ?? 0)) * sizeMult + 3);
+  const paintPointerArea = (node: CanvasNode, color: string, ctx: CanvasRenderingContext2D, globalScale: number) => {
+    const base = Math.max(4, (1.6 + Math.sqrt(node.degree ?? 0)) * sizeMult + 3);
+    // 命中圆按图坐标绘制，屏幕半径 = r × globalScale。默认缩放下节点只有 2~3 屏幕像素，
+    // 手指点不中；粗指针设备把命中半径抬到 ≥TOUCH_HIT_PX 屏幕像素，鼠标端保持原命中范围。
+    const scale = Number.isFinite(globalScale) && globalScale > 0 ? globalScale : 1;
+    const r = coarsePointer.current ? Math.max(base, TOUCH_HIT_PX / scale) : base;
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc(node.x ?? 0, node.y ?? 0, r, 0, 2 * Math.PI);
@@ -416,7 +438,9 @@ export default function GraphCanvas({
               return html;
             }}
             nodeCanvasObject={(n, ctx, gs) => drawNode(n as unknown as CanvasNode, ctx, gs)}
-            nodePointerAreaPaint={(n, color, ctx) => paintPointerArea(n as unknown as CanvasNode, color, ctx)}
+            nodePointerAreaPaint={(n, color, ctx, gs) =>
+              paintPointerArea(n as unknown as CanvasNode, color, ctx, gs)
+            }
             linkColor={(l) =>
               computeLinkColor(
                 l as unknown as GraphLink,

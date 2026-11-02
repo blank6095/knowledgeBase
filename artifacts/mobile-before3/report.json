@@ -1,0 +1,772 @@
+[
+  {
+    "viewport": {
+      "w": 320,
+      "h": 568
+    },
+    "docScrollWidth": 320,
+    "overflowX": 0,
+    "canvas": {
+      "x": 0,
+      "y": 0,
+      "w": 320,
+      "h": 568,
+      "right": 320,
+      "bottom": 568
+    },
+    "nav": {
+      "x": 12,
+      "y": 498,
+      "w": 296,
+      "h": 58,
+      "right": 308,
+      "bottom": 556
+    },
+    "navItemCount": 7,
+    "navItems": [
+      {
+        "x": 15,
+        "y": 505,
+        "w": 44,
+        "h": 44,
+        "right": 59,
+        "bottom": 549
+      },
+      {
+        "x": 54,
+        "y": 505,
+        "w": 44,
+        "h": 44,
+        "right": 98,
+        "bottom": 549
+      },
+      {
+        "x": 92,
+        "y": 505,
+        "w": 44,
+        "h": 44,
+        "right": 136,
+        "bottom": 549
+      },
+      {
+        "x": 131,
+        "y": 505,
+        "w": 44,
+        "h": 44,
+        "right": 175,
+        "bottom": 549
+      },
+      {
+        "x": 169,
+        "y": 505,
+        "w": 44,
+        "h": 44,
+        "right": 213,
+        "bottom": 549
+      },
+      {
+        "x": 208,
+        "y": 505,
+        "w": 44,
+        "h": 44,
+        "right": 252,
+        "bottom": 549
+      },
+      {
+        "x": 257,
+        "y": 505,
+        "w": 44,
+        "h": 44,
+        "right": 301,
+        "bottom": 549
+      }
+    ],
+    "navItemMin": 44,
+    "navItemsOverflow": 8,
+    "header": {
+      "x": 12,
+      "y": 12,
+      "w": 296,
+      "h": 44,
+      "right": 308,
+      "bottom": 56
+    },
+    "legend": {
+      "x": 196,
+      "y": 444,
+      "w": 112,
+      "h": 44,
+      "right": 308,
+      "bottom": 488
+    },
+    "actionButtons": [
+      {
+        "label": "◉ 学习地图",
+        "rect": {
+          "x": 68,
+          "y": 64,
+          "w": 91,
+          "h": 44,
+          "right": 159,
+          "bottom": 108
+        }
+      },
+      {
+        "label": "联系两概念",
+        "rect": {
+          "x": 167,
+          "y": 64,
+          "w": 89,
+          "h": 44,
+          "right": 256,
+          "bottom": 108
+        }
+      },
+      {
+        "label": "关系图谱设置",
+        "rect": {
+          "x": 264,
+          "y": 64,
+          "w": 44,
+          "h": 44,
+          "right": 308,
+          "bottom": 108
+        }
+      }
+    ],
+    "graphBbox": {
+      "w": 2712,
+      "h": 2691
+    },
+    "zoom": 0.504,
+    "offenders": [],
+    "panel": {
+      "rect": {
+        "x": 12,
+        "y": 128,
+        "w": 296,
+        "h": 294,
+        "bottom": 422
+      },
+      "navTop": 498,
+      "overlapWithNav": 0,
+      "scrollable": false
+    }
+  },
+  {
+    "viewport": {
+      "w": 360,
+      "h": 640
+    },
+    "docScrollWidth": 360,
+    "overflowX": 0,
+    "canvas": {
+      "x": 0,
+      "y": 0,
+      "w": 360,
+      "h": 640,
+      "right": 360,
+      "bottom": 640
+    },
+    "nav": {
+      "x": 12,
+      "y": 570,
+      "w": 336,
+      "h": 58,
+      "right": 348,
+      "bottom": 628
+    },
+    "navItemCount": 7,
+    "navItems": [
+      {
+        "x": 19,
+        "y": 577,
+        "w": 44,
+        "h": 44,
+        "right": 63,
+        "bottom": 621
+      },
+      {
+        "x": 64,
+        "y": 577,
+        "w": 44,
+        "h": 44,
+        "right": 108,
+        "bottom": 621
+      },
+      {
+        "x": 109,
+        "y": 577,
+        "w": 44,
+        "h": 44,
+        "right": 153,
+        "bottom": 621
+      },
+      {
+        "x": 154,
+        "y": 577,
+        "w": 44,
+        "h": 44,
+        "right": 198,
+        "bottom": 621
+      },
+      {
+        "x": 199,
+        "y": 577,
+        "w": 44,
+        "h": 44,
+        "right": 243,
+        "bottom": 621
+      },
+      {
+        "x": 244,
+        "y": 577,
+        "w": 44,
+        "h": 44,
+        "right": 288,
+        "bottom": 621
+      },
+      {
+        "x": 297,
+        "y": 577,
+        "w": 44,
+        "h": 44,
+        "right": 341,
+        "bottom": 621
+      }
+    ],
+    "navItemMin": 44,
+    "navItemsOverflow": 8,
+    "header": {
+      "x": 12,
+      "y": 12,
+      "w": 336,
+      "h": 44,
+      "right": 348,
+      "bottom": 56
+    },
+    "legend": {
+      "x": 236,
+      "y": 516,
+      "w": 112,
+      "h": 44,
+      "right": 348,
+      "bottom": 560
+    },
+    "actionButtons": [
+      {
+        "label": "◉ 学习地图",
+        "rect": {
+          "x": 108,
+          "y": 64,
+          "w": 91,
+          "h": 44,
+          "right": 199,
+          "bottom": 108
+        }
+      },
+      {
+        "label": "联系两概念",
+        "rect": {
+          "x": 207,
+          "y": 64,
+          "w": 89,
+          "h": 44,
+          "right": 296,
+          "bottom": 108
+        }
+      },
+      {
+        "label": "关系图谱设置",
+        "rect": {
+          "x": 304,
+          "y": 64,
+          "w": 44,
+          "h": 44,
+          "right": 348,
+          "bottom": 108
+        }
+      }
+    ],
+    "graphBbox": {
+      "w": 2712,
+      "h": 2691
+    },
+    "zoom": 0.504,
+    "offenders": [],
+    "panel": {
+      "rect": {
+        "x": 48,
+        "y": 128,
+        "w": 300,
+        "h": 294,
+        "bottom": 422
+      },
+      "navTop": 570,
+      "overlapWithNav": 0,
+      "scrollable": false
+    }
+  },
+  {
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "docScrollWidth": 390,
+    "overflowX": 0,
+    "canvas": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "right": 390,
+      "bottom": 844
+    },
+    "nav": {
+      "x": 12,
+      "y": 774,
+      "w": 366,
+      "h": 58,
+      "right": 378,
+      "bottom": 832
+    },
+    "navItemCount": 7,
+    "navItems": [
+      {
+        "x": 21,
+        "y": 781,
+        "w": 44,
+        "h": 44,
+        "right": 65,
+        "bottom": 825
+      },
+      {
+        "x": 71,
+        "y": 781,
+        "w": 44,
+        "h": 44,
+        "right": 115,
+        "bottom": 825
+      },
+      {
+        "x": 121,
+        "y": 781,
+        "w": 44,
+        "h": 44,
+        "right": 165,
+        "bottom": 825
+      },
+      {
+        "x": 172,
+        "y": 781,
+        "w": 44,
+        "h": 44,
+        "right": 216,
+        "bottom": 825
+      },
+      {
+        "x": 222,
+        "y": 781,
+        "w": 44,
+        "h": 44,
+        "right": 266,
+        "bottom": 825
+      },
+      {
+        "x": 272,
+        "y": 781,
+        "w": 44,
+        "h": 44,
+        "right": 316,
+        "bottom": 825
+      },
+      {
+        "x": 327,
+        "y": 781,
+        "w": 44,
+        "h": 44,
+        "right": 371,
+        "bottom": 825
+      }
+    ],
+    "navItemMin": 44,
+    "navItemsOverflow": 8,
+    "header": {
+      "x": 12,
+      "y": 12,
+      "w": 366,
+      "h": 44,
+      "right": 378,
+      "bottom": 56
+    },
+    "legend": {
+      "x": 266,
+      "y": 720,
+      "w": 112,
+      "h": 44,
+      "right": 378,
+      "bottom": 764
+    },
+    "actionButtons": [
+      {
+        "label": "◉ 学习地图",
+        "rect": {
+          "x": 138,
+          "y": 64,
+          "w": 91,
+          "h": 44,
+          "right": 229,
+          "bottom": 108
+        }
+      },
+      {
+        "label": "联系两概念",
+        "rect": {
+          "x": 237,
+          "y": 64,
+          "w": 89,
+          "h": 44,
+          "right": 326,
+          "bottom": 108
+        }
+      },
+      {
+        "label": "关系图谱设置",
+        "rect": {
+          "x": 334,
+          "y": 64,
+          "w": 44,
+          "h": 44,
+          "right": 378,
+          "bottom": 108
+        }
+      }
+    ],
+    "graphBbox": {
+      "w": 2712,
+      "h": 2691
+    },
+    "zoom": 0.504,
+    "offenders": [],
+    "panel": {
+      "rect": {
+        "x": 78,
+        "y": 128,
+        "w": 300,
+        "h": 294,
+        "bottom": 422
+      },
+      "navTop": 774,
+      "overlapWithNav": 0,
+      "scrollable": false
+    }
+  },
+  {
+    "viewport": {
+      "w": 412,
+      "h": 915
+    },
+    "docScrollWidth": 412,
+    "overflowX": 0,
+    "canvas": {
+      "x": 0,
+      "y": 0,
+      "w": 412,
+      "h": 915,
+      "right": 412,
+      "bottom": 915
+    },
+    "nav": {
+      "x": 12,
+      "y": 845,
+      "w": 388,
+      "h": 58,
+      "right": 400,
+      "bottom": 903
+    },
+    "navItemCount": 7,
+    "navItems": [
+      {
+        "x": 23,
+        "y": 852,
+        "w": 44,
+        "h": 44,
+        "right": 67,
+        "bottom": 896
+      },
+      {
+        "x": 77,
+        "y": 852,
+        "w": 44,
+        "h": 44,
+        "right": 121,
+        "bottom": 896
+      },
+      {
+        "x": 131,
+        "y": 852,
+        "w": 44,
+        "h": 44,
+        "right": 175,
+        "bottom": 896
+      },
+      {
+        "x": 184,
+        "y": 852,
+        "w": 44,
+        "h": 44,
+        "right": 228,
+        "bottom": 896
+      },
+      {
+        "x": 238,
+        "y": 852,
+        "w": 44,
+        "h": 44,
+        "right": 282,
+        "bottom": 896
+      },
+      {
+        "x": 292,
+        "y": 852,
+        "w": 44,
+        "h": 44,
+        "right": 336,
+        "bottom": 896
+      },
+      {
+        "x": 349,
+        "y": 852,
+        "w": 44,
+        "h": 44,
+        "right": 393,
+        "bottom": 896
+      }
+    ],
+    "navItemMin": 44,
+    "navItemsOverflow": 8,
+    "header": {
+      "x": 12,
+      "y": 12,
+      "w": 388,
+      "h": 44,
+      "right": 400,
+      "bottom": 56
+    },
+    "legend": {
+      "x": 288,
+      "y": 791,
+      "w": 112,
+      "h": 44,
+      "right": 400,
+      "bottom": 835
+    },
+    "actionButtons": [
+      {
+        "label": "◉ 学习地图",
+        "rect": {
+          "x": 160,
+          "y": 64,
+          "w": 91,
+          "h": 44,
+          "right": 251,
+          "bottom": 108
+        }
+      },
+      {
+        "label": "联系两概念",
+        "rect": {
+          "x": 259,
+          "y": 64,
+          "w": 89,
+          "h": 44,
+          "right": 348,
+          "bottom": 108
+        }
+      },
+      {
+        "label": "关系图谱设置",
+        "rect": {
+          "x": 356,
+          "y": 64,
+          "w": 44,
+          "h": 44,
+          "right": 400,
+          "bottom": 108
+        }
+      }
+    ],
+    "graphBbox": {
+      "w": 2712,
+      "h": 2691
+    },
+    "zoom": 0.504,
+    "offenders": [],
+    "panel": {
+      "rect": {
+        "x": 100,
+        "y": 128,
+        "w": 300,
+        "h": 294,
+        "bottom": 422
+      },
+      "navTop": 845,
+      "overlapWithNav": 0,
+      "scrollable": false
+    }
+  },
+  {
+    "viewport": {
+      "w": 844,
+      "h": 390
+    },
+    "docScrollWidth": 844,
+    "overflowX": 0,
+    "canvas": {
+      "x": 0,
+      "y": 0,
+      "w": 844,
+      "h": 390,
+      "right": 844,
+      "bottom": 390
+    },
+    "nav": {
+      "x": 12,
+      "y": 20,
+      "w": 56,
+      "h": 351,
+      "right": 68,
+      "bottom": 371
+    },
+    "navItemCount": 7,
+    "navItems": [
+      {
+        "x": 18,
+        "y": 27,
+        "w": 44,
+        "h": 44,
+        "right": 62,
+        "bottom": 71
+      },
+      {
+        "x": 18,
+        "y": 75,
+        "w": 44,
+        "h": 44,
+        "right": 62,
+        "bottom": 119
+      },
+      {
+        "x": 18,
+        "y": 123,
+        "w": 44,
+        "h": 44,
+        "right": 62,
+        "bottom": 167
+      },
+      {
+        "x": 18,
+        "y": 171,
+        "w": 44,
+        "h": 44,
+        "right": 62,
+        "bottom": 215
+      },
+      {
+        "x": 18,
+        "y": 219,
+        "w": 44,
+        "h": 44,
+        "right": 62,
+        "bottom": 263
+      },
+      {
+        "x": 18,
+        "y": 267,
+        "w": 44,
+        "h": 44,
+        "right": 62,
+        "bottom": 311
+      },
+      {
+        "x": 19,
+        "y": 320,
+        "w": 44,
+        "h": 44,
+        "right": 63,
+        "bottom": 364
+      }
+    ],
+    "navItemMin": 44,
+    "navItemsOverflow": 76,
+    "header": {
+      "x": 80,
+      "y": 12,
+      "w": 748,
+      "h": 44,
+      "right": 828,
+      "bottom": 56
+    },
+    "legend": {
+      "x": 716,
+      "y": 330,
+      "w": 112,
+      "h": 44,
+      "right": 828,
+      "bottom": 374
+    },
+    "actionButtons": [
+      {
+        "label": "◉ 学习地图",
+        "rect": {
+          "x": 588,
+          "y": 64,
+          "w": 91,
+          "h": 44,
+          "right": 679,
+          "bottom": 108
+        }
+      },
+      {
+        "label": "联系两概念",
+        "rect": {
+          "x": 687,
+          "y": 64,
+          "w": 89,
+          "h": 44,
+          "right": 776,
+          "bottom": 108
+        }
+      },
+      {
+        "label": "关系图谱设置",
+        "rect": {
+          "x": 784,
+          "y": 64,
+          "w": 44,
+          "h": 44,
+          "right": 828,
+          "bottom": 108
+        }
+      }
+    ],
+    "graphBbox": {
+      "w": 2712,
+      "h": 2691
+    },
+    "zoom": 0.504,
+    "offenders": [],
+    "panel": {
+      "rect": {
+        "x": 528,
+        "y": 128,
+        "w": 300,
+        "h": 246,
+        "bottom": 374
+      },
+      "navTop": 20,
+      "overlapWithNav": 355,
+      "scrollable": true
+    }
+  }
+]

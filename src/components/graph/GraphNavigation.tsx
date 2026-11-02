@@ -164,14 +164,16 @@ export default function GraphNavigation({ items, onLogout }: GraphNavigationProp
       aria-label="知识宇宙导航"
       className="pointer-events-auto fixed inset-x-3 bottom-3 z-30 flex items-center rounded-2xl border border-line bg-surface/80 p-1.5 shadow-2xl backdrop-blur-xl md:inset-x-auto md:bottom-auto md:left-3 md:top-1/2 md:w-14 md:-translate-y-1/2 md:flex-col md:items-stretch"
     >
-      <ul className="flex min-w-0 flex-1 items-center justify-between gap-0.5 md:flex-col md:gap-1">
+      <ul className="flex min-w-0 flex-1 items-center justify-between gap-0 sm:gap-0.5 md:flex-col md:gap-1">
         {items.map((item) => {
           const active = item.active ?? matchesPath(pathname, item.href);
           const disabled = Boolean(item.disabled);
           const Icon = resolveIcon(item);
           const ariaLabel = item.hint ? `${item.label}（${item.hint}）` : item.label;
           const itemClass = [
-            'relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors duration-150',
+            // 移动端：宽度交给 li 均分（w-full），避免固定 44px 在 320px 屏上互相重叠；
+            // md 起恢复 44×44 的固定图标格。
+            'relative flex h-11 w-full min-w-0 items-center justify-center rounded-xl transition-colors duration-150 md:w-11 md:flex-none',
             disabled
               ? 'cursor-not-allowed text-faint-decor/70'
               : active
@@ -228,13 +230,13 @@ export default function GraphNavigation({ items, onLogout }: GraphNavigationProp
       </ul>
 
       {onLogout && (
-        <div className="ml-1 flex shrink-0 items-center border-l border-line pl-1 md:ml-0 md:mt-1 md:w-full md:border-l-0 md:border-t md:pl-0 md:pt-1">
-          <div className="group relative flex flex-1 justify-center md:flex-none">
+        <div className="ml-0 flex w-10 shrink-0 items-center justify-center border-l border-line md:mt-1 md:w-full md:border-l-0 md:border-t md:pt-1">
+          <div className="group relative flex w-full justify-center">
             <button
               type="button"
               aria-label="退出登录"
               onClick={() => onLogout()}
-              className="flex h-11 w-11 items-center justify-center rounded-xl text-faint transition-colors duration-150 hover:bg-surface-hover hover:text-danger"
+              className="flex h-11 w-full items-center justify-center rounded-xl text-faint transition-colors duration-150 hover:bg-surface-hover hover:text-danger md:w-11"
             >
               <IcLogout className="h-5 w-5" />
             </button>

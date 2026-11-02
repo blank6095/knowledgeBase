@@ -157,6 +157,10 @@ export default function KnowledgeUniverse() {
   const [error, setError] = useState('');
   // 压测模式：?fixture=<name> 加载 /fixtures/<name>.json（由 scripts/gen-graph-data.mjs 生成）。
   const [fixture, setFixture] = useState<string | null>(null);
+  /** 重新加载用的自增键：错误/慢网时由用户触发，effect 依赖它重跑 */
+  const [reloadKey, setReloadKey] = useState(0);
+  /** 慢网提示：10s 仍未返回时给出「重新加载」出口（移动端 2MB+ 图谱弱网下常见） */
+  const [slowLoad, setSlowLoad] = useState(false);
 
   // ---- 视觉状态层 ----
   const [panelOpen, setPanelOpen] = useState(INITIAL_INTERACTION.panelOpen);
@@ -231,15 +235,29 @@ export default function KnowledgeUniverse() {
 
   useEffect(() => {
     const f = new URLSearchParams(window.location.search).get('fixture');
+    let cancelled = false;
+    // 慢网兜底：旧实现只有骨架屏，弱网下用户无法区分「仍在加载」与「已经卡死」。
+    const slowTimer = setTimeout(() => {
+      if (!cancelled) setSlowLoad(true);
+    }, 10_000);
     api<GraphPayload>(f ? `/fixtures/${f}.json` : '/api/graph')
       .then((d) => {
+        if (cancelled) return;
         tooltipCache.current.clear();
         setFixture(f);
         setNodes(d.nodes);
         setLinks(d.edges);
       })
-      .catch((e) => setError(e.message));
-  }, []);
+      .catch((e) => {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : '图谱加载失败');
+      })
+      .finally(() => clearTimeout(slowTimer));
+    return () => {
+      cancelled = true;
+      clearTimeout(slowTimer);
+    };
+  }, [reloadKey]);
 
   // U3-5：水合后应用环境到 <html data-graph-env>（只切 CSS，不请求、不重排）
   useEffect(() => {
@@ -388,10 +406,37 @@ export default function KnowledgeUniverse() {
     [hoverId, adjacency, graphData.nodes],
   );
 
+  /** 重新拉取图谱：清错误、回到骨架屏并重跑 effect（错误态与慢网提示共用） */
+  const reloadGraph = () => {
+    setError('');
+    setSlowLoad(false);
+    setNodes(null);
+    setLinks([]);
+    setReloadKey((key) => key + 1);
+  };
+
   if (error) {
     return (
-      <div className="p-6">
-        <p className="text-body text-danger">{error}</p>
+      <div className="flex h-[100dvh] w-full items-center justify-center bg-canvas px-6">
+        <div className="card w-full max-w-sm px-6 py-8 text-center" role="alert">
+          <p className="font-display text-subtitle text-primary">图谱没能加载</p>
+          <p className="mt-2 break-words text-minor text-danger">{error}</p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={reloadGraph}
+              className="min-h-11 rounded-lg bg-accent px-4 text-minor font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
+            >
+              重新加载
+            </button>
+            <Link
+              href="/notes"
+              className="flex min-h-11 items-center rounded-lg border border-line px-4 text-minor text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
+            >
+              返回知识库
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -632,11 +677,28 @@ export default function KnowledgeUniverse() {
       {/* 页面级主标题：视觉上由顶栏品牌承担，这里保留无障碍标题（也兼容既有 E2E 断言） */}
       <h1 className="sr-only">关系图谱</h1>
       {nodes === null ? (
-        <div className="flex h-full items-center justify-center" role="status" aria-label="加载中">
+        <div
+          className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center"
+          role="status"
+          aria-live="polite"
+          aria-label="加载中"
+        >
           <div className="w-64 space-y-2">
             <Skeleton className="h-3 w-40" />
             <Skeleton className="h-3 w-28" />
           </div>
+          {slowLoad && (
+            <>
+              <p className="text-minor text-muted">网络较慢，图谱仍在加载…</p>
+              <button
+                type="button"
+                onClick={reloadGraph}
+                className="min-h-11 rounded-lg border border-line px-4 text-minor text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
+              >
+                重新加载
+              </button>
+            </>
+          )}
         </div>
       ) : nodes.length === 0 ? (
         <div className="flex h-full items-center justify-center px-6">
@@ -798,7 +860,7 @@ export default function KnowledgeUniverse() {
           </div>
 
           {panelOpen && (
-            <div className="absolute right-3 top-32 z-30 max-h-[calc(100dvh-9rem)] w-[300px] max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-line bg-elevated p-3 text-tag shadow-2xl md:right-4">
+            <div className="absolute right-3 top-32 z-30 max-h-[calc(100dvh-13rem)] w-[300px] max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-line bg-elevated p-3 text-tag shadow-2xl md:right-4 md:max-h-[calc(100dvh-9rem)]">
               <div className="mb-3 flex gap-0.5 border-b border-line pb-2">
                 {TABS.map((t) => (
                   <button
