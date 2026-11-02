@@ -1,0 +1,124 @@
+[
+  {
+    "viewport": {
+      "w": 375,
+      "h": 812
+    },
+    "overflowX": 0,
+    "zoom": 0.2,
+    "logoVisible": false,
+    "search": {
+      "x": 12,
+      "y": 12,
+      "w": 284,
+      "h": 44,
+      "right": 296,
+      "bottom": 56
+    },
+    "desktopActions": 0,
+    "hasMoreActions": true,
+    "navItemCount": 4,
+    "navHeight": 58,
+    "navBottomGap": 12,
+    "legend": {
+      "x": 319,
+      "y": 688,
+      "w": 44,
+      "h": 44,
+      "right": 363,
+      "bottom": 732
+    },
+    "sheetVisible": true
+  },
+  {
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "overflowX": 0,
+    "zoom": 0.2,
+    "logoVisible": false,
+    "search": {
+      "x": 12,
+      "y": 12,
+      "w": 299,
+      "h": 44,
+      "right": 311,
+      "bottom": 56
+    },
+    "desktopActions": 0,
+    "hasMoreActions": true,
+    "navItemCount": 4,
+    "navHeight": 58,
+    "navBottomGap": 12,
+    "legend": {
+      "x": 334,
+      "y": 720,
+      "w": 44,
+      "h": 44,
+      "right": 378,
+      "bottom": 764
+    },
+    "sheetVisible": true
+  },
+  {
+    "viewport": {
+      "w": 768,
+      "h": 1024
+    },
+    "overflowX": 0,
+    "zoom": 0.259,
+    "logoVisible": true,
+    "search": {
+      "x": 198,
+      "y": 12,
+      "w": 391,
+      "h": 44,
+      "right": 588,
+      "bottom": 56
+    },
+    "desktopActions": 2,
+    "hasMoreActions": false,
+    "navItemCount": 7,
+    "navHeight": 351,
+    "navBottomGap": 336,
+    "legend": {
+      "x": 640,
+      "y": 964,
+      "w": 112,
+      "h": 44,
+      "right": 752,
+      "bottom": 1008
+    }
+  },
+  {
+    "viewport": {
+      "w": 1440,
+      "h": 900
+    },
+    "overflowX": 0,
+    "zoom": 0.31,
+    "logoVisible": true,
+    "search": {
+      "x": 377,
+      "y": 12,
+      "w": 560,
+      "h": 44,
+      "right": 937,
+      "bottom": 56
+    },
+    "desktopActions": 2,
+    "hasMoreActions": false,
+    "navItemCount": 7,
+    "navHeight": 351,
+    "navBottomGap": 274,
+    "legend": {
+      "x": 1312,
+      "y": 840,
+      "w": 112,
+      "h": 44,
+      "right": 1424,
+      "bottom": 884
+    }
+  }
+]

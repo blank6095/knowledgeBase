@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Noto_Serif_SC } from "next/font/google";
 import "./globals.css";
 import AppShell from "@/components/AppShell";
@@ -23,6 +23,16 @@ const notoSerifSc = Noto_Serif_SC({
 export const metadata: Metadata = {
   title: "个人知识库",
   description: "跨设备访问、自动关联、打开即学习的个人知识库",
+};
+
+/**
+ * viewport-fit=cover：让页面铺满刘海屏/圆角屏，安全区由各处的 pt-safe / pb-safe 让出。
+ * 不开的话 env(safe-area-inset-*) 恒为 0，底部导航会被 Home Indicator 压住。
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

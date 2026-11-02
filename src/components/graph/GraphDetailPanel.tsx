@@ -66,7 +66,7 @@ export default function GraphDetailPanel({
   return (
     <aside
       aria-label="知识点详情"
-      className="absolute inset-x-0 bottom-20 z-30 max-h-[60%] overflow-y-auto rounded-t-2xl border border-line bg-elevated/95 p-4 shadow-2xl backdrop-blur md:inset-y-3 md:left-auto md:right-3 md:bottom-3 md:max-h-none md:w-[380px] md:rounded-xl"
+      className="absolute inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 max-h-[60%] overflow-y-auto rounded-t-2xl border border-line bg-elevated/95 p-4 shadow-2xl backdrop-blur md:inset-y-3 md:left-auto md:right-3 md:bottom-3 md:max-h-none md:w-[380px] md:rounded-xl"
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">

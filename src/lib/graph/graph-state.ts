@@ -45,6 +45,8 @@ export interface FGInstance {
   /** U2-4 视口平滑聚焦（force-graph 已提供；无参调用时为 getter） */
   centerAt(x?: number, y?: number, durationMs?: number): unknown;
   zoom(scale?: number, durationMs?: number): unknown;
+  /** 自动适配全部节点到视口（首屏布局收敛后调用；force-graph 原生方法） */
+  zoomToFit(durationMs?: number, padding?: number): unknown;
   /** 图坐标 ↔ 画布像素坐标（U4-5 长按命中、验收脚本定位节点） */
   graph2ScreenCoords(x: number, y: number): { x: number; y: number };
   screen2GraphCoords(x: number, y: number): { x: number; y: number };

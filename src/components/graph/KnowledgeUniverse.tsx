@@ -164,6 +164,9 @@ export default function KnowledgeUniverse() {
 
   // ---- 视觉状态层 ----
   const [panelOpen, setPanelOpen] = useState(INITIAL_INTERACTION.panelOpen);
+  /** 移动端「更多操作」下拉：桌面三个动作按钮在 <md 收起进这里 */
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const [tab, setTab] = useState<TabKey>(INITIAL_INTERACTION.tab);
   const [tierOn, setTierOn] = useState<Record<string, boolean>>(INITIAL_VISUAL.tierOn);
   const [kindOn, setKindOn] = useState<Record<string, boolean>>(INITIAL_VISUAL.kindOn);
@@ -280,6 +283,24 @@ export default function KnowledgeUniverse() {
     },
     [],
   );
+
+  // 移动端「更多操作」下拉：点外部或按 Esc 收起
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && actionsMenuRef.current?.contains(event.target)) return;
+      setActionsOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActionsOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [actionsOpen]);
 
   const adjacency = useMemo(() => buildAdjacency(links), [links]);
   // 旧「筛选」面板关键词（保留兼容）；浮层搜索激活时优先用浮层命中集合
@@ -743,7 +764,7 @@ export default function KnowledgeUniverse() {
             onNodeContextMenu={(node, x, y) => setContextMenu({ node, x, y })}
           >
             {compareMode && (
-              <div className="absolute bottom-20 left-1/2 z-20 w-[min(34rem,calc(100%-2rem))] -translate-x-1/2 rounded-xl border border-line bg-elevated/95 px-4 py-3 shadow-2xl backdrop-blur md:bottom-4">
+              <div className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-20 w-[min(34rem,calc(100%-2rem))] -translate-x-1/2 rounded-xl border border-line bg-elevated/95 px-4 py-3 shadow-2xl backdrop-blur md:bottom-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-tag text-muted">
                     已选 {compareIds.length}/2
@@ -816,51 +837,128 @@ export default function KnowledgeUniverse() {
             </div>
           )}
 
-          {/* 右侧动作簇：学习地图 + 联系两概念 + 图谱设置 */}
-          <div className="absolute right-3 top-16 z-20 flex items-center gap-2 md:right-4">
-            <button
-              onClick={() => {
-                setPanelOpen(true);
-                setTab('地图');
-              }}
-              aria-pressed={mapEnabled}
-              className={`flex min-h-11 items-center rounded-lg border px-3 text-tag transition-colors duration-150 ${
-                mapEnabled
-                  ? 'border-accent bg-accent/15 text-accent-strong'
-                  : 'border-line bg-surface/90 text-muted backdrop-blur hover:bg-surface-hover hover:text-primary'
-              }`}
-            >
-              ◉ 学习地图
-            </button>
-            <button
-              onClick={() => {
-                setCompareMode((value) => !value);
-                setCompareIds([]);
-                setConnectError('');
-              }}
-              className={`flex min-h-11 items-center rounded-lg border px-3 text-tag transition-colors duration-150 ${
-                compareMode
-                  ? 'border-accent bg-accent text-accent-ink'
-                  : 'border-line bg-surface/90 text-muted backdrop-blur hover:bg-surface-hover hover:text-primary'
-              }`}
-            >
-              联系两概念
-            </button>
-            <button
-              onClick={() => setPanelOpen((o) => !o)}
-              aria-label="关系图谱设置"
-              className={`flex h-11 w-11 items-center justify-center rounded-lg border text-body transition-colors duration-150 ${
-                panelOpen
-                  ? 'border-accent bg-accent text-accent-ink'
-                  : 'border-line bg-surface/90 text-muted backdrop-blur hover:bg-surface-hover hover:text-primary'
-              }`}
-            >
-              ⚙
-            </button>
+          {/* 右侧动作簇：≥md 三个按钮直排；<md 收进「更多操作」下拉，避免遮挡画布 */}
+          <div
+            ref={actionsMenuRef}
+            className="absolute right-3 top-[calc(4rem+env(safe-area-inset-top))] z-20 md:right-4 md:top-16"
+          >
+            <div className="hidden items-center gap-2 md:flex">
+              <button
+                onClick={() => {
+                  setPanelOpen(true);
+                  setTab('地图');
+                }}
+                aria-pressed={mapEnabled}
+                className={`flex min-h-11 items-center rounded-lg border px-3 text-tag transition-colors duration-150 ${
+                  mapEnabled
+                    ? 'border-accent bg-accent/15 text-accent-strong'
+                    : 'border-line bg-surface/90 text-muted backdrop-blur hover:bg-surface-hover hover:text-primary'
+                }`}
+              >
+                ◉ 学习地图
+              </button>
+              <button
+                onClick={() => {
+                  setCompareMode((value) => !value);
+                  setCompareIds([]);
+                  setConnectError('');
+                }}
+                className={`flex min-h-11 items-center rounded-lg border px-3 text-tag transition-colors duration-150 ${
+                  compareMode
+                    ? 'border-accent bg-accent text-accent-ink'
+                    : 'border-line bg-surface/90 text-muted backdrop-blur hover:bg-surface-hover hover:text-primary'
+                }`}
+              >
+                联系两概念
+              </button>
+              <button
+                onClick={() => setPanelOpen((o) => !o)}
+                aria-label="关系图谱设置"
+                className={`flex h-11 w-11 items-center justify-center rounded-lg border text-body transition-colors duration-150 ${
+                  panelOpen
+                    ? 'border-accent bg-accent text-accent-ink'
+                    : 'border-line bg-surface/90 text-muted backdrop-blur hover:bg-surface-hover hover:text-primary'
+                }`}
+              >
+                ⚙
+              </button>
+            </div>
+
+            <div className="relative md:hidden">
+              <button
+                type="button"
+                aria-label="更多操作"
+                aria-haspopup="menu"
+                aria-expanded={actionsOpen}
+                onClick={() => setActionsOpen((open) => !open)}
+                className={`flex h-11 w-11 items-center justify-center rounded-lg border backdrop-blur transition-colors duration-150 ${
+                  actionsOpen
+                    ? 'border-accent bg-accent/15 text-accent-strong'
+                    : 'border-line bg-surface/90 text-muted hover:bg-surface-hover hover:text-primary'
+                }`}
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden>
+                  <circle cx="5" cy="12" r="1.5" fill="currentColor" />
+                  <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+                  <circle cx="19" cy="12" r="1.5" fill="currentColor" />
+                </svg>
+              </button>
+
+              {actionsOpen && (
+                <div
+                  role="menu"
+                  aria-label="更多操作"
+                  className="absolute right-0 top-[calc(100%+0.5rem)] w-44 rounded-xl border border-line bg-elevated p-1 text-minor shadow-2xl"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setActionsOpen(false);
+                      setPanelOpen(true);
+                      setTab('地图');
+                    }}
+                    className={`flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 text-left transition-colors duration-150 hover:bg-surface-hover ${
+                      mapEnabled ? 'text-accent' : 'text-muted hover:text-primary'
+                    }`}
+                  >
+                    <span aria-hidden>◉</span> 学习地图
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setActionsOpen(false);
+                      setCompareMode((value) => !value);
+                      setCompareIds([]);
+                      setConnectError('');
+                    }}
+                    className={`flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 text-left transition-colors duration-150 hover:bg-surface-hover ${
+                      compareMode ? 'text-accent' : 'text-muted hover:text-primary'
+                    }`}
+                  >
+                    <span aria-hidden>⇄</span> 联系两概念
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setActionsOpen(false);
+                      setPanelOpen((o) => !o);
+                    }}
+                    className={`flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 text-left transition-colors duration-150 hover:bg-surface-hover ${
+                      panelOpen ? 'text-accent' : 'text-muted hover:text-primary'
+                    }`}
+                  >
+                    <span aria-hidden>⚙</span> 图谱设置
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {panelOpen && (
-            <div className="absolute right-3 top-32 z-30 max-h-[calc(100dvh-13rem)] w-[300px] max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-line bg-elevated p-3 text-tag shadow-2xl md:right-4 md:max-h-[calc(100dvh-9rem)]">
+            <div className="absolute right-3 top-[calc(8rem+env(safe-area-inset-top))] z-30 max-h-[calc(100dvh-13rem-env(safe-area-inset-top))] w-[300px] max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-line bg-elevated p-3 text-tag shadow-2xl md:right-4 md:top-32 md:max-h-[calc(100dvh-9rem)]">
               <div className="mb-3 flex gap-0.5 border-b border-line pb-2">
                 {TABS.map((t) => (
                   <button
@@ -1117,7 +1215,7 @@ export default function KnowledgeUniverse() {
         }
         onSearchClick={() => setSearchOpen(true)}
       />
-      <GraphNavigation items={navItems} onLogout={logout} />
+      <GraphNavigation items={navItems} onLogout={logout} compactOnMobile />
       {contextMenu && (
         <GraphContextMenu
           x={contextMenu.x}

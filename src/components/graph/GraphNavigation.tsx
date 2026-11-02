@@ -1,16 +1,19 @@
 'use client';
 
 /**
- * 图谱页左侧悬浮窄导航（U1-3）。
+ * 图谱页悬浮导航（U1-3）。
  *
  * - 桌面（≥md）：固定于视口左侧中部，宽 56px，仅图标；hover/键盘聚焦时显示自定义
  *   中文 tooltip（不是原生 title）。
- * - 移动端（<md）：折叠为底部横向条，图标均分，单入口触控目标 44×44px。
+ * - 移动端（<md）：底部横向条。默认均分展示全部入口；
+ *   `compactOnMobile`（图谱页）只留 3 个核心入口 +「更多」，其余收进底部抽屉，
+ *   把单入口从 ~40px 提升到 ~76px，并避开 Home Indicator（bottom-safe-3）。
  * - 组件只负责渲染与导航；active 由 `item.active` 显式传入（缺省时按当前 pathname
  *   兜底推导），`disabled` 项不跳转、置灰并在 tooltip 中展示 `item.hint`。
  */
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import type { ReactElement, SVGProps } from 'react';
 
 export interface GraphNavItem {
@@ -27,6 +30,8 @@ export interface GraphNavItem {
 export interface GraphNavigationProps {
   items: GraphNavItem[];
   onLogout?: () => void;
+  /** 移动端只保留 3 个核心入口 +「更多」抽屉；桌面左栏不受影响 */
+  compactOnMobile?: boolean;
 }
 
 type IconProps = SVGProps<SVGSVGElement>;
@@ -105,6 +110,18 @@ const IcLogout: IconComponent = (p) => (
   </svg>
 );
 
+/** 移动端「更多」入口：横向省略号 */
+const IcMore: IconComponent = (p) => (
+  <svg {...svgProps} {...p}>
+    <circle cx="5" cy="12" r="1.5" />
+    <circle cx="12" cy="12" r="1.5" />
+    <circle cx="19" cy="12" r="1.5" />
+  </svg>
+);
+
+/** 紧凑模式下保留在底部条的核心入口（其余进「更多」抽屉） */
+const MOBILE_CORE_KEYS = ['universe', 'library', 'assistant'];
+
 /** key 语义 → 图标；未知 key 再按 href 兜底，最后用知识宇宙图标 */
 const ICON_BY_KEY: Record<string, IconComponent> = {
   universe: IcUniverse,
@@ -156,13 +173,25 @@ const TOOLTIP_CLASS = [
  * 图谱页悬浮导航。桌面为左侧中部竖向窄栏，<md 为底部横向条。
  * 退出按钮仅在传入 onLogout 时渲染（放在底部/末端分组）。
  */
-export default function GraphNavigation({ items, onLogout }: GraphNavigationProps) {
+export default function GraphNavigation({ items, onLogout, compactOnMobile = false }: GraphNavigationProps) {
   const pathname = usePathname() ?? '/';
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  // 抽屉打开时按 Esc 关闭（触屏也有遮罩点击）
+  useEffect(() => {
+    if (!sheetOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSheetOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [sheetOpen]);
 
   return (
-    <nav
+    <>
+      <nav
       aria-label="知识宇宙导航"
-      className="pointer-events-auto fixed inset-x-3 bottom-3 z-30 flex items-center rounded-2xl border border-line bg-surface/80 p-1.5 shadow-2xl backdrop-blur-xl md:inset-x-auto md:bottom-auto md:left-3 md:top-1/2 md:w-14 md:-translate-y-1/2 md:flex-col md:items-stretch"
+      className="pointer-events-auto fixed inset-x-3 bottom-safe-3 z-30 flex items-center rounded-2xl border border-line bg-surface/80 p-1.5 shadow-2xl backdrop-blur-xl md:inset-x-auto md:bottom-auto md:left-3 md:top-1/2 md:w-14 md:-translate-y-1/2 md:flex-col md:items-stretch"
     >
       <ul className="flex min-w-0 flex-1 items-center justify-between gap-0 sm:gap-0.5 md:flex-col md:gap-1">
         {items.map((item) => {
@@ -190,7 +219,9 @@ export default function GraphNavigation({ items, onLogout }: GraphNavigationProp
           return (
             <li
               key={item.key}
-              className="group relative flex min-w-0 flex-1 justify-center md:flex-none"
+              className={`group relative min-w-0 flex-1 justify-center md:flex-none ${
+                compactOnMobile && !MOBILE_CORE_KEYS.includes(item.key) ? 'hidden md:flex' : 'flex'
+              }`}
             >
               {item.href && !disabled ? (
                 <Link
@@ -227,10 +258,28 @@ export default function GraphNavigation({ items, onLogout }: GraphNavigationProp
             </li>
           );
         })}
+        {compactOnMobile && (
+          <li className="flex min-w-0 flex-1 justify-center md:hidden">
+            <button
+              type="button"
+              aria-label="更多导航"
+              aria-haspopup="dialog"
+              aria-expanded={sheetOpen}
+              onClick={() => setSheetOpen(true)}
+              className="relative flex h-11 w-full min-w-0 items-center justify-center rounded-xl text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
+            >
+              <IcMore className="h-5 w-5" />
+            </button>
+          </li>
+        )}
       </ul>
 
       {onLogout && (
-        <div className="ml-0 flex w-10 shrink-0 items-center justify-center border-l border-line md:mt-1 md:w-full md:border-l-0 md:border-t md:pt-1">
+        <div
+          className={`${
+            compactOnMobile ? 'hidden md:flex' : 'flex'
+          } ml-0 w-10 shrink-0 items-center justify-center border-l border-line md:mt-1 md:w-full md:border-l-0 md:border-t md:pt-1`}
+        >
           <div className="group relative flex w-full justify-center">
             <button
               type="button"
@@ -246,6 +295,85 @@ export default function GraphNavigation({ items, onLogout }: GraphNavigationProp
           </div>
         </div>
       )}
-    </nav>
+      </nav>
+
+      {/* 移动端「更多」抽屉：非核心入口与退出集中到底部面板；桌面不渲染 */}
+      {compactOnMobile && sheetOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <button
+            type="button"
+            aria-label="关闭更多导航"
+            onClick={() => setSheetOpen(false)}
+            className="absolute inset-0 bg-black/55 backdrop-blur-sm"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="更多导航"
+            className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-line bg-elevated px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-2xl"
+          >
+            <div aria-hidden className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
+            <ul className="space-y-1">
+              {items.map((item) => {
+                const active = item.active ?? matchesPath(pathname, item.href);
+                const disabled = Boolean(item.disabled);
+                const Icon = resolveIcon(item);
+                const rowClass = `flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-body transition-colors duration-150 ${
+                  disabled
+                    ? 'cursor-not-allowed text-faint-decor/70'
+                    : active
+                      ? 'bg-accent/10 text-accent'
+                      : 'text-muted hover:bg-surface-hover hover:text-primary'
+                }`;
+                return (
+                  <li key={item.key}>
+                    {item.href && !disabled ? (
+                      <Link
+                        href={item.href}
+                        className={rowClass}
+                        aria-current={active ? 'page' : undefined}
+                        onClick={() => setSheetOpen(false)}
+                      >
+                        <Icon className="h-5 w-5" />
+                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                        {active && <span className="text-tag text-accent">当前</span>}
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => {
+                          if (disabled) return;
+                          item.onSelect?.();
+                          setSheetOpen(false);
+                        }}
+                        className={rowClass}
+                      >
+                        <Icon className="h-5 w-5" />
+                        <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+                        {item.hint && <span className="text-tag text-faint">{item.hint}</span>}
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            {onLogout && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSheetOpen(false);
+                  onLogout();
+                }}
+                className="mt-2 flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-body text-danger transition-colors duration-150 hover:bg-danger/10"
+              >
+                <IcLogout className="h-5 w-5" />
+                退出登录
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

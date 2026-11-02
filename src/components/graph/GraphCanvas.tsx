@@ -54,6 +54,42 @@ declare global {
  */
 const TOUCH_HIT_PX = 12;
 
+/** 单帧最多绘制的标签数：占位剔除的 O(n²) 上限，也避免满屏文字 */
+const MAX_LABELS = 90;
+
+/**
+ * 首屏自适配的最小倍率。
+ * 视口装不下整张图时，zoomToFit 会把节点压到亚像素（500 节点 @375px 实测约 0.08 倍），
+ * 整张图退化成不可读的雾团；低于该值改为「按可读倍率缩放 + 包围盒居中」。
+ */
+const MIN_FIT_ZOOM = 0.2;
+
+/** 布局收敛后的首屏取景：视口够用就 zoomToFit，装不下则保底可读倍率并居中 */
+function fitGraphView(fg: FGInstance, nodes: readonly CanvasNode[], size: { w: number; h: number }): void {
+  const padding = size.w < 768 ? 28 : 32;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const node of nodes) {
+    if (typeof node.x !== 'number' || typeof node.y !== 'number') continue;
+    minX = Math.min(minX, node.x);
+    maxX = Math.max(maxX, node.x);
+    minY = Math.min(minY, node.y);
+    maxY = Math.max(maxY, node.y);
+  }
+  if (!Number.isFinite(minX)) return;
+  const bboxW = Math.max(1, maxX - minX);
+  const bboxH = Math.max(1, maxY - minY);
+  const fit = Math.min((size.w - padding * 2) / bboxW, (size.h - padding * 2) / bboxH);
+  if (fit >= MIN_FIT_ZOOM) {
+    fg.zoomToFit(420, padding);
+    return;
+  }
+  fg.centerAt((minX + maxX) / 2, (minY + maxY) / 2, 420);
+  fg.zoom(MIN_FIT_ZOOM, 420);
+}
+
 // 力导向图依赖 window，仅浏览器渲染
 const Graph = dynamic(() => import('react-force-graph-2d'), { ssr: false }) as unknown as ComponentType<{
   graphData: unknown;
@@ -75,6 +111,8 @@ const Graph = dynamic(() => import('react-force-graph-2d'), { ssr: false }) as u
   onNodeDragEnd?: (n: never) => void;
   onEngineTick?: () => void;
   onEngineStop?: () => void;
+  /** 每帧绘制开始（用于重置本帧的标签占位表） */
+  onRenderFramePre?: (ctx: CanvasRenderingContext2D, globalScale: number) => void;
   maxZoom?: number;
   /** 首帧前预热的迭代次数：把首帧从随机初始位置推到较合理的布局 */
   warmupTicks?: number;
@@ -162,6 +200,11 @@ export default function GraphCanvas({
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
+  /** 首屏只自适配一次：拖拽/筛选引起的再次停引擎不再抢用户视角 */
+  const autoFitDone = useRef(false);
+  /** 本帧已被占用的标签矩形（图坐标）：同屏几百个节点时避免标签互相压字 */
+  const labelRects = useRef<{ l: number; r: number; t: number; b: number }[]>([]);
+
   /** 容器实测尺寸：null = 尚未测量；此时不挂载 Graph，避免先用硬编码尺寸画一遍再重设 */
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   /** 放行挂载 Graph：测量完成后再等一帧，dev 下 StrictMode 的双次挂载会在此合并 */
@@ -277,7 +320,11 @@ export default function GraphCanvas({
     if (!paint) return;
     const r = Math.max(2.2, (1.6 + Math.sqrt(node.degree ?? 0)) * sizeMult);
     // 悬停视觉放大 1.15×（命中半径 paintPointerArea 不变）；搜索命中再放大 1.12×
-    const drawR = (isHover || isCompared ? r * 1.15 : r) * (isHit ? 1.12 : 1);
+    const scaledR = (isHover || isCompared ? r * 1.15 : r) * (isHit ? 1.12 : 1);
+    // 触屏 + 小倍率（zoomToFit 之后）给视觉半径一个屏幕下限：
+    // 否则 0.2 倍下节点只剩 0.4~1px，整张图看起来像噪声。鼠标端不做此放大。
+    const minScreenR = coarsePointer.current ? 2.6 / Math.max(globalScale, 0.001) : 0;
+    const drawR = Math.max(scaledR, minScreenR);
     // 灯光隐喻：光晕半径∝记忆度；悬停白热加倍；搜索命中外发光增强；U3-4 光晕倍率
     const glow =
       (2 + 10 * node.memory) *
@@ -335,20 +382,46 @@ export default function GraphCanvas({
     }
 
     // 标签：悬停常显；邻接固定 0.85（高度数枢纽限前 12）；其余按褪色阈值渐显
-    let labelAlpha = Math.max(0, Math.min(1, (globalScale - fadeThreshold) * 1.6)) * alpha;
+    // 触屏把褪色阈值下调（默认 1.2 → 0.66）：手机常用倍率在 0.6~1.2，
+    // 沿用桌面阈值会导致「适度缩放也一个标签都看不到」。
+    const labelThreshold = coarsePointer.current ? fadeThreshold * 0.55 : fadeThreshold;
+    let labelAlpha = Math.max(0, Math.min(1, (globalScale - labelThreshold) * 1.6)) * alpha;
     if (isHover) labelAlpha = alpha;
     else if (hoverId && inHover && (!labelIds || labelIds.has(node.id))) labelAlpha = 0.85;
     if (labelAlpha > 0.02) {
-      const fontSize = Math.max(10 / globalScale, 3);
+      const fontSize = Math.max((coarsePointer.current ? 11 : 10) / globalScale, 3);
       ctx.globalAlpha = labelAlpha;
       ctx.font = `${fontSize}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillStyle = isHover ? CANVAS.hoverLabel : CANVAS.label;
       const label = node.title.length > 14 ? `${node.title.slice(0, 13)}…` : node.title;
-      ctx.fillText(label, x, y + drawR + 1);
+      const labelTop = y + drawR + 1;
+      // 中文按 1em/字 估算宽度（避免每帧 measureText）；与已画标签相交则跳过
+      const labelW = label.length * fontSize;
+      if (isHover || reserveLabelRect(x - labelW / 2, labelTop, labelW, fontSize)) {
+        ctx.fillText(label, x, labelTop);
+      }
     }
     ctx.globalAlpha = 1;
+  };
+
+  /**
+   * 标签占位剔除：按图坐标做矩形相交检测，已被占用的区域不再画第二个标签。
+   * 悬停标签不参与剔除（永远可读）；MAX_LABELS 兜住极端密度下的 O(n²)。
+   */
+  const reserveLabelRect = (left: number, top: number, width: number, height: number): boolean => {
+    const rects = labelRects.current;
+    // 触屏屏幕小，标签上限更低，否则 1 倍左右仍会显得拥挤
+    const limit = coarsePointer.current ? 45 : MAX_LABELS;
+    if (rects.length >= limit) return false;
+    for (const rect of rects) {
+      if (left < rect.r + 4 && left + width > rect.l - 4 && top < rect.b + 4 && top + height > rect.t - 4) {
+        return false;
+      }
+    }
+    rects.push({ l: left, r: left + width, t: top, b: top + height });
+    return true;
   };
 
   const paintPointerArea = (node: CanvasNode, color: string, ctx: CanvasRenderingContext2D, globalScale: number) => {
@@ -437,6 +510,10 @@ export default function GraphCanvas({
               tooltipCache.current.set(d.id, html);
               return html;
             }}
+            // 每帧重绘前清空标签占位表（标签剔除只在单帧内生效）
+            onRenderFramePre={() => {
+              labelRects.current.length = 0;
+            }}
             nodeCanvasObject={(n, ctx, gs) => drawNode(n as unknown as CanvasNode, ctx, gs)}
             nodePointerAreaPaint={(n, color, ctx, gs) =>
               paintPointerArea(n as unknown as CanvasNode, color, ctx, gs)
@@ -486,6 +563,11 @@ export default function GraphCanvas({
               window.__kbGraphNodePositions = positions;
               window.__kbGraphEngineStop = performance.now();
               window.dispatchEvent(new Event('kb:graph-engine-stop'));
+              // 布局收敛后做首屏取景：移动端小视口必须重新 fit，否则默认倍率只露出图的一角。
+              if (!autoFitDone.current && size && graphData.nodes.length > 0 && fgRef.current) {
+                autoFitDone.current = true;
+                fitGraphView(fgRef.current, graphData.nodes, size);
+              }
             }}
           />
         </div>

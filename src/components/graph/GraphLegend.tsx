@@ -31,7 +31,7 @@ const FALLBACK_UNREAD: GraphLegendTier = { label: '未读', color: '#55504a' };
 const FALLBACK_STRONG: GraphLegendTier = { label: '长明', color: '#f2c069' };
 
 const SHELL_CLASS =
-  'pointer-events-auto absolute bottom-20 right-3 z-20 max-w-[calc(100vw-1.5rem)] rounded-xl border border-line bg-elevated/95 shadow-2xl backdrop-blur md:bottom-4 md:right-4';
+  'pointer-events-auto absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] right-3 z-20 max-w-[calc(100vw-1.5rem)] rounded-xl border border-line bg-elevated/95 shadow-2xl backdrop-blur md:bottom-4 md:right-4';
 
 export default function GraphLegend({
   tiers,
@@ -57,14 +57,20 @@ export default function GraphLegend({
         aria-expanded={false}
         aria-label="展开记忆度图例"
         onClick={() => setOpen(true)}
-        className={`${SHELL_CLASS} inline-flex min-h-11 items-center gap-2 px-3 text-tag text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary`}
+        className={`${SHELL_CLASS} inline-flex h-11 w-11 items-center justify-center p-0 text-tag text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary md:h-11 md:w-auto md:gap-2 md:px-3`}
       >
+        {/* 移动端只留一个渐变圆点（44×44 触控区），md 起恢复渐变条 + 文字 */}
         <span
           aria-hidden
-          className="h-2 w-10 shrink-0 rounded-full"
+          className="h-2.5 w-2.5 shrink-0 rounded-full md:hidden"
           style={{ background: barBackground }}
         />
-        <span className="whitespace-nowrap">记忆度</span>
+        <span
+          aria-hidden
+          className="hidden h-2 w-10 shrink-0 rounded-full md:block"
+          style={{ background: barBackground }}
+        />
+        <span className="hidden whitespace-nowrap md:inline">记忆度</span>
       </button>
     );
   }

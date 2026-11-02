@@ -54,10 +54,10 @@ export default function GraphTopBar({
   return (
     <header
       aria-label="知识宇宙顶栏"
-      className="pointer-events-none absolute left-3 right-3 top-3 z-20 flex items-center gap-2 md:left-20 md:right-4 md:gap-3"
+      className="pointer-events-none absolute left-3 right-3 top-3 z-20 flex items-center gap-2 pt-safe md:left-20 md:right-4 md:gap-3"
     >
-      {/* 产品标识 */}
-      <div className="flex shrink-0 items-center gap-1.5 rounded-xl border border-line bg-surface/70 px-2.5 py-2 backdrop-blur-xl md:px-3">
+      {/* 产品标识：移动端让位给搜索框（隐藏），md 起恢复 */}
+      <div className="hidden shrink-0 items-center gap-1.5 rounded-xl border border-line bg-surface/70 px-2.5 py-2 backdrop-blur-xl md:flex md:px-3">
         <span aria-hidden className="text-body leading-none text-accent">
           ✦
         </span>
@@ -67,7 +67,7 @@ export default function GraphTopBar({
       </div>
 
       {/* 搜索位：占位文案 + Ctrl K；点击回传，本体属 U2-2 */}
-      <div className="flex min-w-0 flex-1 justify-center md:px-2">
+      <div className="flex w-full min-w-0 flex-1 justify-center md:px-2">
         {searchOpen ? (
           searchOverlay
         ) : (

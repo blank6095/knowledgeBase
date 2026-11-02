@@ -53,6 +53,21 @@ html {
   color-scheme: dark;
 }
 
+/*
+ * 安全区工具类（配合 layout.tsx 的 viewport-fit=cover）：
+ * 刘海屏/Home Indicator 会覆盖视口边缘，交互元素必须让出 env(safe-area-inset-*)。
+ * 无刘海设备 env() 解析为 0，桌面端零影响。
+ */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility bottom-safe-3 {
+  bottom: calc(0.75rem + env(safe-area-inset-bottom));
+}
+
 /* 锚点跳转平滑滚动；减少动态效果时直跳 */
 @media (prefers-reduced-motion: no-preference) {
   html {

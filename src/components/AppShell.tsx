@@ -45,12 +45,18 @@ function Shell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-app">
+    <div
+      className={
+        immersive
+          ? 'min-h-screen bg-app'
+          : 'min-h-screen bg-app pt-safe pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]'
+      }
+    >
       {!immersive && <GraphNavigation items={items} onLogout={logout} />}
       <div className={immersive ? 'h-[100dvh] overflow-hidden' : 'flex min-h-screen flex-col'}>
         <main className={immersive ? 'h-full' : 'flex-1 px-4 pb-24 pt-3 md:py-6 md:pl-24 md:pr-6'}>{children}</main>
         {!immersive && (
-          <footer className="border-t border-line py-3 text-center text-tag text-faint md:pl-24">
+          <footer className="border-t border-line pb-safe pt-3 text-center text-tag text-faint md:pl-24">
             知识宇宙 · Neon + Cloudflare R2 + Vercel
           </footer>
         )}
