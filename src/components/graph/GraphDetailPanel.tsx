@@ -6,7 +6,9 @@
  * 纯展示组件：数据、加载/错误态与五个操作全部由 KnowledgeUniverse 传入；
  * 桌面固定右栏，移动端为底部 Drawer（限高可滚动）。可点区域 ≥44px（G17）。
  */
+import { useState } from 'react';
 import InlineFeedback from '@/components/InlineFeedback';
+import { previewNeighbors } from '@/lib/graph/graph-neighbor-preview';
 import { MEMORY_TIER_LABELS, memoryTier } from '@/lib/memory';
 
 export interface GraphDetailNeighbor {
@@ -32,6 +34,8 @@ export interface GraphDetailPanelProps {
   status: 'loading' | 'error' | 'ok';
   data: GraphDetailData | null;
   error?: string;
+  /** 图谱节点名：详情接口返回前/失败时用作标题（FE-009） */
+  title?: string;
   /** 0=未展开；1=一阶邻居；2=二阶邻居（U4-1 循环切换） */
   focusDepth: 0 | 1 | 2;
   onClose: () => void;
@@ -53,6 +57,7 @@ export default function GraphDetailPanel({
   status,
   data,
   error,
+  title,
   focusDepth,
   onClose,
   onRetry,
@@ -63,16 +68,27 @@ export default function GraphDetailPanel({
   onAsk,
   onSelectNeighbor,
 }: GraphDetailPanelProps) {
+  /**
+   * 记录哪个节点处于「展开全部」状态。用 id 而非布尔值：
+   * 切换到另一个节点时自动收起，不必额外 effect 重置。
+   */
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const expanded = data !== null && expandedId === data.id;
+  const neighbors = data?.neighbors ?? [];
+  // UX-12：默认 8 条 +「展开全部 / 收起」，>8 条的关联同样可达
+  const { visible: visibleNeighbors, hasMore: hasMoreNeighbors } = previewNeighbors(neighbors, expanded);
+
   return (
     <aside
       aria-label="知识点详情"
-      className="absolute inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 max-h-[60%] overflow-y-auto rounded-t-2xl border border-line bg-elevated/95 p-4 shadow-2xl backdrop-blur md:inset-y-3 md:left-auto md:right-3 md:bottom-3 md:max-h-none md:w-[380px] md:rounded-xl"
+      className="absolute inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 max-h-[60%] overflow-y-auto rounded-t-2xl border border-line bg-elevated/95 p-4 shadow-2xl backdrop-blur md:inset-y-3 md:left-auto md:right-safe-3 md:bottom-3 md:max-h-none md:w-[380px] md:rounded-xl"
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-tag uppercase tracking-wide text-faint">知识点</p>
           <h2 className="mt-1 font-display text-card font-semibold leading-snug text-primary">
-            {status === 'ok' && data ? data.title : '加载中…'}
+            {/* FE-009：加载中/失败时也显示节点名，不再一直停在「加载中…」 */}
+            {(status === 'ok' && data ? data.title : title) ?? (status === 'loading' ? '加载中…' : '知识点详情')}
           </h2>
         </div>
         <button
@@ -141,23 +157,35 @@ export default function GraphDetailPanel({
 
           <div>
             <p className="text-tag uppercase tracking-wide text-faint">直接关联</p>
-            {data.neighbors.length === 0 ? (
+            {neighbors.length === 0 ? (
               <p className="mt-1.5 text-tag text-faint">暂无直接关联</p>
             ) : (
-              <ul className="mt-1.5 space-y-1">
-                {data.neighbors.slice(0, 8).map((neighbor) => (
-                  <li key={`${neighbor.kind}-${neighbor.id}`}>
-                    <button
-                      type="button"
-                      onClick={() => onSelectNeighbor(neighbor.id)}
-                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-minor text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
-                    >
-                      <span className="min-w-0 flex-1 truncate">{neighbor.title}</span>
-                      <span className="shrink-0 text-tag text-faint">{KIND_LABELS[neighbor.kind] ?? neighbor.kind}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="mt-1.5 space-y-1">
+                  {visibleNeighbors.map((neighbor) => (
+                    <li key={`${neighbor.kind}-${neighbor.id}`}>
+                      <button
+                        type="button"
+                        onClick={() => onSelectNeighbor(neighbor.id)}
+                        className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-left text-minor text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
+                      >
+                        <span className="min-w-0 flex-1 truncate">{neighbor.title}</span>
+                        <span className="shrink-0 text-tag text-faint">{KIND_LABELS[neighbor.kind] ?? neighbor.kind}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {hasMoreNeighbors && (
+                  <button
+                    type="button"
+                    aria-expanded={expanded}
+                    onClick={() => setExpandedId(expanded ? null : data?.id ?? null)}
+                    className="mt-1 flex min-h-11 w-full items-center justify-center rounded-lg border border-line text-tag text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
+                  >
+                    {expanded ? '收起' : `展开全部（${neighbors.length}）`}
+                  </button>
+                )}
+              </>
             )}
           </div>
 

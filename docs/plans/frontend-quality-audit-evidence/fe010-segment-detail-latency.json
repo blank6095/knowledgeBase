@@ -1,0 +1,131 @@
+{
+  "issue": "FE-010",
+  "title": "/segments/[id] 详情接口显著偏慢",
+  "capturedAt": "2026-11-03",
+  "environment": {
+    "database": "真实 Neon serverless HTTP 驱动（drizzle-orm/neon-http）",
+    "dataScale": "真实库 15 段 / 4 文档",
+    "server": "next dev 16.4.3（Turbopack），127.0.0.1:3311"
+  },
+  "rootCause": {
+    "conclusion": "不是慢查询，也不是表大小或查询计划问题，而是「两批串行数据库往返」叠加到 Neon 的网络 RTT",
+    "detail": "旧实现 q1 取 segment、q2 再取文档标题 + 邻居，两批串行各约 260ms，单次往返 RTT 约 270-310ms；实测三种取数方式（Promise.all 两条 HTTP 约 293ms / db.batch 一条 HTTP 约 282ms / 单条 CTE 约 272ms）差异极小，瓶颈是 RTT 本身",
+    "serverTimingBefore": "两段各约 260ms",
+    "serverTimingAfter": "单段 db;dur=300.0（MISS）/ db;dur=0.0（HIT）"
+  },
+  "fix": {
+    "roundTripReduction": "压成一轮并行：q1 = segments LEFT JOIN documents（顺带取 document title），q2 = links LEFT JOIN alias(segments,'neighbor')（一次拿到全部边 + 对端段字段，替代原第 3、4 次查询）",
+    "cache": {
+      "file": "src/lib/segment-cache.ts",
+      "type": "进程内 TTL 缓存（独立于 src/lib/cache.ts）",
+      "ttlMs": 30000,
+      "staleTtlMs": 900000,
+      "maxEntries": 64,
+      "stores": "原始行（SegmentRaw）而非最终 payload —— memory 按时间指数衰减，必须读取时现算，缓存算好的 memory 会冻结灯点",
+      "invalidation": "PATCH/DELETE/move/导入/新增段/AI split-aggregate/文档 PATCH-DELETE 整体失效；view 上报与 summary 走精确 patchSegmentCache，不清空"
+    },
+    "degrade": "DB 不可用且存在过期快照时返回 X-Cache: STALE 兜底，无快照才返回 503",
+    "observability": "响应头新增 X-Cache（HIT/MISS/STALE）与 Server-Timing（db/transform/total）"
+  },
+  "dbLayerBenchmark": {
+    "method": "真实 Neon 库，15 段 × 10 轮 = 150 样本（不含 HTTP 层）",
+    "oldPath": {
+      "label": "旧路径（两批串行 DB 往返）",
+      "n": 150,
+      "p50": 573.5,
+      "p95": 1590.5,
+      "min": 543.0,
+      "max": 3180.2,
+      "mean": 770.5
+    },
+    "newPath": {
+      "label": "新路径（一轮并行 join）",
+      "n": 150,
+      "p50": 289.7,
+      "p95": 1103.5,
+      "min": 266.7,
+      "max": 2285.5,
+      "mean": 455.2
+    },
+    "cacheHitTransformOnly": {
+      "label": "缓存命中（仅 transform + 序列化）",
+      "n": 200,
+      "p50": 0.0,
+      "p95": 0.0,
+      "min": 0.0,
+      "max": 1.4,
+      "mean": 0.0
+    },
+    "note": "DB 层 p50 由 573.5ms 降至 289.7ms（-49.5%），但仍受 RTT 主导；要达成 warm p50 <200ms 必须靠缓存"
+  },
+  "httpLayerBenchmark": {
+    "method": "端到端 fetch 打真实 next dev 服务器，连续 40 次请求，按响应头 X-Cache 自动分组",
+    "cacheStateCounts": {
+      "MISS": 1,
+      "HIT": 39
+    },
+    "warm": {
+      "label": "热（缓存命中）",
+      "n": 39,
+      "p50": 19.9,
+      "p95": 29.3,
+      "min": 15.4,
+      "max": 42.7,
+      "mean": 21.0
+    },
+    "cold": {
+      "label": "冷（未命中，含 DB 往返 + dev 编译）",
+      "n": 1,
+      "p50": 1629.5,
+      "p95": 1629.5,
+      "min": 1629.5,
+      "max": 1629.5,
+      "mean": 1629.5
+    },
+    "serverSideTimingOnHit": "Server-Timing: db;dur=0.0, transform;dur=0.0, total;dur=0.1",
+    "serverSideTimingOnMiss": "Server-Timing: db;dur=299.9, transform;dur=0.0, total;dur=300.0"
+  },
+  "acceptance": {
+    "warmP50": {
+      "requirement": "warm p50 <200ms",
+      "measured": 19.9,
+      "unit": "ms",
+      "pass": true
+    },
+    "warmP95": {
+      "requirement": "p95 <350ms",
+      "measured": 29.3,
+      "unit": "ms",
+      "pass": true
+    },
+    "coldBefore": {
+      "measured": "536/541/550ms（冷启 1060ms）",
+      "source": "docs/plans/frontend-quality-audit-evidence/api-latency.json"
+    },
+    "coldAfterSingleRoundTrip": {
+      "measured": 300.0,
+      "unit": "ms",
+      "note": "单轮 DB 往返，由两轮 260ms 串行降为一轮"
+    },
+    "patchThenRefresh": {
+      "requirement": "PATCH 后立即刷新能拿到新内容",
+      "observed": {
+        "patchStatus": 200,
+        "patchedTitle": "FE-010 缓存失效校验标题",
+        "refreshCacheState": "MISS",
+        "refreshedTitle": "FE-010 缓存失效校验标题",
+        "matched": true
+      },
+      "pass": true
+    },
+    "payloadEquivalence": {
+      "method": "真实库全部 15 段，对比「旧三段查询 + 旧 transform」与「新两段 join 查询 + 新 transform」的完整 payload（segment/document/links/refs 全部字段，共用同一 NOW 常量消除 memory 衰减时间差）",
+      "result": "✅ 全部 15 段 payload 完全一致",
+      "note": "旧实现的 links/refs 数组顺序本就任意（无 ORDER BY），前端无任何消费者依赖顺序；新实现已加 orderBy(asc(links.id)) 使顺序确定"
+    }
+  },
+  "regression": {
+    "typecheck": "npx tsc --noEmit 通过",
+    "unitTests": "npx vitest run 通过（455 tests）"
+  }
+}

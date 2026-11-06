@@ -29,6 +29,8 @@ export default function ProgressPage() {
   const [report, setReport] = useState<WeeklyReport | null>(null);
   const [error, setError] = useState('');
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  // 悬停/键盘聚焦的预览日：与「点击选中」分开，移出后回到已选中那天的明细（UX-17）
+  const [previewDay, setPreviewDay] = useState<string | null>(null);
   // 重试令牌：数据库抖动后无需刷新整页
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -50,7 +52,7 @@ export default function ProgressPage() {
 
   if (error) {
     return (
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-list">
         <ErrorState
           message={error}
           onRetry={() => setReloadToken((n) => n + 1)}
@@ -61,7 +63,7 @@ export default function ProgressPage() {
   }
   if (!report) {
     return (
-      <div className="mx-auto max-w-4xl space-y-4" role="status" aria-label="加载学习复盘">
+      <div className="mx-auto max-w-list space-y-4" role="status" aria-label="加载学习复盘">
         <Skeleton className="h-9 w-40" />
         <div className="card space-y-3 px-5 py-5">
           <Skeleton className="h-4 w-3/4" />
@@ -74,16 +76,18 @@ export default function ProgressPage() {
   const cells = buildHeatCells(report.days);
   const hasActivity =
     report.current.reviewCount + report.current.needsReviewCount + report.current.improvedCount + report.current.activeDays > 0;
-  const selectedDetail = selectedDay
+  // 明细优先级：悬停/聚焦的预览 > 点击选中的那天；两者都没有时不展示明细
+  const detailDay = previewDay ?? selectedDay;
+  const detailText = detailDay
     ? (() => {
-        const d = report.days.find((x) => x.day === selectedDay);
+        const d = report.days.find((x) => x.day === detailDay);
         if (!d) return '';
         return `${d.day}：自测 ${d.reviews} 次，阅读 ${d.readingSessions} 次，累计 ${formatDuration(d.readingMs)}，需巩固 ${d.needsReview} 项`;
       })()
     : '';
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 fade-up">
+    <div className="mx-auto max-w-list space-y-6 fade-up">
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <h1 className="font-display text-title font-semibold">学习复盘</h1>
@@ -92,7 +96,7 @@ export default function ProgressPage() {
         <div className="flex-1" />
         <Link
           href="/"
-          className="rounded-lg bg-accent px-3.5 py-1.5 text-body font-medium text-accent-ink hover:bg-accent-strong"
+          className="inline-flex min-h-11 items-center rounded-lg bg-accent px-3.5 text-body font-medium text-accent-ink hover:bg-accent-strong"
         >
           返回今日学习
         </Link>
@@ -115,24 +119,31 @@ export default function ProgressPage() {
       <section className="card px-5 py-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-card font-medium text-primary">14 天学习热力</h2>
-          <span className="text-tag text-muted">色块 = 阅读 + 自测活跃度 · 点格子看当天明细</span>
+          <span className="text-tag text-muted">色块 = 阅读 + 自测活跃度 · 悬停、聚焦或点击看当天明细</span>
         </div>
         <div className="mt-4 flex gap-1.5 overflow-x-auto pb-1 sm:gap-2">
           {cells.map((cell) => {
-            const active = cell.day.day === selectedDay;
+            const selected = cell.day.day === selectedDay;
+            const previewed = cell.day.day === previewDay;
             return (
               <button
                 key={cell.day.day}
                 type="button"
-                onClick={() => setSelectedDay(active ? null : cell.day.day)}
-                aria-pressed={active}
+                onClick={() => setSelectedDay(selected ? null : cell.day.day)}
+                onMouseEnter={() => setPreviewDay(cell.day.day)}
+                onMouseLeave={() => setPreviewDay(null)}
+                onFocus={() => setPreviewDay(cell.day.day)}
+                onBlur={() => setPreviewDay(null)}
+                aria-pressed={selected}
                 aria-label={`${cell.day.day}：自测 ${cell.day.reviews} 次，阅读 ${cell.day.readingSessions} 次，${formatDuration(
                   cell.day.readingMs,
                 )}`}
-                className="flex h-14 w-11 shrink-0 flex-col justify-between rounded-lg border p-1.5 text-left transition-colors duration-150 sm:h-16 sm:w-12"
+                className={`flex h-14 w-11 shrink-0 flex-col justify-between rounded-lg border p-1.5 text-left transition-colors duration-150 sm:h-16 sm:w-12 ${
+                  previewed && !selected ? 'ring-2 ring-line-strong' : ''
+                }`}
                 style={{
                   background: cell.background,
-                  borderColor: active ? PALETTE.accent : 'rgba(236, 230, 218, 0.08)',
+                  borderColor: selected ? PALETTE.accent : 'rgba(236, 230, 218, 0.08)',
                   color: cell.foreground,
                 }}
               >
@@ -146,12 +157,14 @@ export default function ProgressPage() {
             );
           })}
         </div>
-        {selectedDetail ? (
+        {detailText ? (
           <p className="mt-3 border-t border-line pt-2 text-tag text-muted" aria-live="polite">
-            {selectedDetail}
+            {detailText}
           </p>
         ) : (
-          <p className="mt-3 border-t border-line pt-2 text-tag text-faint">悬停或点击格子查看当天明细（键盘可用 Tab + Enter）。</p>
+          <p className="mt-3 border-t border-line pt-2 text-tag text-faint">
+            悬停、聚焦或点击格子查看当天明细（键盘可用 Tab 聚焦，Enter 选中）。
+          </p>
         )}
       </section>
 

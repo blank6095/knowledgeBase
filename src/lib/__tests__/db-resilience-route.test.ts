@@ -67,10 +67,19 @@ beforeAll(() => {
   // 缩短重试节奏，测试不做真实等待
   process.env.DB_RETRY_ATTEMPTS = '1';
   process.env.DB_RETRY_BASE_DELAY_MS = '0';
+  // 关闭退避抖动：默认 0-99ms 的随机抖动会让重试可能落到下一个用例，
+  // 造成用例间串扰（结果队列被上一个用例遗留的重试消费）。
+  process.env.DB_RETRY_JITTER_MS = '0';
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   process.env.AUTH_PASSCODE = PASSCODE;
+  // 等待上一个用例遗留的 db-retry 重试跑完再重置队列。
+  // 原因：loadStats 里 Promise.all 遇到 tier 查询失败会立即 reject，
+  // 而 weak/unread 的重试（sleep(0) 属于宏任务）仍在后台挂起；
+  // 若不先冲刷，它们会在本用例排好队列之后才执行，消费掉本用例的结果，
+  // 导致用例间串扰（表现为偶发 503 / 数据错位）。
+  await new Promise((resolve) => setTimeout(resolve, 0));
   clearAllCache();
   h.state.pending = [];
 });

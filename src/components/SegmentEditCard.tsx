@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api } from '@/lib/client';
@@ -22,11 +22,14 @@ export default function SegmentEditCard({
   onSaved,
   onDeleted,
   onCancel,
+  onDirtyChange,
 }: {
   segment: EditableSegment;
   onSaved: () => Promise<unknown>;
   onDeleted: () => Promise<unknown>;
   onCancel: () => void;
+  /** 未保存改动变化时回调，供页面在「✓ 完成编辑」退出前确认 */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [title, setTitle] = useState(segment.title);
   const [content, setContent] = useState(segment.content);
@@ -34,6 +37,17 @@ export default function SegmentEditCard({
   const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+
+  // 草稿脏状态：与已保存值比较。ref 记录上次上报值，父组件回调身份变化时不重复通知；
+  // 首屏本地 state 与 props 相同（dirty=false），不会误报。
+  const tagsText = segment.tags.join(', ');
+  const dirty = title !== segment.title || content !== segment.content || tagsInput !== tagsText;
+  const lastDirtyRef = useRef(false);
+  useEffect(() => {
+    if (lastDirtyRef.current === dirty) return;
+    lastDirtyRef.current = dirty;
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -75,6 +89,13 @@ export default function SegmentEditCard({
     });
   };
 
+  // 有未保存改动时先确认，避免一键丢弃草稿（无改动直接退出）。
+  const cancel = () => {
+    if (busy) return;
+    if (dirty && !window.confirm('有未保存的修改，确定放弃吗？')) return;
+    onCancel();
+  };
+
   return (
     <section className="card fade-up mt-4 space-y-3 px-4 py-4" aria-label="编辑知识点">
       <div className="flex items-center gap-2">
@@ -87,7 +108,7 @@ export default function SegmentEditCard({
         />
         <button
           onClick={() => setPreview((p) => !p)}
-          className="shrink-0 rounded-md border border-line px-2 py-1 text-tag text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
+          className="inline-flex min-h-11 shrink-0 items-center rounded-md border border-line px-2 text-tag text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
         >
           {preview ? '编辑' : '预览'}
         </button>
@@ -120,21 +141,21 @@ export default function SegmentEditCard({
         <button
           onClick={save}
           disabled={busy}
-          className="rounded-lg bg-accent px-4 py-1.5 text-minor font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong disabled:opacity-50"
+          className="inline-flex min-h-11 items-center rounded-lg bg-accent px-4 text-minor font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong disabled:opacity-50"
         >
           {busy ? '保存中…' : '保存'}
         </button>
         <button
-          onClick={onCancel}
+          onClick={cancel}
           disabled={busy}
-          className="rounded-lg border border-line px-4 py-1.5 text-minor text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary disabled:opacity-50"
+          className="inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-minor text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary disabled:opacity-50"
         >
           取消
         </button>
         <button
           onClick={remove}
           disabled={busy}
-          className="rounded-lg border border-line px-4 py-1.5 text-minor text-muted transition-colors duration-150 hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-50"
+          className="inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-minor text-muted transition-colors duration-150 hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-50"
         >
           ✕ 删除
         </button>

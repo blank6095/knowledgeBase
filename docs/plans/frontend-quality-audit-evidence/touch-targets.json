@@ -1,0 +1,181 @@
+[
+  {
+    "url": "/",
+    "count": 4,
+    "samples": [
+      {
+        "tag": "A",
+        "label": "导入知识",
+        "w": 88,
+        "h": 37
+      },
+      {
+        "tag": "A",
+        "label": "OSI 七层模型/0% · 关联 6",
+        "w": 326,
+        "h": 41
+      },
+      {
+        "tag": "A",
+        "label": "TCP 与 UDP/22% · 关联 5",
+        "w": 326,
+        "h": 41
+      },
+      {
+        "tag": "A",
+        "label": "HTTP 状态码/0% · 关联 3",
+        "w": 326,
+        "h": 41
+      }
+    ]
+  },
+  {
+    "url": "/notes",
+    "count": 1,
+    "samples": [
+      {
+        "tag": "A",
+        "label": "导入",
+        "w": 58,
+        "h": 37
+      }
+    ]
+  },
+  {
+    "url": "/notes/995f8673-3d85-4a62-8dae-3014a0eefd62",
+    "count": 3,
+    "samples": [
+      {
+        "tag": "A",
+        "label": "← 知识库",
+        "w": 55,
+        "h": 18
+      },
+      {
+        "tag": "BUTTON",
+        "label": "✎ 编辑",
+        "w": 67,
+        "h": 32
+      },
+      {
+        "tag": "BUTTON",
+        "label": "✎＋",
+        "w": 33,
+        "h": 18
+      }
+    ]
+  },
+  {
+    "url": "/segments/253305f9-4467-4062-baa9-c39b159a4679",
+    "count": 3,
+    "samples": [
+      {
+        "tag": "A",
+        "label": "← 管道",
+        "w": 42,
+        "h": 18
+      },
+      {
+        "tag": "A",
+        "label": "开始复习",
+        "w": 74,
+        "h": 30
+      },
+      {
+        "tag": "BUTTON",
+        "label": "✎ 编辑",
+        "w": 67,
+        "h": 32
+      }
+    ]
+  },
+  {
+    "url": "/progress",
+    "count": 1,
+    "samples": [
+      {
+        "tag": "A",
+        "label": "返回今日学习",
+        "w": 118,
+        "h": 37
+      }
+    ]
+  },
+  {
+    "url": "/ask",
+    "count": 4,
+    "samples": [
+      {
+        "tag": "BUTTON",
+        "label": "我下一步学什么？",
+        "w": 127,
+        "h": 28
+      },
+      {
+        "tag": "BUTTON",
+        "label": "我最薄弱的是什么？",
+        "w": 139,
+        "h": 28
+      },
+      {
+        "tag": "BUTTON",
+        "label": "帮我规划本周复习",
+        "w": 127,
+        "h": 28
+      },
+      {
+        "tag": "BUTTON",
+        "label": "发送",
+        "w": 62,
+        "h": 43
+      }
+    ]
+  },
+  {
+    "url": "/import",
+    "count": 3,
+    "samples": [
+      {
+        "tag": "BUTTON",
+        "label": "粗",
+        "w": 105,
+        "h": 41
+      },
+      {
+        "tag": "BUTTON",
+        "label": "标准",
+        "w": 105,
+        "h": 41
+      },
+      {
+        "tag": "BUTTON",
+        "label": "细",
+        "w": 105,
+        "h": 41
+      }
+    ]
+  },
+  {
+    "url": "/settings",
+    "count": 2,
+    "samples": [
+      {
+        "tag": "BUTTON",
+        "label": "保存",
+        "w": 58,
+        "h": 32
+      },
+      {
+        "tag": "BUTTON",
+        "label": "测试当前输入",
+        "w": 112,
+        "h": 34
+      }
+    ]
+  },
+  {
+    "url": "/graph",
+    "count": 0,
+    "samples": []
+  }
+]

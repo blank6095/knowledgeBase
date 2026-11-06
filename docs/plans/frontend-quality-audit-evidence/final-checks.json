@@ -1,0 +1,193 @@
+{
+  "perfMobile-graph-small": {
+    "stopMs": 1624,
+    "n": 1,
+    "max": 172,
+    "nodes": 500,
+    "idleFps": 143.30653617614217,
+    "p95": 7.199999999999818
+  },
+  "perfMobile-graph-mid": {
+    "stopMs": 16229,
+    "n": 23,
+    "max": 163,
+    "nodes": 5000,
+    "idleFps": 91.34471398622335,
+    "p95": 7.400000000001455
+  },
+  "panel-390x844": {
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "panel": {
+      "top": 128,
+      "bottom": 754,
+      "height": 626,
+      "scrollH": 624,
+      "clientH": 624,
+      "overflowY": "auto"
+    },
+    "navTop": 774,
+    "close": {
+      "top": 149,
+      "bottom": 181,
+      "w": 32,
+      "h": 32
+    },
+    "closeCoveredByNav": false,
+    "tabs": [
+      {
+        "t": "筛选",
+        "w": 38,
+        "h": 48
+      },
+      {
+        "t": "分组",
+        "w": 38,
+        "h": 48
+      },
+      {
+        "t": "显示",
+        "w": 38,
+        "h": 48
+      },
+      {
+        "t": "力",
+        "w": 38,
+        "h": 48
+      },
+      {
+        "t": "主题",
+        "w": 38,
+        "h": 48
+      },
+      {
+        "t": "地图",
+        "w": 38,
+        "h": 48
+      }
+    ]
+  },
+  "panel-375x667": {
+    "viewport": {
+      "w": 375,
+      "h": 667
+    },
+    "panel": {
+      "top": 128,
+      "bottom": 587,
+      "height": 459,
+      "scrollH": 624,
+      "clientH": 457,
+      "overflowY": "auto"
+    },
+    "navTop": 597,
+    "close": {
+      "top": 149,
+      "bottom": 181,
+      "w": 32,
+      "h": 32
+    },
+    "closeCoveredByNav": false,
+    "tabs": [
+      {
+        "t": "筛选",
+        "w": 38,
+        "h": 48
+      },
+      {
+        "t": "分组",
+        "w": 38,
+        "h": 48
+      },
+      {
+        "t": "显示",
+        "w": 38,
+        "h": 48
+      },
+      {
+        "t": "力",
+        "w": 38,
+        "h": 48
+      },
+      {
+        "t": "主题",
+        "w": 38,
+        "h": 48
+      },
+      {
+        "t": "地图",
+        "w": 38,
+        "h": 48
+      }
+    ]
+  },
+  "panel-320x720": {
+    "viewport": {
+      "w": 320,
+      "h": 720
+    },
+    "panel": {
+      "top": 128,
+      "bottom": 640,
+      "height": 512,
+      "scrollH": 624,
+      "clientH": 510,
+      "overflowY": "auto"
+    },
+    "navTop": 650,
+    "close": {
+      "top": 149,
+      "bottom": 181,
+      "w": 32,
+      "h": 32
+    },
+    "closeCoveredByNav": false,
+    "tabs": [
+      {
+        "t": "筛选",
+        "w": 37,
+        "h": 48
+      },
+      {
+        "t": "分组",
+        "w": 37,
+        "h": 48
+      },
+      {
+        "t": "显示",
+        "w": 37,
+        "h": 48
+      },
+      {
+        "t": "力",
+        "w": 37,
+        "h": 48
+      },
+      {
+        "t": "主题",
+        "w": 37,
+        "h": 48
+      },
+      {
+        "t": "地图",
+        "w": 37,
+        "h": 48
+      }
+    ]
+  },
+  "ask": {
+    "sendDisabledEmpty": true,
+    "sendBox": {
+      "x": 312,
+      "y": 188.671875,
+      "width": 62,
+      "height": 42.75
+    }
+  },
+  "progressHeatmap": {
+    "count": 0,
+    "samples": []
+  }
+}

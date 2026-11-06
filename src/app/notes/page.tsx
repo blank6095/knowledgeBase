@@ -3,22 +3,13 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { api, formatDate } from '@/lib/client';
+import type { DocsRow } from '@/lib/contracts';
 import MemoryBadge from '@/components/MemoryBadge';
 import { Skeleton } from '@/components/Skeleton';
 import ErrorState from '@/components/ErrorState';
 
-interface DocRow {
-  id: string;
-  title: string;
-  source: string;
-  tags: string[];
-  segmentCount: number;
-  createdAt: string;
-  avgMemory: number;
-}
-
 export default function NotesPage() {
-  const [docs, setDocs] = useState<DocRow[] | null>(null);
+  const [docs, setDocs] = useState<DocsRow[] | null>(null);
   const [error, setError] = useState('');
   const [q, setQ] = useState('');
   // 重试令牌：失败后不刷新整页也能重新拉取（数据库抖动时的主要恢复手段）
@@ -26,7 +17,7 @@ export default function NotesPage() {
 
   useEffect(() => {
     let alive = true;
-    api<{ documents: DocRow[] }>('/api/notes')
+    api<{ documents: DocsRow[] }>('/api/notes')
       .then((d) => {
         if (!alive) return;
         setDocs(d.documents);
@@ -49,7 +40,7 @@ export default function NotesPage() {
 
   if (error) {
     return (
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-list">
         <ErrorState
           message={error}
           onRetry={() => setReloadToken((n) => n + 1)}
@@ -60,7 +51,7 @@ export default function NotesPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
+    <div className="mx-auto max-w-list space-y-5">
       <div className="fade-up flex flex-wrap items-center gap-3">
         <h1 className="font-display text-title font-semibold">知识库</h1>
         <span className="font-mono text-tag tabular-nums text-faint">{docs ? `${docs.length} 篇文档` : ''}</span>
@@ -76,7 +67,7 @@ export default function NotesPage() {
         />
         <Link
           href="/import"
-          className="rounded-lg bg-accent px-3.5 py-1.5 text-body font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
+          className="inline-flex min-h-11 items-center rounded-lg bg-accent px-3.5 text-body font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
         >
           导入
         </Link>
@@ -99,7 +90,7 @@ export default function NotesPage() {
               <p className="mt-2 text-minor text-muted">导入一篇 Markdown，它会自动拆成知识点、建好关联，等着被点亮。</p>
               <Link
                 href="/import"
-                className="mt-5 inline-block rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
+                className="mt-5 inline-flex min-h-11 items-center rounded-lg bg-accent px-4 py-2 text-body font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
               >
                 导入第一篇
               </Link>
@@ -121,7 +112,8 @@ export default function NotesPage() {
                     {d.title}
                   </span>
                   {d.tags.length > 0 && (
-                    <span className="ml-2 hidden space-x-1.5 sm:inline">
+                    // FE-015：标签原先在窄屏被 hidden 整块隐藏，窄屏用户看不到任何标签
+                    <span className="ml-2 inline-flex flex-wrap gap-1.5 align-middle">
                       {d.tags.slice(0, 4).map((t) => (
                         <span key={t} className="rounded bg-surface-hover px-1.5 py-0.5 text-tag text-muted">
                           #{t}

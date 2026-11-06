@@ -9,6 +9,7 @@ import { deriveLearnerProfileCached, getLearnerDeclaration, profileToPromptBlock
 import { buildKbOverview } from '@/lib/kb-overview';
 import { AGENT_TOOLS, mergeToolCallDelta, validateActions, type AgentAction } from '@/lib/agent-tools';
 import { logLlmCall } from '@/lib/llm-calls';
+import { memory } from '@/lib/memory-sql';
 import { readWithIdleTimeout } from '@/lib/stream-utils';
 import { cacheKey, getCachedOutput, saveCachedOutput } from '@/lib/llm-cache';
 import { buildContextPromptBlock, normalizeSegmentIds, type AskContextSegment } from '@/lib/ai/ask-context';
@@ -345,7 +346,7 @@ async function executeTool(
     const hits = await retrieveByQuery(query, topK);
     const memoryById = new Map<string, number>();
     if (hits.length) {
-      const m = sql`exp(-extract(epoch from (now() - ${segments.lastViewedAt})) / 86400.0 / greatest(${segments.stability}, 1e-9))`;
+      const m = memory();
       const rows = await db
         .select({ id: segments.id, memory: sql<number>`(${m})::float` })
         .from(segments)
@@ -367,7 +368,7 @@ async function executeTool(
   if (name === 'read_segment') {
     ctx.send({ status: '读取知识点…' });
     const id = String(args.segmentId ?? '').trim();
-    const m = sql`exp(-extract(epoch from (now() - ${segments.lastViewedAt})) / 86400.0 / greatest(${segments.stability}, 1e-9))`;
+    const m = memory();
     const [seg] = await db
       .select({
         id: segments.id,

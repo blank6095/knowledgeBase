@@ -7,23 +7,24 @@ import { desc, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { documents, segments } from '@/db/schema';
 import { adviceCandidates } from '@/lib/rag';
+import { isRead, memory, strongLimit, weakLimit } from '@/lib/memory-sql';
 import { MEMORY_TIER_LABELS } from '@/lib/memory';
 
 const MAX_CHARS = 600;
 
 export async function buildKbOverview(): Promise<string> {
-  // 记忆度口径与 /api/stats、lib/memory.ts 一致
-  const m = sql`exp(-extract(epoch from (now() - ${segments.lastViewedAt})) / 86400.0 / greatest(${segments.stability}, 1e-9))`;
-  const read = sql`${segments.stability} > 0 and ${segments.lastViewedAt} is not null`;
+  // 记忆度口径与 /api/stats、lib/memory.ts 一致（统一收敛在 @/lib/memory-sql）
+  const m = memory();
+  const read = isRead();
 
   const [tiers, docCount, recentDocs, tagRows, weak] = await Promise.all([
     db
       .select({
         total: sql<number>`count(*)::int`,
         unread: sql<number>`count(*) filter (where not (${read}))::int`,
-        weak: sql<number>`count(*) filter (where ${read} and ${m} < 0.4)::int`,
-        medium: sql<number>`count(*) filter (where ${read} and ${m} >= 0.4 and ${m} < 0.75)::int`,
-        strong: sql<number>`count(*) filter (where ${read} and ${m} >= 0.75)::int`,
+        weak: sql<number>`count(*) filter (where ${read} and ${m} < ${weakLimit()})::int`,
+        medium: sql<number>`count(*) filter (where ${read} and ${m} >= ${weakLimit()} and ${m} < ${strongLimit()})::int`,
+        strong: sql<number>`count(*) filter (where ${read} and ${m} >= ${strongLimit()})::int`,
       })
       .from(segments)
       .catch(() => null),

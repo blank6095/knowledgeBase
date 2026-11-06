@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { GRAPH_SEARCH_TRIGGER_ID } from './GraphSearch';
 
 /**
  * 图谱页顶部悬浮条（U1-4）。
@@ -54,7 +55,7 @@ export default function GraphTopBar({
   return (
     <header
       aria-label="知识宇宙顶栏"
-      className="pointer-events-none absolute left-3 right-3 top-3 z-20 flex items-center gap-2 pt-safe md:left-20 md:right-4 md:gap-3"
+      className="pointer-events-none absolute left-safe-3 right-safe-3 top-safe-3 z-20 flex items-center gap-2 md:left-20 md:right-4 md:gap-3"
     >
       {/* 产品标识：移动端让位给搜索框（隐藏），md 起恢复 */}
       <div className="hidden shrink-0 items-center gap-1.5 rounded-xl border border-line bg-surface/70 px-2.5 py-2 backdrop-blur-xl md:flex md:px-3">
@@ -68,11 +69,16 @@ export default function GraphTopBar({
 
       {/* 搜索位：占位文案 + Ctrl K；点击回传，本体属 U2-2 */}
       <div className="flex w-full min-w-0 flex-1 justify-center md:px-2">
-        {searchOpen ? (
-          searchOverlay
-        ) : (
+        {/*
+          搜索浮层必须常驻挂载：它内部持有 document 级 Ctrl/Cmd+K 监听，
+          只在 searchOpen 时渲染会让关闭态的快捷键彻底失效（FE-003）。
+          组件内部以 open 自行控制显隐，这里只负责把它挂上。
+        */}
+        {searchOverlay}
+        {!searchOpen && (
           <button
             type="button"
+            id={GRAPH_SEARCH_TRIGGER_ID}
             onClick={() => onSearchClick?.()}
             aria-label="搜索知识（Ctrl K）"
             className="pointer-events-auto flex h-11 w-full items-center gap-2 rounded-xl border border-line bg-surface/65 px-3 text-left text-minor text-faint shadow-lg backdrop-blur-xl transition-colors duration-150 hover:border-line-strong hover:bg-surface-hover/70 hover:text-muted md:min-w-[360px] md:max-w-[560px] lg:min-w-[480px]"

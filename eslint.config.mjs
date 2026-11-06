@@ -14,6 +14,10 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "云端知识库/**",
     ".verify-planet/**",
+    // 产物目录：压测脚本、基线 JSON、验证快照等由工具生成，不是源码，
+    // 不参与 lint（否则每次改动产物都会引入无意义的告警）。
+    "artifacts/**",
+    ".trae-html-share-packages/**",
   ]),
 ]);
 

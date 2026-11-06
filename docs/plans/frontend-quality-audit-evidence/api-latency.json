@@ -1,0 +1,102 @@
+[
+  {
+    "url": "/api/notes",
+    "samples": [
+      {
+        "ms": 18,
+        "status": 200,
+        "bytes": 777
+      },
+      {
+        "ms": 18,
+        "status": 200,
+        "bytes": 777
+      },
+      {
+        "ms": 17,
+        "status": 200,
+        "bytes": 777
+      },
+      {
+        "ms": 17,
+        "status": 200,
+        "bytes": 777
+      }
+    ]
+  },
+  {
+    "url": "/api/notes/995f8673-3d85-4a62-8dae-3014a0eefd62",
+    "samples": [
+      {
+        "ms": 33,
+        "status": 200,
+        "bytes": 6345
+      },
+      {
+        "ms": 19,
+        "status": 200,
+        "bytes": 6345
+      },
+      {
+        "ms": 17,
+        "status": 200,
+        "bytes": 6345
+      },
+      {
+        "ms": 20,
+        "status": 200,
+        "bytes": 6345
+      }
+    ]
+  },
+  {
+    "url": "/api/segments/253305f9-4467-4062-baa9-c39b159a4679",
+    "samples": [
+      {
+        "ms": 1060,
+        "status": 200,
+        "bytes": 4086
+      },
+      {
+        "ms": 536,
+        "status": 200,
+        "bytes": 4086
+      },
+      {
+        "ms": 541,
+        "status": 200,
+        "bytes": 4086
+      },
+      {
+        "ms": 550,
+        "status": 200,
+        "bytes": 4086
+      }
+    ]
+  },
+  {
+    "url": "/api/graph",
+    "samples": [
+      {
+        "ms": 15,
+        "status": 200,
+        "bytes": 5572
+      },
+      {
+        "ms": 16,
+        "status": 200,
+        "bytes": 5572
+      },
+      {
+        "ms": 18,
+        "status": 200,
+        "bytes": 5572
+      },
+      {
+        "ms": 16,
+        "status": 200,
+        "bytes": 5572
+      }
+    ]
+  }
+]

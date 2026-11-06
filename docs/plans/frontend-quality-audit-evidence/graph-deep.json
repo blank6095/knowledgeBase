@@ -1,0 +1,93 @@
+{
+  "settingsRace": {
+    "customVisibleAfterLoad": true,
+    "localValidation": true,
+    "snippet": "模型选「自定义」时必须填写模型 id，已取消保存"
+  },
+  "graphSearch": {
+    "afterKey": {
+      "inputs": [],
+      "focused": "BODY:"
+    },
+    "clickSearchVisible": true,
+    "afterClick": {
+      "inputs": [
+        {
+          "aria": "搜索知识",
+          "ph": "搜索知识、概念、标签…",
+          "visible": true
+        }
+      ]
+    },
+    "searchVisibleAfterClick": true,
+    "openedTitle": "加载中…"
+  },
+  "graphCompare": {
+    "picks": [
+      {
+        "x": 1044.8308289396684,
+        "y": 176.27163092016542
+      },
+      {
+        "x": 772.5104570143267,
+        "y": 481.4240963041367
+      }
+    ],
+    "selected": true,
+    "bar": "已选 2/2：重定向 ↔ 概述"
+  },
+  "perfMidSettled": {
+    "fixture": "graph-mid",
+    "stopMs": 16208,
+    "nodes": 5000,
+    "firstTick": 1053.1999999997206,
+    "engineStop": 16044.899999999907,
+    "idle": {
+      "fps": 128.74251497006597,
+      "p95": 7.299999999999272
+    },
+    "zoom": {
+      "msToTwoFrames": 63.8,
+      "alpha": null
+    },
+    "longTasks": {
+      "count": 24,
+      "max": 168,
+      "over50": 23
+    }
+  },
+  "perfLargeSettled": {
+    "fixture": "graph-large",
+    "stopMs": 16520,
+    "nodes": 8000,
+    "firstTick": 1111.9000000003725,
+    "engineStop": 16229.30000000028,
+    "idle": {
+      "fps": 79.47615715286518,
+      "p95": 7.299999999999272
+    },
+    "zoom": {
+      "msToTwoFrames": 80.5,
+      "alpha": null
+    },
+    "longTasks": {
+      "count": 56,
+      "max": 171,
+      "over50": 56
+    }
+  },
+  "mobileGraph": {
+    "menuBox": {
+      "x": 202,
+      "y": 116,
+      "width": 176,
+      "height": 142
+    },
+    "panelBox": null,
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "bodyText": "关系图谱\n筛选\n分组\n显示\n力\n主题\n地图\n✕\n\n学习地图用独立的外圈 / 弧线 / 点线标记，不改变记忆度颜色与节点大小。\n\n薄弱\n0\n记忆度 < 40%\n到期复习\n0\n今天到期需复习\n今日推荐\n0\n今日学习推荐\n重要枢纽\n0\n关联度数 Top 10%\n全部显示\n清除标记\n关闭学习地图\n\n枢纽口径：关联度数 Top 10%（至少 1 个、度数 ≥2）；到期/今日来自 `/api/learning/today`；薄弱阈值 memory < 40%。\n\n学习地图标记仅本次会话生效，不写入本地偏好。\n\n搜索知识、概念、标签…\n压测\n知识宇宙\n知识库\nAI 助手"
+  }
+}

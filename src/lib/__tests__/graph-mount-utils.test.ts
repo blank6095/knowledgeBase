@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  LINK_VISIBLE_BUDGET,
   TICK_COST_WORST,
   WARMUP_BUDGET_MS,
+  layoutBudgetFor,
   manyBodyThetaFor,
   nodeInsideViewport,
+  renderBudgetFor,
+  selectHiddenLinks,
   sizeChanged,
   warmupTicksFor,
-} from '@/app/graph/mount-utils';
+} from '@/lib/graph/mount-utils';
 
 /**
  * 每 tick 成本：由 `node artifacts/measure-tick-cost.mjs` 实测产出
@@ -70,6 +74,96 @@ describe('warmupTicksFor：按节点规模自适应预热', () => {
   it('大图只保留最低预热，不会退化为 0', () => {
     expect(warmupTicksFor(8000)).toBe(2);
     expect(warmupTicksFor(20000)).toBe(2);
+  });
+});
+
+describe('layoutBudgetFor：FE-002 引擎预算分档', () => {
+  it('小图保持 force-graph 默认参数', () => {
+    expect(layoutBudgetFor(0)).toEqual({ d3AlphaDecay: 0.0228, cooldownTicks: Infinity, cooldownTime: 15_000 });
+    expect(layoutBudgetFor(500)).toEqual(layoutBudgetFor(0));
+    expect(layoutBudgetFor(999)).toEqual(layoutBudgetFor(0));
+  });
+
+  it('中图加快 alpha 衰减并加冷却兜底', () => {
+    expect(layoutBudgetFor(1_000)).toEqual({ d3AlphaDecay: 0.05, cooldownTicks: 250, cooldownTime: 7_000 });
+    expect(layoutBudgetFor(4_999)).toEqual(layoutBudgetFor(1_000));
+  });
+
+  it('大图衰减更快，时间兜底保证引擎必然停止', () => {
+    expect(layoutBudgetFor(5_000)).toEqual({ d3AlphaDecay: 0.08, cooldownTicks: 250, cooldownTime: 7_000 });
+    expect(layoutBudgetFor(20_000)).toEqual(layoutBudgetFor(5_000));
+  });
+
+  it('大中图时间兜底留足帧边界余量（7s + 帧误差 < 验收 8s）；小图走自然收敛不受此限', () => {
+    expect(layoutBudgetFor(500).cooldownTime).toBe(15_000);
+    for (const count of [1_000, 5_000, 20_000]) {
+      expect(layoutBudgetFor(count).cooldownTime).toBeLessThanOrEqual(7_000);
+    }
+  });
+});
+
+describe('renderBudgetFor：FE-002 渲染分级', () => {
+  it('小图全量标签、完整光晕、箭头跟随用户设置', () => {
+    expect(renderBudgetFor(500)).toEqual({ maxLabels: 90, glowScale: 1, arrowsOn: true });
+    expect(renderBudgetFor(1_999)).toEqual(renderBudgetFor(500));
+  });
+
+  it('中图削减标签与光晕、关闭箭头', () => {
+    expect(renderBudgetFor(2_000)).toEqual({ maxLabels: 60, glowScale: 0.7, arrowsOn: false });
+    expect(renderBudgetFor(4_999)).toEqual(renderBudgetFor(2_000));
+  });
+
+  it('大图进一步收紧', () => {
+    expect(renderBudgetFor(5_000)).toEqual({ maxLabels: 30, glowScale: 0.5, arrowsOn: false });
+    expect(renderBudgetFor(20_000)).toEqual(renderBudgetFor(5_000));
+  });
+});
+
+describe('selectHiddenLinks：FE-002 边抽稀', () => {
+  const link = (kind: string) => ({ kind });
+
+  it('不超过预算时不抽稀', () => {
+    expect(selectHiddenLinks([link('doc')], 10)).toBeNull();
+    expect(selectHiddenLinks([], 10)).toBeNull();
+  });
+
+  it('默认预算与审计口径一致（>10k 边才抽稀）', () => {
+    const links = Array.from({ length: LINK_VISIBLE_BUDGET }, () => link('doc'));
+    expect(selectHiddenLinks(links)).toBeNull();
+    expect(selectHiddenLinks([...links, link('doc')])).not.toBeNull();
+  });
+
+  it('wiki/tag 结构边全保留，只抽稀 doc 边', () => {
+    const links = [
+      ...Array.from({ length: 3_000 }, () => link('wiki')),
+      ...Array.from({ length: 2_000 }, () => link('tag')),
+      ...Array.from({ length: 6_000 }, () => link('doc')),
+    ];
+    const hidden = selectHiddenLinks(links, 6_000)!;
+    expect(hidden.size).toBeGreaterThan(0);
+    for (const l of links) {
+      if (l.kind === 'doc') continue;
+      expect(hidden.has(l)).toBe(false);
+    }
+  });
+
+  it('抽稀后可见边数不超过预算', () => {
+    const links = [
+      ...Array.from({ length: 2_000 }, () => link('wiki')),
+      ...Array.from({ length: 20_000 }, () => link('doc')),
+    ];
+    const hidden = selectHiddenLinks(links, 10_000)!;
+    const visible = links.length - hidden.size;
+    expect(visible).toBeLessThanOrEqual(10_000);
+  });
+
+  it('结构边占满预算时隐藏全部 doc 边', () => {
+    const links = [
+      ...Array.from({ length: 10_000 }, () => link('wiki')),
+      ...Array.from({ length: 5_000 }, () => link('doc')),
+    ];
+    const hidden = selectHiddenLinks(links, 10_000)!;
+    expect(hidden.size).toBe(5_000);
   });
 });
 

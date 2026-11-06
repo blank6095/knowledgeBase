@@ -1,0 +1,230 @@
+{
+  "results": [
+    {
+      "name": "api-latency",
+      "pass": true,
+      "ms": 2915,
+      "detail": [
+        "/api/notes=18ms/200,18ms/200,17ms/200,17ms/200",
+        "/api/notes/995f8673-3d85-4a62-8dae-3014a0eefd62=33ms/200,19ms/200,17ms/200,20ms/200",
+        "/api/segments/253305f9-4467-4062-baa9-c39b159a4679=1060ms/200,536ms/200,541ms/200,550ms/200",
+        "/api/graph=15ms/200,16ms/200,18ms/200,16ms/200"
+      ]
+    },
+    {
+      "name": "login-empty-and-wrong",
+      "pass": true,
+      "ms": 737,
+      "detail": {
+        "disabledEmpty": true,
+        "err": "口令错误",
+        "ariaInvalid": "true"
+      }
+    },
+    {
+      "name": "notes-search",
+      "pass": true,
+      "ms": 1625,
+      "detail": {
+        "total": 4,
+        "filtered": 1,
+        "textFiltered": "管道\n4 点\n10/25 14:52",
+        "emptyText": "没有匹配的文档。",
+        "restored": 4
+      }
+    },
+    {
+      "name": "quick-switcher",
+      "pass": true,
+      "ms": 1620,
+      "detail": {
+        "hits": 1,
+        "firstTitle": "概述\n单线程\n标题",
+        "landed": "http://127.0.0.1:3100/segments/7dda1a3a-6ca5-4f6e-b38c-46db4b8bc9f3"
+      }
+    },
+    {
+      "name": "quick-switcher-esc-restores-focus",
+      "pass": true,
+      "ms": 612,
+      "detail": {
+        "focusedInside": true,
+        "focusBack": true
+      }
+    },
+    {
+      "name": "note-detail-edit-toggle",
+      "pass": true,
+      "ms": 1866,
+      "detail": {
+        "editable": 4,
+        "textareasAfterEsc": 4
+      }
+    },
+    {
+      "name": "segment-edit-save-error",
+      "pass": true,
+      "ms": 3628,
+      "detail": {
+        "errorShown": true,
+        "buttonReenabled": true,
+        "confirmDialogs": 1,
+        "stillOpenAfterDismiss": true
+      }
+    },
+    {
+      "name": "study-reveal-and-save",
+      "pass": false,
+      "ms": 33218,
+      "error": "TimeoutError: locator.click: Timeout 30000ms exceeded. | Call log: | \u001b[2m  - waiting for getByRole('button', { name: /答对了/ })\u001b[22m | \u001b[2m    - locator resolved to <button disabled class=\"rounded-lg border px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-35 border-success/35 text-success hover:bg-success/10\">…</button>\u001b[22m"
+    },
+    {
+      "name": "import-validation-and-error",
+      "pass": true,
+      "ms": 2185,
+      "detail": {
+        "typeError": true,
+        "contentLoaded": true,
+        "errorShown": true
+      }
+    },
+    {
+      "name": "settings-custom-model-validation",
+      "pass": true,
+      "ms": 1460,
+      "detail": {
+        "saveValidation": false,
+        "testValidation": false
+      }
+    },
+    {
+      "name": "ask-stream-once",
+      "pass": true,
+      "ms": 4506,
+      "detail": {
+        "requests": 1,
+        "disabledWhileBusy": true,
+        "answerShown": true,
+        "historySections": 1
+      }
+    },
+    {
+      "name": "ask-error-keeps-input",
+      "pass": true,
+      "ms": 1803,
+      "detail": {
+        "errorShown": true,
+        "inputKept": true,
+        "retryVisible": true
+      }
+    },
+    {
+      "name": "notes-error-retry",
+      "pass": true,
+      "ms": 2764,
+      "detail": {
+        "errorShown": true,
+        "recovered": 1
+      }
+    },
+    {
+      "name": "unauth-redirect",
+      "pass": true,
+      "ms": 1080,
+      "detail": {
+        "url": "http://127.0.0.1:3100/login?next=%2Fnotes",
+        "redirected": true
+      }
+    },
+    {
+      "name": "mobile-note-toc",
+      "pass": true,
+      "ms": 2562,
+      "detail": {
+        "focusedInside": true,
+        "drawerBox": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844
+        }
+      }
+    },
+    {
+      "name": "mobile-320-overflow",
+      "pass": true,
+      "ms": 19735,
+      "detail": [
+        {
+          "url": "/",
+          "sw": 320,
+          "iw": 320,
+          "overflow": false
+        },
+        {
+          "url": "/notes",
+          "sw": 320,
+          "iw": 320,
+          "overflow": false
+        },
+        {
+          "url": "/notes/995f8673-3d85-4a62-8dae-3014a0eefd62",
+          "sw": 320,
+          "iw": 320,
+          "overflow": false
+        },
+        {
+          "url": "/segments/253305f9-4467-4062-baa9-c39b159a4679",
+          "sw": 320,
+          "iw": 320,
+          "overflow": false
+        },
+        {
+          "url": "/import",
+          "sw": 320,
+          "iw": 320,
+          "overflow": false
+        },
+        {
+          "url": "/settings",
+          "sw": 320,
+          "iw": 320,
+          "overflow": false
+        },
+        {
+          "url": "/progress",
+          "sw": 320,
+          "iw": 320,
+          "overflow": false
+        },
+        {
+          "url": "/ask",
+          "sw": 320,
+          "iw": 320,
+          "overflow": false
+        },
+        {
+          "url": "/graph",
+          "sw": 320,
+          "iw": 320,
+          "overflow": false
+        }
+      ]
+    }
+  ],
+  "shots": [
+    "flow-login-wrong-passcode",
+    "flow-notes-no-result",
+    "flow-quick-switcher",
+    "flow-note-edit-mode",
+    "flow-segment-save-error",
+    "flow-study-answer-revealed",
+    "flow-import-error",
+    "flow-settings-validation",
+    "flow-ask-answer",
+    "flow-ask-error",
+    "flow-notes-error",
+    "flow-mobile-toc",
+    "flow-mobile-toc-closed"
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-30T15:17:56.068Z",
+  "capturedAt": "2026-11-03T16:26:31.222Z",
   "environment": {
     "platform": "win32",
     "cpu": "12th Gen Intel(R) Core(TM) i7-12700H",
@@ -11,34 +11,49 @@
       "fixture": "graph-small",
       "nodes": 500,
       "fixtureBytes": 179537,
-      "firstTickMs": 926.5,
-      "engineStopMs": 1564.4000000003725,
-      "fps": 142.24751066857652,
-      "p95FrameMs": 7.7999999998137355,
-      "heapBytes": 20387773,
-      "maxLongTaskMs": 205
+      "firstTickMs": 1013.6000000014901,
+      "engineStopMs": 1650.7000000029802,
+      "fps": 143.53828103552607,
+      "p95FrameMs": 8.099999997764826,
+      "heapBytes": 29698171,
+      "maxLongTaskMs": 177,
+      "zoomProbe": {
+        "twoWorstFramesMs": 20.4,
+        "worstFrameMs": 10.3,
+        "frames": 145
+      }
     },
     {
       "fixture": "graph-mid",
       "nodes": 5000,
       "fixtureBytes": 2234824,
-      "firstTickMs": 1172.5,
-      "engineStopMs": 16167.600000000559,
-      "fps": 5.677750623319059,
-      "p95FrameMs": 223.29999999981374,
-      "heapBytes": 67008878,
-      "maxLongTaskMs": 180
+      "firstTickMs": 1111.4000000022352,
+      "engineStopMs": 8258.800000000745,
+      "fps": 5.643617804389363,
+      "p95FrameMs": 188.69999999925494,
+      "heapBytes": 67511875,
+      "maxLongTaskMs": 170,
+      "zoomProbe": {
+        "twoWorstFramesMs": 342.2,
+        "worstFrameMs": 176.5,
+        "frames": 39
+      }
     },
     {
       "fixture": "graph-large",
-      "nodes": 20000,
+      "nodes": 8000,
       "fixtureBytes": 3579419,
-      "firstTickMs": 1233.5,
-      "engineStopMs": 16464.700000000186,
-      "fps": 3.154114906831871,
-      "p95FrameMs": 370,
-      "heapBytes": 122780091,
-      "maxLongTaskMs": 141
+      "firstTickMs": 1138.4000000022352,
+      "engineStopMs": 8204.199999999255,
+      "fps": 3.1718147660193945,
+      "p95FrameMs": 337.3999999985099,
+      "heapBytes": 84868220,
+      "maxLongTaskMs": 104,
+      "zoomProbe": {
+        "twoWorstFramesMs": 632,
+        "worstFrameMs": 318.8,
+        "frames": 11
+      }
     }
   ]
 }

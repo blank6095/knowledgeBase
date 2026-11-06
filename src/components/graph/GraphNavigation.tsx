@@ -13,8 +13,9 @@
  */
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactElement, SVGProps } from 'react';
+import { useFocusTrap } from '@/lib/ui/focus-trap';
 
 export interface GraphNavItem {
   key: string;
@@ -101,6 +102,14 @@ const IcTheme: IconComponent = (p) => (
   </svg>
 );
 
+/** 设置：齿轮 */
+const IcSettings: IconComponent = (p) => (
+  <svg {...svgProps} {...p}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1.03Z" />
+  </svg>
+);
+
 /** 退出：门口 + 右箭头 */
 const IcLogout: IconComponent = (p) => (
   <svg {...svgProps} {...p}>
@@ -120,7 +129,16 @@ const IcMore: IconComponent = (p) => (
 );
 
 /** 紧凑模式下保留在底部条的核心入口（其余进「更多」抽屉） */
-const MOBILE_CORE_KEYS = ['universe', 'library', 'assistant'];
+export const MOBILE_CORE_KEYS = ['universe', 'library', 'assistant'];
+
+/**
+ * 移动端底部条是否展示该入口：非紧凑模式全部平铺，紧凑模式只留核心 3 项，
+ * 其余收进「更多」抽屉（桌面左栏不受影响，始终展示全部）。
+ * 抽成纯函数，便于单测锁定「移动端可见项 = 3 核心 +「更多」」这一 UX-01 结构约束。
+ */
+export function isCompactBarItem(key: string, compactOnMobile: boolean): boolean {
+  return !compactOnMobile || MOBILE_CORE_KEYS.includes(key);
+}
 
 /** key 语义 → 图标；未知 key 再按 href 兜底，最后用知识宇宙图标 */
 const ICON_BY_KEY: Record<string, IconComponent> = {
@@ -138,7 +156,7 @@ const ICON_BY_KEY: Record<string, IconComponent> = {
   ai: IcAssistant,
   theme: IcTheme,
   appearance: IcTheme,
-  settings: IcTheme,
+  settings: IcSettings,
 };
 
 const ICON_BY_HREF: Record<string, IconComponent> = {
@@ -148,7 +166,7 @@ const ICON_BY_HREF: Record<string, IconComponent> = {
   '/study': IcToday,
   '/progress': IcReview,
   '/ask': IcAssistant,
-  '/settings': IcTheme,
+  '/settings': IcSettings,
 };
 
 function resolveIcon(item: GraphNavItem): IconComponent {
@@ -176,22 +194,31 @@ const TOOLTIP_CLASS = [
 export default function GraphNavigation({ items, onLogout, compactOnMobile = false }: GraphNavigationProps) {
   const pathname = usePathname() ?? '/';
   const [sheetOpen, setSheetOpen] = useState(false);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
 
-  // 抽屉打开时按 Esc 关闭（触屏也有遮罩点击）
+  // 抽屉打开时：聚焦首个入口、Tab 在抽屉内循环、Esc 关闭并把焦点还原到「更多」按钮（UX-16）
+  useFocusTrap({
+    active: compactOnMobile && sheetOpen,
+    containerRef: sheetRef,
+    onEscape: () => setSheetOpen(false),
+  });
+
+  // 视口切到桌面（≥md）时抽屉已被 CSS 隐藏，同步关闭，避免焦点陷阱困在不可见面板里
   useEffect(() => {
     if (!sheetOpen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setSheetOpen(false);
+    const media = window.matchMedia('(min-width: 768px)');
+    const onChange = () => {
+      if (media.matches) setSheetOpen(false);
     };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
   }, [sheetOpen]);
 
   return (
     <>
       <nav
       aria-label="知识宇宙导航"
-      className="pointer-events-auto fixed inset-x-3 bottom-safe-3 z-30 flex items-center rounded-2xl border border-line bg-surface/80 p-1.5 shadow-2xl backdrop-blur-xl md:inset-x-auto md:bottom-auto md:left-3 md:top-1/2 md:w-14 md:-translate-y-1/2 md:flex-col md:items-stretch"
+      className="pointer-events-auto fixed bottom-safe-3 left-safe-3 right-safe-3 z-30 flex items-center rounded-2xl border border-line bg-surface/80 p-1.5 shadow-2xl backdrop-blur-xl md:bottom-auto md:left-3 md:right-auto md:top-1/2 md:w-14 md:-translate-y-1/2 md:flex-col md:items-stretch"
     >
       <ul className="flex min-w-0 flex-1 items-center justify-between gap-0 sm:gap-0.5 md:flex-col md:gap-1">
         {items.map((item) => {
@@ -220,7 +247,7 @@ export default function GraphNavigation({ items, onLogout, compactOnMobile = fal
             <li
               key={item.key}
               className={`group relative min-w-0 flex-1 justify-center md:flex-none ${
-                compactOnMobile && !MOBILE_CORE_KEYS.includes(item.key) ? 'hidden md:flex' : 'flex'
+                isCompactBarItem(item.key, compactOnMobile) ? 'flex' : 'hidden md:flex'
               }`}
             >
               {item.href && !disabled ? (
@@ -285,7 +312,7 @@ export default function GraphNavigation({ items, onLogout, compactOnMobile = fal
               type="button"
               aria-label="退出登录"
               onClick={() => onLogout()}
-              className="flex h-11 w-full items-center justify-center rounded-xl text-faint transition-colors duration-150 hover:bg-surface-hover hover:text-danger md:w-11"
+              className="flex h-11 w-full items-center justify-center rounded-xl text-faint transition-colors duration-150 hover:bg-surface-hover hover:text-danger md:w-11 md:min-w-11"
             >
               <IcLogout className="h-5 w-5" />
             </button>
@@ -303,10 +330,12 @@ export default function GraphNavigation({ items, onLogout, compactOnMobile = fal
           <button
             type="button"
             aria-label="关闭更多导航"
+            tabIndex={-1}
             onClick={() => setSheetOpen(false)}
             className="absolute inset-0 bg-black/55 backdrop-blur-sm"
           />
           <div
+            ref={sheetRef}
             role="dialog"
             aria-modal="true"
             aria-label="更多导航"

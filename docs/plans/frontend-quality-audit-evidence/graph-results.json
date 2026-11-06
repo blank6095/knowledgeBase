@@ -1,0 +1,417 @@
+[
+  {
+    "name": "settings-validation-mocked",
+    "pass": true,
+    "ms": 1714,
+    "detail": {
+      "customInputVisible": false,
+      "settingsPosts": 1,
+      "testPosts": 1,
+      "saveMsgShown": false,
+      "testMsgShown": false
+    }
+  },
+  {
+    "name": "settings-concurrent-save-test",
+    "pass": true,
+    "ms": 3398,
+    "detail": {
+      "settingsPosts": 1,
+      "testPosts": 1,
+      "labels": [
+        "保存中…",
+        "测试中…"
+      ],
+      "bothBusyAtOnce": true,
+      "feedback": [
+        "无需先保存；Key 留空则用已保存的 Key 测试",
+        "连接可用（模型 deepseek-v4-flash）"
+      ]
+    }
+  },
+  {
+    "name": "graph-perf-real",
+    "pass": true,
+    "ms": 4178,
+    "detail": {
+      "fixture": "real",
+      "nodes": 15,
+      "firstTick": 1214.0999999998603,
+      "engineStop": 1867.3999999999069,
+      "elapsedMs": 653.3000000000466,
+      "heap": 20,
+      "fps": {
+        "frames": 360,
+        "fps": 143.8848920863229,
+        "p95gap": 7.2000000000000455
+      }
+    }
+  },
+  {
+    "name": "graph-perf-small",
+    "pass": true,
+    "ms": 3847,
+    "detail": {
+      "fixture": "graph-small",
+      "nodes": 500,
+      "firstTick": 931.3000000000466,
+      "engineStop": 1562.6000000000931,
+      "elapsedMs": 631.3000000000466,
+      "heap": 23,
+      "fps": {
+        "frames": 362,
+        "fps": 144.64956445296355,
+        "p95gap": 7.200000000000273
+      }
+    }
+  },
+  {
+    "name": "graph-perf-mid",
+    "pass": true,
+    "ms": 5138,
+    "detail": {
+      "fixture": "graph-mid",
+      "firstTick": 1064.1000000000931,
+      "elapsedMs": null,
+      "heap": 56,
+      "fps": {
+        "frames": 16,
+        "fps": 6.1604805174805835,
+        "p95gap": 180.60000000000036
+      }
+    }
+  },
+  {
+    "name": "graph-perf-large",
+    "pass": true,
+    "ms": 6448,
+    "detail": {
+      "fixture": "graph-large",
+      "firstTick": 1110.3000000000466,
+      "elapsedMs": null,
+      "heap": 71,
+      "fps": {
+        "frames": 9,
+        "fps": 3.558718861209767,
+        "p95gap": 326.2999999999997
+      }
+    }
+  },
+  {
+    "name": "graph-search-detail-close",
+    "pass": false,
+    "ms": 30840,
+    "error": "TimeoutError: locator.waitFor: Timeout 30000ms exceeded. | Call log: | \u001b[2m  - waiting for getByRole('combobox', { name: '搜索知识' }) to be visible\u001b[22m"
+  },
+  {
+    "name": "graph-compare-two-nodes",
+    "pass": true,
+    "ms": 4260,
+    "detail": {
+      "selected": false,
+      "explainDisabled": true,
+      "coords": [
+        {
+          "id": "3709b8ac-8473-409c-8101-a2411424b266",
+          "x": 965.5654362348953,
+          "y": 628.2790875896686,
+          "rect": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": "c2cd410f-c3cf-4d1a-b16c-bfa1b850ce31",
+          "x": 818.5596701736727,
+          "y": 859.994474281445,
+          "rect": {
+            "x": 0,
+            "y": 0
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "graph-filter-empty-and-reset",
+    "pass": true,
+    "ms": 3872,
+    "detail": {
+      "checkboxCount": 7,
+      "empty": true,
+      "resetOk": true
+    }
+  },
+  {
+    "name": "graph-api-error",
+    "pass": true,
+    "ms": 1429,
+    "detail": {
+      "text": "图谱没能加载 |  | Failed to fetch |  | 重新加载 | 返回知识库",
+      "retryButtons": 1
+    }
+  },
+  {
+    "name": "error-dashboard",
+    "pass": true,
+    "ms": 1793,
+    "detail": {
+      "url": "/",
+      "text": "出了点问题 |  | Failed to fetch |  | 若提示数据库暂时不可用，稍后点「重试」即可；期间可以先到「知识库」继续阅读。 |  | 重试 | 回到知识库 →",
+      "retryButtons": 1,
+      "hit": false
+    }
+  },
+  {
+    "name": "error-progress",
+    "pass": true,
+    "ms": 1818,
+    "detail": {
+      "url": "/progress",
+      "text": "出了点问题 |  | Failed to fetch |  | 若提示数据库暂时不可用，稍后点「重试」即可；期间可以先回到「概览」继续学习。 |  | 重试 | 回到知识库 →",
+      "retryButtons": 1,
+      "hit": false
+    }
+  },
+  {
+    "name": "error-note-detail",
+    "pass": true,
+    "ms": 1845,
+    "detail": {
+      "url": "/notes/995f8673-3d85-4a62-8dae-3014a0eefd62",
+      "text": "出了点问题 |  | Failed to fetch |  | 文档或数据库可能暂时不可用；点「重试」会重新拉取本文，不会删除任何标注。 |  | 重试 | 回到知识库 →",
+      "retryButtons": 1,
+      "hit": false
+    }
+  },
+  {
+    "name": "error-segment-detail",
+    "pass": true,
+    "ms": 1844,
+    "detail": {
+      "url": "/segments/253305f9-4467-4062-baa9-c39b159a4679",
+      "text": "出了点问题 |  | Failed to fetch |  | 如果是从旧链接进入，这段内容可能已被删除或移动；也可以回到知识库重新查找。 |  | 重新加载 | 回到知识库 →",
+      "retryButtons": 1,
+      "hit": false
+    }
+  },
+  {
+    "name": "error-study",
+    "pass": true,
+    "ms": 1842,
+    "detail": {
+      "url": "/study/253305f9-4467-4062-baa9-c39b159a4679",
+      "text": "暂时无法开始这次回忆 |  | Failed to fetch |  | 重新生成 | 直接阅读原文",
+      "retryButtons": 1,
+      "hit": false
+    }
+  },
+  {
+    "name": "error-ask-config",
+    "pass": true,
+    "ms": 1856,
+    "detail": {
+      "url": "/ask",
+      "text": "助手 |  | 了解你的知识库与学习进度：可以问答、查细节、也能帮你改标题、整理段落（每一步都会先给你确认）。 |  | 还没有配置大模型。 |  | 到设置页填写 DeepSeek API Key 后即可开始对话，配置即存即用。 |  | 去设置",
+      "retryButtons": 0,
+      "hit": false
+    }
+  },
+  {
+    "name": "error-settings-config",
+    "pass": true,
+    "ms": 1897,
+    "detail": {
+      "url": "/settings",
+      "text": "设置 |  | 大模型接入用于编辑态的语义拆解/聚合与「问知识库」。API Key 只保存在服务端数据库，页面与接口均不回显明文。 |  | DEEPSEEK API KEY |  | 模型 |  | deepseek-v4-flash（默认） | deepseek-chat | deepseek-reasoner | 自定义… | fast 档（摘要/测试连接） | 同主模型 | deepseek-v4-flash | deepsee",
+      "retryButtons": 0,
+      "hit": true
+    }
+  },
+  {
+    "name": "mobile-touch-targets",
+    "pass": true,
+    "ms": 18759,
+    "detail": [
+      {
+        "url": "/",
+        "count": 4,
+        "samples": [
+          {
+            "tag": "A",
+            "label": "导入知识",
+            "w": 88,
+            "h": 37
+          },
+          {
+            "tag": "A",
+            "label": "OSI 七层模型/0% · 关联 6",
+            "w": 326,
+            "h": 41
+          },
+          {
+            "tag": "A",
+            "label": "TCP 与 UDP/22% · 关联 5",
+            "w": 326,
+            "h": 41
+          },
+          {
+            "tag": "A",
+            "label": "HTTP 状态码/0% · 关联 3",
+            "w": 326,
+            "h": 41
+          }
+        ]
+      },
+      {
+        "url": "/notes",
+        "count": 1,
+        "samples": [
+          {
+            "tag": "A",
+            "label": "导入",
+            "w": 58,
+            "h": 37
+          }
+        ]
+      },
+      {
+        "url": "/notes/995f8673-3d85-4a62-8dae-3014a0eefd62",
+        "count": 3,
+        "samples": [
+          {
+            "tag": "A",
+            "label": "← 知识库",
+            "w": 55,
+            "h": 18
+          },
+          {
+            "tag": "BUTTON",
+            "label": "✎ 编辑",
+            "w": 67,
+            "h": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "✎＋",
+            "w": 33,
+            "h": 18
+          }
+        ]
+      },
+      {
+        "url": "/segments/253305f9-4467-4062-baa9-c39b159a4679",
+        "count": 3,
+        "samples": [
+          {
+            "tag": "A",
+            "label": "← 管道",
+            "w": 42,
+            "h": 18
+          },
+          {
+            "tag": "A",
+            "label": "开始复习",
+            "w": 74,
+            "h": 30
+          },
+          {
+            "tag": "BUTTON",
+            "label": "✎ 编辑",
+            "w": 67,
+            "h": 32
+          }
+        ]
+      },
+      {
+        "url": "/progress",
+        "count": 1,
+        "samples": [
+          {
+            "tag": "A",
+            "label": "返回今日学习",
+            "w": 118,
+            "h": 37
+          }
+        ]
+      },
+      {
+        "url": "/ask",
+        "count": 4,
+        "samples": [
+          {
+            "tag": "BUTTON",
+            "label": "我下一步学什么？",
+            "w": 127,
+            "h": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "我最薄弱的是什么？",
+            "w": 139,
+            "h": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "帮我规划本周复习",
+            "w": 127,
+            "h": 28
+          },
+          {
+            "tag": "BUTTON",
+            "label": "发送",
+            "w": 62,
+            "h": 43
+          }
+        ]
+      },
+      {
+        "url": "/import",
+        "count": 3,
+        "samples": [
+          {
+            "tag": "BUTTON",
+            "label": "粗",
+            "w": 105,
+            "h": 41
+          },
+          {
+            "tag": "BUTTON",
+            "label": "标准",
+            "w": 105,
+            "h": 41
+          },
+          {
+            "tag": "BUTTON",
+            "label": "细",
+            "w": 105,
+            "h": 41
+          }
+        ]
+      },
+      {
+        "url": "/settings",
+        "count": 2,
+        "samples": [
+          {
+            "tag": "BUTTON",
+            "label": "保存",
+            "w": 58,
+            "h": 32
+          },
+          {
+            "tag": "BUTTON",
+            "label": "测试当前输入",
+            "w": 112,
+            "h": 34
+          }
+        ]
+      },
+      {
+        "url": "/graph",
+        "count": 0,
+        "samples": []
+      }
+    ]
+  }
+]

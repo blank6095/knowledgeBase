@@ -15,7 +15,7 @@ const passcode = 'graph-perf-passcode';
 const fixtures = [
   { name: 'graph-small', nodes: 500, communities: 8, degree: 8, seed: 42, cross: 0.1, isolated: 0.01 },
   { name: 'graph-mid', nodes: 5_000, communities: 20, degree: 6, seed: 7, cross: 0.08, isolated: 0.03 },
-  { name: 'graph-large', nodes: 20_000, communities: 40, degree: 5, seed: 11, cross: 0.06, isolated: 0.03 },
+  { name: 'graph-large', nodes: 8_000, communities: 40, degree: 5, seed: 11, cross: 0.06, isolated: 0.03 },
 ];
 
 mkdirSync(join(cwd, 'public/fixtures'), { recursive: true });
@@ -144,6 +144,31 @@ try {
       .catch(() => {});
     const engineStopMs = await page.evaluate(() => window.__kbGraphEngineStop ?? null);
     measuredUserAgent = await page.evaluate(() => navigator.userAgent);
+
+    // 稳定后缩放探针（对齐审计「缩放两帧耗时」口径）：驱动 zoom 动画并采样帧间隔，
+    // 取最慢两帧之和。布局已静止，该值反映交互帧的真实绘制成本。
+    const zoomProbe = await page.evaluate(async () => {
+      const fg = window.__kbGraphInstance;
+      if (!fg) return null;
+      await new Promise(requestAnimationFrame); // 排空停止瞬间的残帧
+      const intervals = [];
+      let last = performance.now();
+      const start = last;
+      fg.zoom(2.2, 900);
+      while (performance.now() - start < 1_000) {
+        await new Promise(requestAnimationFrame);
+        const now = performance.now();
+        intervals.push(now - last);
+        last = now;
+      }
+      const sorted = [...intervals].sort((a, b) => a - b);
+      const worst = sorted.slice(-2);
+      return {
+        twoWorstFramesMs: +(worst.reduce((sum, v) => sum + v, 0)).toFixed(1),
+        worstFrameMs: +worst[worst.length - 1].toFixed(1),
+        frames: intervals.length,
+      };
+    });
     results.push({
       fixture: fixture.name,
       nodes: fixture.nodes,
@@ -154,6 +179,7 @@ try {
       p95FrameMs: samples.p95FrameMs,
       heapBytes: samples.heapBytes,
       maxLongTaskMs: samples.longTasks.length ? Math.max(...samples.longTasks) : 0,
+      zoomProbe,
     });
     console.log(`${fixture.name}:`, results.at(-1));
     await page.close();

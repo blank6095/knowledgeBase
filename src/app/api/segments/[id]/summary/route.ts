@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { segments } from '@/db/schema';
 import { guard, isUuid, notFound } from '@/lib/api';
 import { chatCompletion, resolveLlmStatus } from '@/lib/llm';
+import { patchSegmentCache } from '@/lib/segment-cache';
 
 /** 同段并发请求去重：进行中的摘要 Promise 复用，避免重复模型调用与写覆盖 */
 const inflight = new Map<string, Promise<string>>();
@@ -27,6 +28,8 @@ async function generateSummary(seg: { id: string; title: string; content: string
       .replace(/^["'「『]+|["'」』]+$/g, '')
       .slice(0, 60); // 30 字约束靠 prompt，硬截 60 容错
     await db.update(segments).set({ summary }).where(eq(segments.id, seg.id));
+    // 摘要写在段行上，段详情缓存同步一下（只改这一个字段，无需整块失效）
+    patchSegmentCache(seg.id, { summary });
     return summary;
   })();
   inflight.set(seg.id, p);

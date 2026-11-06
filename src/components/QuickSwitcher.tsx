@@ -1,16 +1,19 @@
 'use client';
 
 /**
- * 全局快速检索（P0 · 全站 Ctrl/Cmd+K）。
+ * 全局快速检索（P0 · 全站 Ctrl/Cmd+K，UX-35）。
  *
  * 复用图谱的索引与评分（src/lib/graph/graph-search.ts）：标题精确 > 前缀 > 包含 >
  * 标签 > 标题路径 > 摘要，结果按分数排序；Enter 跳转到对应知识点详情。
  *
- * 与图谱页的搜索浮层互斥：`/graph` 下不注册快捷键（图谱内已有 Ctrl+K）。
+ * 接线方式：由 AppShell 负责快捷键与页脚入口，`/graph` 不挂载本组件（图谱内搜索接管）；
+ * 打开时才挂载，关闭（Esc / 遮罩 / 再次 Ctrl+K）后卸载并把焦点还原到触发元素（UX-16）。
+ * 索引在模块级缓存一次，避免每次打开都重新拉 /api/graph（失败不缓存，下次重试）。
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/client';
+import { useFocusTrap } from '@/lib/ui/focus-trap';
 import {
   buildSearchIndex,
   reasonLabel,
@@ -20,60 +23,38 @@ import {
 } from '@/lib/graph/graph-search';
 import type { GraphNode } from '@/lib/graph/graph-types';
 
-export default function QuickSwitcher() {
-  const pathname = usePathname();
+/** 模块级索引缓存：同一标签页内多次打开不重复请求；失败不写缓存 */
+let cachedNodes: GraphNode[] | null = null;
+
+export default function QuickSwitcher({ onClose }: { onClose: () => void }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
-  const [nodes, setNodes] = useState<GraphNode[] | null>(null);
+  const [nodes, setNodes] = useState<GraphNode[] | null>(cachedNodes);
   const [failed, setFailed] = useState(false);
-  const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // 全局快捷键（/graph 由图谱内搜索接管，避免同时弹出两个浮层）
-  useEffect(() => {
-    if (pathname.startsWith('/graph')) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.isComposing) return;
-      if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        setOpen((value) => {
-          // 打开时立即重置，避免 effect 延后清空覆盖用户刚输入的字符
-          if (!value) {
-            setQuery('');
-            setActiveIndex(0);
-          }
-          return !value;
-        });
-        return;
-      }
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [pathname]);
+  // 焦点陷阱：打开即聚焦搜索框，Tab 停留在浮层内，Esc 关闭后焦点回到入口按钮
+  useFocusTrap({ active: true, containerRef: panelRef, onEscape: onClose });
 
-  // 打开时懒加载索引：setState 全部发生在 await 之后，避免 effect 内同步级联渲染
+  // 懒加载索引：setState 全部发生在 await 之后，避免 effect 内同步级联渲染
   useEffect(() => {
-    if (!open || nodes) return;
+    if (cachedNodes) return;
     let alive = true;
     (async () => {
       try {
         const data = await api<{ nodes: GraphNode[] }>('/api/graph');
-        if (alive) setNodes(data.nodes);
+        if (!alive) return;
+        cachedNodes = data.nodes;
+        setNodes(data.nodes);
       } catch {
-        if (alive) {
-          setNodes([]);
-          setFailed(true);
-        }
+        if (alive) setFailed(true);
       }
     })();
-    const timer = setTimeout(() => inputRef.current?.focus(), 30);
     return () => {
       alive = false;
-      clearTimeout(timer);
     };
-  }, [open, nodes]);
+  }, []);
 
   const index: GraphSearchIndex | null = useMemo(() => (nodes ? buildSearchIndex(nodes) : null), [nodes]);
   const result = useMemo(
@@ -83,7 +64,7 @@ export default function QuickSwitcher() {
   const hits = result?.hits ?? [];
 
   const jump = (hit: SearchHit) => {
-    setOpen(false);
+    onClose();
     router.push(`/segments/${hit.id}`);
   };
 
@@ -97,13 +78,8 @@ export default function QuickSwitcher() {
     } else if (event.key === 'Enter' && hits[activeIndex]) {
       event.preventDefault();
       jump(hits[activeIndex]);
-    } else if (event.key === 'Escape') {
-      event.preventDefault();
-      setOpen(false);
     }
   };
-
-  if (!open) return null;
 
   return (
     <div
@@ -111,15 +87,15 @@ export default function QuickSwitcher() {
       role="dialog"
       aria-modal="true"
       aria-label="全局检索"
-      onMouseDown={() => setOpen(false)}
+      onMouseDown={onClose}
     >
       <div className="absolute inset-0 bg-black/55" />
       <div
+        ref={panelRef}
         className="relative mx-auto mt-[12vh] w-[min(40rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-line bg-elevated shadow-2xl"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <input
-          ref={inputRef}
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);

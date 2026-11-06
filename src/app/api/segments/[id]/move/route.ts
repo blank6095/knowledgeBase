@@ -6,6 +6,7 @@ import { badRequest, guard, isUuid, notFound } from '@/lib/api';
 import { invalidateCache } from '@/lib/cache';
 import { runBatch } from '@/lib/db-batch';
 import { rebuildDocQueries } from '@/lib/links';
+import { invalidateSegmentCaches } from '@/lib/segment-cache';
 
 /** 与相邻段交换顺序（同文档内）：direction = up（向前）| down（向后） */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -46,6 +47,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   invalidateCache('stats');
   invalidateCache('docs');
   invalidateCache(`note:${seg.documentId}`);
+  // 上一/下一节由 orderIndex 推导，顺序一变相关段的详情都要重取
+  invalidateSegmentCaches();
 
   return NextResponse.json({ ok: true });
 }

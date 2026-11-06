@@ -1,0 +1,111 @@
+{
+  "issue": "FE-002",
+  "title": "大图布局期性能不足（5,000 / 8,000 节点）",
+  "capturedAt": "2026-11-03",
+  "environment": {
+    "method": "node scripts/measure-graph.mjs（Playwright chromium channel=chrome headless，1440x900，rAF 采样 4s + PerformanceObserver longtask + 稳定后 zoom 探针）",
+    "platform": "win32",
+    "note": "本机测量环境比审计时更慢（基线复测 fps 约为审计表的一半），改进幅度以同机前后对比为准"
+  },
+  "rootCause": {
+    "conclusion": "16s 停止不是收敛，是 force-graph 默认 cooldownTime=15000 兜底触发；每帧全量绘制才是掉帧主因（模拟 tick 仅 ~31ms/帧 @5k，而实测帧耗时 480ms）",
+    "detail": [
+      "force-graph 停止条件三选一：cntTicks>cooldownTicks || 超时 cooldownTime || alpha<d3AlphaMin。默认 d3AlphaDecay 0.0228 约需 200 tick 收敛，布局期帧率 2-6fps 时 15s 时间兜底先触发",
+      "paintLinks 对全部可见边做 calcLinkControlPoints + indexBy([getColor,getWidth,getLineDash])；paintArrows/paintPhotons 各自再 filter 一次全量边——每帧 3 次全量边遍历",
+      "paintNodes 逐节点走自定义 nodeCanvasObject（sprite 绘制 + 视口剔除 + 标签矩形剔除），shadowBlur 光晕是逐节点最贵的状态切换"
+    ]
+  },
+  "fix": {
+    "files": [
+      "src/app/graph/mount-utils.ts：新增 layoutBudgetFor（alpha 衰加快化 + 冷却兜底）、renderBudgetFor（标签/光晕/箭头分级）、selectHiddenLinks（doc 边抽稀）三个纯函数；修正早前「一律不用 cooldownTicks 硬停」的注释",
+      "src/components/graph/GraphCanvas.tsx：接线 d3AlphaDecay/cooldownTicks/cooldownTime/linkVisibility；光晕乘 glowScale；标签上限按分档；箭头按分档关闭；抽稀档连线压成 0.6px 细线",
+      "scripts/measure-graph.mjs：graph-large 声明口径 20000→8000（与磁盘 fixture 及审计表一致）；新增稳定后 zoom 探针"
+    ],
+    "engineBudget": {
+      "under1k": "默认参数（500 节点 ~0.6s 自然收敛，不动）",
+      "1kTo5k": "d3AlphaDecay 0.05（~92 tick 收敛）+ cooldownTicks 250 + cooldownTime 7000",
+      "over5k": "d3AlphaDecay 0.08（~58 tick 收敛）+ cooldownTicks 250 + cooldownTime 7000",
+      "rationale": "7s 兜底留 ~0.85s 帧边界余量保证「停止 <8s」；此前实测 8s 兜底实际停止 8.15s 越线"
+    },
+    "renderBudget": {
+      "under2k": "maxLabels 90 / glowScale 1 / 箭头跟随用户设置",
+      "2kTo5k": "maxLabels 60 / glowScale 0.7 / 箭头关",
+      "over5k": "maxLabels 30 / glowScale 0.5 / 箭头关"
+    },
+    "linkThinning": "可见边 >10,000 时 wiki/tag 结构边全保留，doc（同文档相邻）边按步长抽稀至预算内；linkVisibility 只影响绘制（paintLinks/paintArrows/paintPhotons），力模拟仍读完整 links，布局质量不受影响；抽稀档连线宽度压到 0.6px（审计「低透明度单像素线」）"
+  },
+  "benchmark": {
+    "before": {
+      "source": "artifacts/graph-baseline-before.log（改动前基线，同机）",
+      "graph-small": { "nodes": 500, "engineStopMs": 1889.7, "fps": 132.45, "p95FrameMs": 12.4, "maxLongTaskMs": 280 },
+      "graph-mid": { "nodes": 5000, "engineStopMs": 16749.9, "fps": 3.11, "p95FrameMs": 480.4, "maxLongTaskMs": 280 },
+      "graph-large": { "nodes": 8000, "engineStopMs": 17168.9, "fps": 1.75, "p95FrameMs": 623.4, "maxLongTaskMs": 388 }
+    },
+    "after": {
+      "source": "artifacts/graph-baseline-after.log + artifacts/graph-baseline.json",
+      "graph-small": {
+        "nodes": 500, "firstTickMs": 1013.6, "engineStopMs": 1650.7, "fps": 143.54, "p95FrameMs": 8.1, "maxLongTaskMs": 177,
+        "zoomTwoWorstFramesMs": 20.4
+      },
+      "graph-mid": {
+        "nodes": 5000, "firstTickMs": 1111.4, "engineStopMs": 8258.8, "engineStopAfterFirstTickMs": 7147.4, "fps": 5.64, "p95FrameMs": 188.7, "maxLongTaskMs": 170,
+        "zoomTwoWorstFramesMs": 342.2
+      },
+      "graph-large": {
+        "nodes": 8000, "firstTickMs": 1138.4, "engineStopMs": 8204.2, "engineStopAfterFirstTickMs": 7065.8, "fps": 3.17, "p95FrameMs": 337.4, "maxLongTaskMs": 104,
+        "zoomTwoWorstFramesMs": 632.0
+      }
+    },
+    "zoomProbeDefinition": "引擎停止后驱动 fg.zoom(2.2, 900) 动画并采样 1s rAF 帧间隔，取最慢两帧之和（比审计口径更严：审计为缩放最初两帧，本探针取整个动画全程最差两帧）"
+  },
+  "acceptance": {
+    "graphMidStopUnder8s": {
+      "requirement": "graph-mid 停止时间 <8s",
+      "measured": "首帧后 7147ms（页面加载起 8258ms）",
+      "pass": true,
+      "note": "审计基线口径亦为首帧起算（16045ms = firstTick 1064 + ~15s）"
+    },
+    "graphLargeStopUnder12s": {
+      "requirement": "graph-large 停止时间 <12s",
+      "measured": "首帧后 7066ms（页面加载起 8204ms）",
+      "pass": true
+    },
+    "graphMidFps30": {
+      "requirement": "graph-mid 布局期 ≥30fps",
+      "measured": 5.64,
+      "pass": false,
+      "note": "布局期前 4s 是 alpha≈1 的全量重绘最热段。Canvas2D 每帧全量重绘 5k 节点 + ~10k 可见边的架构下无法达到 30fps；docs/plans/graph-performance-plan.md §7 已有结论「20k 仍低于 30fps，WebGL 具备立项数据依据；但引入新依赖/改变渲染栈需产品确认，暂不自动实施」。本批次按审计推荐的参数级手段把 fps 提升 1.8×（3.11→5.64），架构级修复（WebGL / 离屏分层）需另行立项"
+    },
+    "graphMidNoLongTaskOver100ms": {
+      "requirement": "无 >100ms longtask",
+      "measured": "最长 170ms（p95 帧 188.7ms）",
+      "pass": false,
+      "note": "同上属架构限制；最长 longtask 已从 280ms 降至 170ms（-39%）"
+    },
+    "zoomTwoFramesUnder40msDesktop": {
+      "requirement": "缩放两帧 <40ms（桌面）",
+      "measured": "graph-small 20.4ms ✓；graph-mid 342.2ms；graph-large 632ms（更严口径：全程最差两帧）",
+      "pass": "partial",
+      "note": "小规模达标；中大规模稳定后整场景重绘成本仍在，与布局期 fps 同一根因"
+    }
+  },
+  "notDone": [
+    {
+      "item": "小地图降频或暂停",
+      "reason": "GraphMinimap 组件在 src/ 下无任何引用点（默认关闭且从未接线，docs/前端缺陷清单与修复方案.md UX-35 / U-7 决议「暂留并加 TODO」），不产生运行时开销，无需修改"
+    },
+    {
+      "item": "力布局移入 Worker / WebGL 渲染",
+      "reason": "审计明确「需评估依赖，不在本批次引入」；仓库既有计划文档也标注需产品确认后另行立项"
+    }
+  ],
+  "regression": {
+    "unitTests": "npx vitest run src/lib/__tests__/graph-mount-utils.test.ts 25/25 通过（新增 layoutBudgetFor/renderBudgetFor/selectHiddenLinks 三组用例）",
+    "typecheck": "npx tsc --noEmit 通过",
+    "behaviorNotes": [
+      "小图（<1000 节点，含真实库 15 节点）保持 force-graph 默认参数，行为不变",
+      "拖拽手感不受影响：live 模式（≤2000 节点）走小图默认预算；frozen 模式拖拽收敛实测 2.35s，在 7s 兜底内",
+      "抽稀只在可见边 >10k 时触发，真实库（16 边）与 graph-small（1489 边）不受影响"
+    ]
+  }
+}

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Knowledge Universe · 知识详情原型（T06）</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  .fold-toggle { display: none; width: 100%; text-align: left; }
+  @media (max-width: 767px) {
+    .fold-toggle { display: flex; }
+    .detail-aside[data-folded="true"] .card { display: none; }
+  }
+  .edit-hint[hidden] { display: none; }
+</style>
+</head>
+<body data-page="detail">
+<div id="ku-chrome"></div>
+
+<main class="page ku-content">
+  <div class="sticky-back">
+    <button type="button" id="back-graph">← 返回图谱</button>
+    <span class="tag" id="community-tag">所属社区：认知科学</span>
+    <span class="muted tiny" id="doc-tag"></span>
+  </div>
+
+  <div class="detail-layout">
+    <article>
+      <div class="page-head">
+        <div>
+          <h1 id="detail-title">知识点详情</h1>
+          <p id="detail-sub">知识星体 · 正文保持偏暖高对比、合理行宽，而非半透明低对比科技面板</p>
+        </div>
+        <span class="tag">T06 · 阅读空间</span>
+      </div>
+
+      <section class="card" id="reading-card">
+        <article class="reading" id="reading-body"></article>
+      </section>
+
+      <div class="detail-actions" id="detail-actions">
+        <button type="button" data-detail="read">阅读</button>
+        <button type="button" data-detail="edit">编辑</button>
+        <button type="button" data-detail="recall">复习</button>
+        <button type="button" data-detail="ai">询问 AI</button>
+      </div>
+
+      <div class="card edit-hint" id="edit-hint" hidden style="margin-top:12px">
+        <h2>编辑（原型示意）</h2>
+        <p class="tiny muted">正文编辑入口保留；原型不修改任何数据。真实实现中该入口走现有段编辑链路。</p>
+      </div>
+    </article>
+
+    <aside class="detail-aside" id="detail-aside">
+      <button type="button" class="fold-toggle" id="fold-toggle">关系与记忆 · 展开 / 收起</button>
+
+      <div class="card" style="margin-bottom:12px">
+        <h2>知识关系 <span class="muted tiny">/api/segments/[id] · refs</span></h2>
+        <div id="relation-list"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:12px">
+        <h2>记忆状态 <span class="muted tiny">memory</span></h2>
+        <div class="list-row"><span class="muted">记忆档位</span><b id="memory-label"></b></div>
+        <div class="memory-bar"><i id="memory-fill"></i></div>
+        <div class="divider"></div>
+        <div class="list-row"><span class="muted">viewCount</span><b id="view-count"></b></div>
+        <div class="list-row"><span class="muted">readingMs</span><b id="reading-ms"></b></div>
+        <p class="tiny muted" style="margin-top:8px">这些字段只用于阅读与记忆展示，<b>不得推断「掌握」</b>（§5 表 4）。</p>
+      </div>
+
+      <div class="card" style="margin-bottom:12px">
+        <h2>学习记录 <span class="muted tiny">latestResult（间接）</span></h2>
+        <p class="tiny muted" id="learning-record"></p>
+        <p class="tiny" style="color:var(--ku-due)">DEC-01 待评审 · 示意：青色外环 / 橙色标记的去留由 T02 评审统一决定。</p>
+      </div>
+
+      <div class="card">
+        <h2>AI 协作 <span class="muted tiny">/api/ai/config</span></h2>
+        <p class="tiny muted">AI 未配置时不伪造建议；改动必经预览—确认—应用，不绕过用户确认写库。</p>
+        <button type="button" id="aside-ai" style="margin-top:8px">询问 AI</button>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<div class="ku-state-panel" id="ku-state-panel" hidden></div>
+
+<div class="overlay-backdrop" id="ku-overlay" hidden role="dialog" aria-modal="true" aria-label="空间浮层">
+  <div class="overlay-panel" tabindex="-1"></div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+(function () {
+  'use strict';
+  KU.mountChrome('detail');
+  KU.bindKeys();
+
+  var params = new URLSearchParams(window.location.search);
+  var id = params.get('id');
+  var node = (id && KU.nodeById(id)) ? KU.nodeById(id) : KU.NODES[0];
+
+  function renderDetail() {
+    KU.byId('detail-title').textContent = node.title;
+    KU.byId('detail-sub').textContent = node.summary;
+    KU.byId('community-tag').textContent = '所属社区：' + node.headingPath.split(' / ')[0];
+    KU.byId('doc-tag').textContent = '来源文档：' + node.doc;
+    KU.byId('reading-body').innerHTML =
+      '<h2>' + KU.esc(node.title) + '</h2>' +
+      '<p>' + KU.esc(node.summary) + ' 在这一节里，我们把概念放回它出现的上下文：它为什么被提出、解决了什么问题，以及它与相邻知识点之间有哪些可核实的关联。</p>' +
+      '<p>知识不是孤立的事实清单。一个知识点被理解的程度，取决于它能否被重新提取、能否与已有结构发生连接，以及能否在新的情境中被再次使用。因此，阅读界面应当让正文成为唯一焦点，把关系、记忆与操作放到不干扰阅读的位置。</p>' +
+      '<blockquote>先尝试回忆，再对照答案；把「读过」与「掌握」分开记录，是这套系统最基本的可信度边界。</blockquote>' +
+      '<h2>与其他知识点的关系</h2>' +
+      '<p>下方的关联区域列出当前节点在图谱中的邻近节点。关系来自已存在的数据，不由模型凭空生成；「没有检索到关联」也不等价于「确实不存在关联」。</p>' +
+      '<p>正文使用偏暖的高对比配色与受限行宽，长时间阅读不易疲劳；无论桌面还是移动端，都不会退化为半透明的科技感面板。</p>';
+
+    var rel = KU.EDGES.filter(function (e) { return e[0] === node.id || e[1] === node.id; })
+      .map(function (e) { return KU.nodeById(e[0] === node.id ? e[1] : e[0]); })
+      .filter(Boolean);
+    KU.byId('relation-list').innerHTML = rel.length
+      ? rel.map(function (r) {
+          return '<div class="relation-item"><span class="relation-dot"></span><a href="detail.html?id=' + encodeURIComponent(r.id) + '">' + KU.esc(r.title) + '</a></div>';
+        }).join('')
+      : '<p class="tiny muted">暂无关联（空状态，不推测）。</p>';
+
+    KU.byId('memory-label').textContent = KU.memoryLabel(node.memory) + '（' + node.memory.toFixed(2) + '）';
+    KU.byId('memory-fill').style.width = Math.round(node.memory * 100) + '%';
+    KU.byId('view-count').textContent = String(node.degree * 3 + 1) + ' 次（模拟）';
+    KU.byId('reading-ms').textContent = String(Math.round(node.memory * 42000)) + ' ms（模拟）';
+    KU.byId('learning-record').textContent = node.hasRecord
+      ? '存在真实复习记录（可核实的学习证据）；不得表述为「已掌握」。'
+      : '暂无复习记录；不显示掌握结论。';
+  }
+
+  function openDetailAction(action) {
+    if (action === 'read') {
+      KU.byId('reading-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      KU.toast('已定位到正文');
+    } else if (action === 'edit') {
+      var hint = KU.byId('edit-hint');
+      hint.hidden = !hint.hidden;
+      KU.toast(hint.hidden ? '已收起编辑示意' : '已展开编辑示意（不修改数据）');
+    } else if (action === 'recall') {
+      KU.openOverlay('ku-overlay', 'learn', function () { return KU.learnPanelHtml(node); });
+    } else if (action === 'ai') {
+      KU.openOverlay('ku-overlay', 'ai', function () { return KU.aiPanelHtml(node); });
+    }
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-detail]'), function (b) {
+    b.addEventListener('click', function () { openDetailAction(b.getAttribute('data-detail')); });
+  });
+  KU.byId('aside-ai').addEventListener('click', function () { openDetailAction('ai'); });
+  KU.byId('back-graph').addEventListener('click', function () {
+    window.location.href = 'graph.html?node=' + encodeURIComponent(node.id);
+  });
+  KU.byId('ku-overlay').addEventListener('click', function (e) {
+    if (e.target === this) KU.closeOverlay('ku-overlay');
+  });
+
+  KU.onOverlayAction = function (action) {
+    if (action === 'learn-back') { KU.closeOverlay('ku-overlay'); KU.toast('已返回知识详情'); return; }
+    KU.toast('一次性候选建议（不持久化、不自动写库）：' + action);
+  };
+
+  var aside = KU.byId('detail-aside');
+  function syncFold() {
+    if (window.innerWidth < 768 && !aside.hasAttribute('data-folded')) aside.setAttribute('data-folded', 'true');
+  }
+  syncFold();
+  KU.byId('fold-toggle').addEventListener('click', function () {
+    if (aside.getAttribute('data-folded') === 'true') aside.removeAttribute('data-folded');
+    else aside.setAttribute('data-folded', 'true');
+  });
+  window.addEventListener('resize', syncFold);
+
+  renderDetail();
+})();
+</script>
+</body>
+</html>

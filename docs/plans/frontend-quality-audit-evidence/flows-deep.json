@@ -1,0 +1,81 @@
+{
+  "ctrlK": {
+    "realKeyOpened": false,
+    "syntheticOpened": false
+  },
+  "study": {
+    "requests": 2,
+    "successText": [
+      "回到作答态继续补充；此时不会记录本次结果。"
+    ]
+  },
+  "importFlow": {
+    "requests": 1,
+    "successText": [
+      "仅处理超长段落（每篇至多 5 段），由大模型按语义重组为更小的知识点；失败自动保留结构拆分结果，不阻断导入。",
+      "拆成 2 个知识点，建立 条关联，等着被逐一点亮。",
+      "查看文档",
+      "查看关系图谱"
+    ]
+  },
+  "graphDetailError": {
+    "panelText": "知识点 |  | 加载中… | ✕ |  | Failed to fetch |  | 重试",
+    "retryButtons": 1,
+    "stillLoading": true
+  },
+  "mobileGraphDetail": {
+    "box": {
+      "x": 0,
+      "y": 337.484375,
+      "width": 390,
+      "height": 426.515625
+    },
+    "viewport": {
+      "w": 390,
+      "h": 844
+    }
+  },
+  "mobile375Map": {
+    "tabWidths": [
+      {
+        "t": "筛选",
+        "w": 38,
+        "h": 48
+      },
+      {
+        "t": "分组",
+        "w": 38,
+        "h": 48
+      },
+      {
+        "t": "显示",
+        "w": 38,
+        "h": 48
+      },
+      {
+        "t": "力",
+        "w": 38,
+        "h": 48
+      },
+      {
+        "t": "主题",
+        "w": 38,
+        "h": 48
+      },
+      {
+        "t": "地图",
+        "w": 38,
+        "h": 48
+      }
+    ],
+    "panel": {
+      "top": 0,
+      "bottom": 667,
+      "w": 375,
+      "h": 667,
+      "overflowY": "hidden",
+      "scrollH": 667,
+      "clientH": 667
+    }
+  }
+}

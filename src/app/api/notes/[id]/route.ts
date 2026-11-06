@@ -8,6 +8,7 @@ import { withDbRetry } from '@/lib/db-retry';
 import { withStaleFallback } from '@/lib/db-read';
 import { runBatch } from '@/lib/db-batch';
 import { rebuildLinksQueries } from '@/lib/links';
+import { invalidateSegmentCaches } from '@/lib/segment-cache';
 import { memoryOf } from '@/lib/memory';
 import { deleteOriginal } from '@/lib/r2';
 
@@ -144,6 +145,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   invalidateCache(`note:${id}`);
   invalidateCache('graph');
   invalidateCache('stats');
+  // 段详情里带所属文档标题，且 tags 变更会重建 tag 边（影响邻段的关联标签）
+  invalidateSegmentCaches();
 
   return NextResponse.json({ document: doc });
 }
@@ -165,6 +168,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   invalidateCache('stats');
   invalidateCache('docs');
   invalidateCache(`note:${id}`);
+  // 文档级联删除其段，缓存里的段详情一并失效
+  invalidateSegmentCaches();
   if (doc.storageKey) await deleteOriginal(doc.storageKey);
   return NextResponse.json({ ok: true });
 }

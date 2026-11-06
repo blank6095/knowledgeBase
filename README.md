@@ -130,7 +130,7 @@ src/
 - 导入仅支持 Markdown 纯文本；图片等附件暂不处理
 - 进程内 TTL 缓存为单实例 best-effort，多实例部署下写后失效存在短窗口
 - Neon 连接偶发抖动时读接口会自动重试；仍失败则回退到最近一次成功的缓存（响应头 `X-Cache: STALE`，数据可能略旧），完全不可用时返回 503 并在页面给出「重试」按钮
-- LLM API Key 使用 AES-GCM 加密；未设置 `SETTINGS_ENCRYPTION_KEY` 时密钥由登录口令派生，改口令会使旧密文失效
+- LLM API Key 使用 AES-GCM 加密；未设置 `SETTINGS_ENCRYPTION_KEY` 时密钥由登录口令派生，改口令会使旧密文失效——设置页会提示「已保存的 API Key 无法解密，请重新填写」，不会把它误报成「未配置」
 
 ## Roadmap
 

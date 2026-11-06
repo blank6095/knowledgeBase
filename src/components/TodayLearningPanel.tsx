@@ -13,6 +13,29 @@ export interface TodayLearningPayload {
   generatedAt: string;
 }
 
+/** 单条约 2–3 分钟：主动回忆「作答 + 对照答案 + 记录」的经验区间 */
+const MINUTES_PER_ITEM_MIN = 2;
+const MINUTES_PER_ITEM_MAX = 3;
+
+function formatHours(minutes: number): string {
+  const hours = minutes / 60;
+  return Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
+}
+
+/**
+ * 今日学习时长估算（UX-34②）：按条数汇总区间，替掉原先写死的「约 10–15 分钟」。
+ * 0 条返回 null（不展示：此时空态已说明「今天没有必须复习的内容」）。
+ * 纯函数，便于单测覆盖边界。
+ */
+export function estimateTodayDuration(itemCount: number): string | null {
+  if (!Number.isFinite(itemCount) || itemCount <= 0) return null;
+  const count = Math.floor(itemCount);
+  const lowMinutes = count * MINUTES_PER_ITEM_MIN;
+  const highMinutes = count * MINUTES_PER_ITEM_MAX;
+  if (lowMinutes < 60) return `约 ${lowMinutes}–${highMinutes} 分钟`;
+  return `约 ${formatHours(lowMinutes)}–${formatHours(highMinutes)} 小时`;
+}
+
 export function TodayLearningSection({
   learning,
   error,
@@ -45,6 +68,8 @@ export function TodayLearningSection({
     );
   }
 
+  const durationText = estimateTodayDuration(learning.items.length);
+
   return (
     <section className="card fade-up overflow-hidden border-l-2 border-accent">
       <div className="flex flex-wrap items-end justify-between gap-2 border-b border-line px-5 py-4">
@@ -52,7 +77,11 @@ export function TodayLearningSection({
           <p className="text-tag uppercase tracking-[0.16em] text-accent">今日学习</p>
           <h2 className="mt-1 font-display text-subtitle font-semibold">先回忆，再看答案</h2>
         </div>
-        <span className="text-tag text-faint">约 10–15 分钟</span>
+        {durationText && (
+          <span className="text-tag text-faint" title="按每条约 2–3 分钟估算">
+            {durationText}
+          </span>
+        )}
       </div>
 
       {learning.items.length === 0 ? (
@@ -61,7 +90,7 @@ export function TodayLearningSection({
           <p className="mt-1 text-minor text-muted">可以继续读一篇文档，或从知识库里主动挑一段。</p>
           <Link
             href="/notes"
-            className="mt-4 inline-flex rounded-lg bg-accent px-3.5 py-1.5 text-body font-medium text-accent-ink hover:bg-accent-strong"
+            className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-accent px-3.5 text-body font-medium text-accent-ink hover:bg-accent-strong"
           >
             选择知识开始
           </Link>

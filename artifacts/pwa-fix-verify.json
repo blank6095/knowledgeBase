@@ -1,0 +1,63 @@
+{
+  "checks": {
+    "manifest": {
+      "status": 200,
+      "name": "知识宇宙",
+      "start_url": "/graph",
+      "display": "standalone",
+      "icons": 3
+    },
+    "meta": {
+      "viewport": "width=device-width, initial-scale=1, viewport-fit=cover",
+      "themeColor": "#0a1020",
+      "appleCapable": "yes",
+      "appleStatus": "black-translucent",
+      "manifestLink": "/manifest.webmanifest"
+    },
+    "safeAreaSupported": false,
+    "safeMetrics": {
+      "viewportH": 844,
+      "topbarTop": 12,
+      "navBottom": 832
+    },
+    "graphNav": [
+      "知识宇宙",
+      "知识库",
+      "今日学习",
+      "学习复盘",
+      "AI 助手",
+      "外观主题",
+      "设置",
+      "退出登录"
+    ],
+    "notesNav": [
+      "知识宇宙",
+      "知识库",
+      "今日学习",
+      "学习复盘",
+      "AI 助手",
+      "外观主题",
+      "设置",
+      "退出登录"
+    ],
+    "navConsistent": true,
+    "mapClosed": {
+      "panel": 0,
+      "legend": 0,
+      "button": null
+    },
+    "panelCloseButton": true,
+    "notesNavDesktop": [
+      "知识宇宙",
+      "知识库",
+      "今日学习",
+      "学习复盘",
+      "AI 助手",
+      "外观主题",
+      "设置",
+      "退出登录"
+    ]
+  },
+  "consoleErrors": [],
+  "pageErrors": []
+}

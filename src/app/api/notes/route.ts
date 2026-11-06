@@ -12,13 +12,13 @@ import { rebuildDocQueries, rebuildLinksQueries } from '@/lib/links';
 import { extractInlineTags } from '@/lib/markdown';
 import { splitMarkdown, type RawSegment } from '@/lib/splitter';
 import { semanticSplit } from '@/lib/ai-split';
+import { invalidateSegmentCaches } from '@/lib/segment-cache';
+import { safeMemory } from '@/lib/memory-sql';
 import { getLlmConfig } from '@/lib/llm';
 import { deleteOriginal, putOriginal } from '@/lib/r2';
 
 
-/** 记忆度 SQL 表达式：与 src/lib/memory.ts memoryOf 公式一致 exp(-Δt天/S)，ε 防除零 */
-const MEMORY_SQL = (stability: typeof segments.stability, lastViewedAt: typeof segments.lastViewedAt) =>
-  sql`exp(-extract(epoch from (now() - ${lastViewedAt})) / 86400.0 / greatest(${stability}, 1e-9))`;
+/** 记忆度 SQL 表达式：与 src/lib/memory.ts memoryOf 公式一致（未读即 0），口径收敛在 @/lib/memory-sql */
 
 const DOCS_CACHE_KEY = 'docs';
 const DOCS_CACHE_TTL_MS = 60_000;
@@ -46,10 +46,7 @@ export async function GET(req: NextRequest) {
           db
             .select({
               documentId: segments.documentId,
-              avgMemory: sql<number>`coalesce(avg(
-                case when ${segments.stability} <= 0 or ${segments.lastViewedAt} is null then 0
-                else ${MEMORY_SQL(segments.stability, segments.lastViewedAt)} end
-              ), 0)::float8`,
+              avgMemory: sql<number>`coalesce(avg(${safeMemory()}), 0)::float8`,
             })
             .from(segments)
             .groupBy(segments.documentId),
@@ -217,6 +214,8 @@ export async function POST(req: NextRequest) {
   invalidateCache('stats');
   invalidateCache(DOCS_CACHE_KEY);
   invalidateCache(`note:${documentId}`);
+  // 新增段会改变已有段的邻接关系（上一/下一节），段详情缓存一并失效
+  invalidateSegmentCaches();
 
   return NextResponse.json({
     documentId,

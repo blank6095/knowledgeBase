@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { safeNextPath } from '@/lib/security';
+import InlineFeedback from '@/components/InlineFeedback';
 
 export default function LoginPage() {
   const [passcode, setPasscode] = useState('');
@@ -10,13 +11,19 @@ export default function LoginPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // UX-24：口令前后空白不 trim 会导致「输入看起来一样却登录失败」，提交前统一去掉
+    const code = passcode.trim();
+    if (!code) {
+      setError('请输入访问口令');
+      return;
+    }
     setError('');
     setLoading(true);
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passcode }),
+        body: JSON.stringify({ passcode: code }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? '登录失败');
@@ -29,7 +36,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-app px-4">
+    // login 不走 AppShell，安全区需要自己让出：PWA 全屏下避免内容贴刘海/Home Indicator
+    <div className="relative flex min-h-screen items-center justify-center bg-app pb-safe pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-safe">
       {/* 卡顶暖光晕：书桌上的台灯 */}
       <div
         aria-hidden
@@ -48,21 +56,31 @@ export default function LoginPage() {
               fill="currentColor"
             />
           </svg>
-          <h1 className="font-display text-subtitle font-semibold">暗夜书房</h1>
+          <h1 className="font-display text-subtitle font-semibold">知识宇宙</h1>
         </div>
-        <p className="mt-1.5 text-minor text-muted">输入访问口令，进入你的书房。</p>
+        <p className="mt-1.5 text-minor text-muted">输入访问口令，进入你的知识宇宙。</p>
+        <label htmlFor="login-passcode" className="sr-only">
+          访问口令
+        </label>
         <input
+          id="login-passcode"
           type="password"
           value={passcode}
           onChange={(e) => setPasscode(e.target.value)}
           placeholder="访问口令"
           autoFocus
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? 'login-error' : undefined}
           className="mt-6 w-full rounded-lg border border-line bg-app px-3 py-2 text-body text-primary outline-none transition-colors placeholder:text-faint focus:border-accent"
         />
-        {error && <p className="mt-3 text-minor text-danger">{error}</p>}
+        {error && (
+          <div id="login-error" className="mt-3">
+            <InlineFeedback tone="danger">{error}</InlineFeedback>
+          </div>
+        )}
         <button
           type="submit"
-          disabled={loading || !passcode}
+          disabled={loading || !passcode.trim()}
           className="mt-4 w-full rounded-lg bg-accent py-2 text-body font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong disabled:opacity-50"
         >
           {loading ? '验证中…' : '进入'}

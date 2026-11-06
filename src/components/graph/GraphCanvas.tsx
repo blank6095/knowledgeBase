@@ -8,20 +8,23 @@
  * 视觉参数与交互集合由 `KnowledgeUniverse` 通过 props 传入。
  */
 import dynamic from 'next/dynamic';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentType, ReactNode, RefObject } from 'react';
 import { MEMORY_TIER_LABELS, memoryTier } from '@/lib/memory';
 import { escapeHtml } from '@/lib/security';
 import { formatDuration } from '@/lib/client';
-import { drawSprite, getNodeSprite, glowBucket, radiusBucket, type NodePaint } from '@/app/graph/node-sprites';
+import { drawSprite, getNodeSprite, glowBucket, radiusBucket, type NodePaint } from '@/lib/graph/node-sprites';
 import {
   CONVERGE_ALPHA_MIN,
   FALLBACK_MEASURE_MS,
   FALLBACK_SIZE,
+  layoutBudgetFor,
   nodeInsideViewport,
+  renderBudgetFor,
+  selectHiddenLinks,
   sizeChanged,
   warmupTicksFor,
-} from '@/app/graph/mount-utils';
+} from '@/lib/graph/mount-utils';
 import {
   CANVAS,
   computeLinkColor,
@@ -53,9 +56,6 @@ declare global {
  * 只是可点，不是视觉半径——节点本身仍按记忆度大小绘制。
  */
 const TOUCH_HIT_PX = 12;
-
-/** 单帧最多绘制的标签数：占位剔除的 O(n²) 上限，也避免满屏文字 */
-const MAX_LABELS = 90;
 
 /**
  * 首屏自适配的最小倍率。
@@ -101,6 +101,8 @@ const Graph = dynamic(() => import('react-force-graph-2d'), { ssr: false }) as u
   nodePointerAreaPaint?: (n: never, color: string, ctx: CanvasRenderingContext2D, globalScale: number) => void;
   linkColor?: (l: never) => string;
   linkWidth?: (l: never) => number;
+  /** 连线可见性：只影响绘制，不影响力模拟（FE-002 边抽稀入口） */
+  linkVisibility?: (l: never) => boolean;
   linkDirectionalArrowLength?: number;
   linkDirectionalArrowRelPos?: number;
   onNodeClick?: (n: never, event?: MouseEvent) => void;
@@ -118,6 +120,12 @@ const Graph = dynamic(() => import('react-force-graph-2d'), { ssr: false }) as u
   warmupTicks?: number;
   /** 布局收敛阈值：alpha 低于该值才停引擎，避免在未收敛处硬冻结 */
   d3AlphaMin?: number;
+  /** alpha 衰减速率：大图取更高值，让收敛在更少帧内完成（FE-002） */
+  d3AlphaDecay?: number;
+  /** 冷却帧数兜底：alpha 收敛之外的第二停止条件（FE-002） */
+  cooldownTicks?: number;
+  /** 冷却时间兜底（ms）：帧率过低时保证引擎必然停止（FE-002） */
+  cooldownTime?: number;
   ref?: ((instance: FGInstance | null) => void) | RefObject<FGInstance | null>;
 }>;
 
@@ -186,6 +194,13 @@ export default function GraphCanvas({
   const { matchedIds, hoverSet, hoverId, compareIds, labelIds, focusIds, neighborIds, pathNodeIds, pathEdgeKeys, mapMarks } =
     interaction;
   const { arrows, fadeThreshold, sizeMult, linkWidthMult, nodeStyle, glowMult } = visual;
+
+  // FE-002 规模分档：引擎预算（alpha 衰减 + 冷却兜底）与渲染分级（标签/光晕/箭头）
+  const nodeCount = graphData.nodes.length;
+  const layoutBudget = useMemo(() => layoutBudgetFor(nodeCount), [nodeCount]);
+  const renderBudget = useMemo(() => renderBudgetFor(nodeCount), [nodeCount]);
+  // 边抽稀：仅影响绘制（linkVisibility），力模拟仍读完整 links；null = 不抽稀
+  const hiddenLinks = useMemo(() => selectHiddenLinks(graphData.links), [graphData.links]);
 
   const wrapRef = useRef<HTMLDivElement>(null);
   /** 粗指针（触屏）检测：命中区下限只对触屏生效，鼠标端保持原有命中范围 */
@@ -325,13 +340,15 @@ export default function GraphCanvas({
     // 否则 0.2 倍下节点只剩 0.4~1px，整张图看起来像噪声。鼠标端不做此放大。
     const minScreenR = coarsePointer.current ? 2.6 / Math.max(globalScale, 0.001) : 0;
     const drawR = Math.max(scaledR, minScreenR);
-    // 灯光隐喻：光晕半径∝记忆度；悬停白热加倍；搜索命中外发光增强；U3-4 光晕倍率
+    // 灯光隐喻：光晕半径∝记忆度；悬停白热加倍；搜索命中外发光增强；U3-4 光晕倍率；
+    // 大图按 renderBudget 削减（shadowBlur 是逐节点最贵的状态切换）
     const glow =
       (2 + 10 * node.memory) *
       Math.min(1.5, sizeMult) *
       (isHover || isCompared ? 2 : 1) *
       (isHit ? 1.7 : 1) *
-      Math.max(0.35, glowMult);
+      Math.max(0.35, glowMult) *
+      renderBudget.glowScale;
 
     // 视口剔除：回调使用图坐标，getTransform 可得到当前画布像素坐标。
     const matrix = ctx.getTransform();
@@ -408,12 +425,12 @@ export default function GraphCanvas({
 
   /**
    * 标签占位剔除：按图坐标做矩形相交检测，已被占用的区域不再画第二个标签。
-   * 悬停标签不参与剔除（永远可读）；MAX_LABELS 兜住极端密度下的 O(n²)。
+   * 悬停标签不参与剔除（永远可读）；上限按 renderBudgetFor 分档，兜住 O(n²)。
    */
   const reserveLabelRect = (left: number, top: number, width: number, height: number): boolean => {
     const rects = labelRects.current;
-    // 触屏屏幕小，标签上限更低，否则 1 倍左右仍会显得拥挤
-    const limit = coarsePointer.current ? 45 : MAX_LABELS;
+    // 触屏屏幕小，标签上限更低，否则 1 倍左右仍会显得拥挤；大图按 renderBudget 再降
+    const limit = coarsePointer.current ? Math.min(45, renderBudget.maxLabels) : renderBudget.maxLabels;
     if (rects.length >= limit) return false;
     for (const rect of rects) {
       if (left < rect.r + 4 && left + width > rect.l - 4 && top < rect.b + 4 && top + height > rect.t - 4) {
@@ -494,6 +511,12 @@ export default function GraphCanvas({
                 : warmupTicksFor(graphData.nodes.length)
             }
             d3AlphaMin={CONVERGE_ALPHA_MIN}
+            // FE-002：大图提高 alpha 衰减速率（收敛 tick 数 ≈ 4.6/decay），并用
+            // cooldownTicks/cooldownTime 兜底——帧率过低时 alpha 走不到阈值，
+            // 默认 cooldownTime=15000 就是 16s 才停的原因；8s 兜底同时是验收上限
+            d3AlphaDecay={layoutBudget.d3AlphaDecay}
+            cooldownTicks={layoutBudget.cooldownTicks}
+            cooldownTime={layoutBudget.cooldownTime}
             // 透明画布：背景由 GraphBackground 承担（rgba 全透明，节点/连线仍正常绘制）
             backgroundColor="rgba(0,0,0,0)"
             maxZoom={4}
@@ -526,16 +549,19 @@ export default function GraphCanvas({
                 hoverId,
               )
             }
-            linkWidth={(l) =>
-              computeLinkWidth(
+            linkWidth={(l) => {
+              const raw = computeLinkWidth(
                 l as unknown as GraphLink,
                 hoverId,
                 linkWidthMult,
                 searchLinkBoost(l as unknown as GraphLink),
                 pathLinkBoost(l as unknown as GraphLink),
-              )
-            }
-            linkDirectionalArrowLength={arrows ? 3.5 : 0}
+              );
+              // 抽稀档把连线压成单像素细线（低信息密度大图的「退到底色」形态）
+              return hiddenLinks ? Math.min(raw, 0.6) : raw;
+            }}
+            linkVisibility={hiddenLinks ? (l) => !hiddenLinks.has(l as unknown as GraphLink) : undefined}
+            linkDirectionalArrowLength={arrows && renderBudget.arrowsOn ? 3.5 : 0}
             linkDirectionalArrowRelPos={0.8}
             onNodeClick={(n) => onNodeClick(n as unknown as CanvasNode)}
             onNodeRightClick={(n, event) =>

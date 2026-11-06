@@ -1,0 +1,159 @@
+{
+  "checks": [
+    {
+      "name": "UX-06 第 1 轮回答出现",
+      "pass": true
+    },
+    {
+      "name": "UX-06 第 2 轮回答出现",
+      "pass": true
+    },
+    {
+      "name": "UX-06 第 3 轮回答出现",
+      "pass": true
+    },
+    {
+      "name": "UX-06 第 1 轮问题与回答同时在屏",
+      "pass": true,
+      "detail": {
+        "q": 1,
+        "a": 1
+      }
+    },
+    {
+      "name": "UX-06 第 2 轮问题与回答同时在屏",
+      "pass": true,
+      "detail": {
+        "q": 1,
+        "a": 1
+      }
+    },
+    {
+      "name": "UX-06 第 3 轮问题与回答同时在屏",
+      "pass": true,
+      "detail": {
+        "q": 1,
+        "a": 1
+      }
+    },
+    {
+      "name": "UX-07 空流进入错误态",
+      "pass": true
+    },
+    {
+      "name": "UX-07 空流后输入框内容保留",
+      "pass": true,
+      "detail": "LEAD-空流问题正文"
+    },
+    {
+      "name": "UX-07 错误态提供重试",
+      "pass": true,
+      "detail": 1
+    },
+    {
+      "name": "UX-08 上下文拉取失败有可见提示",
+      "pass": true
+    },
+    {
+      "name": "UX-13① 揭晓参考答案可见",
+      "pass": true
+    },
+    {
+      "name": "UX-13① 提供「返回修改作答」",
+      "pass": true
+    },
+    {
+      "name": "UX-13① 返回后参考答案收起且作答保留",
+      "pass": true,
+      "detail": {
+        "hidden": true,
+        "value": "LEAD-我的作答内容"
+      }
+    },
+    {
+      "name": "UX-13 提交后显示「复习已记录」",
+      "pass": true
+    },
+    {
+      "name": "UX-13② 成功页提供「下一条」",
+      "pass": true
+    },
+    {
+      "name": "UX-10 选中搜索结果后打开详情面板",
+      "pass": true
+    },
+    {
+      "name": "UX-10 选中后搜索浮层关闭",
+      "pass": true
+    },
+    {
+      "name": "UX-28 筛选全空显示「无匹配节点」空态",
+      "pass": true,
+      "detail": {
+        "checkboxes": 7
+      }
+    },
+    {
+      "name": "UX-28 空态提供「重置筛选」",
+      "pass": true
+    },
+    {
+      "name": "UX-28 重置筛选后空态消失",
+      "pass": true
+    },
+    {
+      "name": "UX-25 API 401 后跳转 /login?next=当前路径",
+      "pass": true,
+      "detail": "http://127.0.0.1:3130/login?next=%2Fnotes"
+    },
+    {
+      "name": "UX-27 标注失败显示内联警告",
+      "pass": true
+    },
+    {
+      "name": "UX-27 标注失败提供「重试」",
+      "pass": true,
+      "detail": 1
+    },
+    {
+      "name": "UX-22 超大文件给出可读错误",
+      "pass": true
+    },
+    {
+      "name": "UX-22 文件输入仍有「支持/不超过」提示",
+      "pass": true
+    },
+    {
+      "name": "UX-19 自定义模型为空时禁止保存并提示",
+      "pass": true
+    },
+    {
+      "name": "UX-19 空模型未发出保存请求",
+      "pass": true,
+      "detail": 0
+    },
+    {
+      "name": "UX-20 /api/ai/test 接受草稿 Key 并标记 keySource=draft",
+      "pass": true,
+      "detail": {
+        "status": 200,
+        "keySource": "draft"
+      }
+    },
+    {
+      "name": "UX-20 响应不回显完整 Key",
+      "pass": true,
+      "detail": "****0000"
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ],
+  "pageErrors": []
+}

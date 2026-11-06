@@ -7,6 +7,7 @@
 import { desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { annotations, appSettings, links, readingEvents, segments } from '@/db/schema';
+import { isRead, memory, strongLimit, weakLimit } from '@/lib/memory-sql';
 
 export interface LearnerProfile {
   totalSegments: number;
@@ -39,9 +40,9 @@ export async function saveLearnerDeclaration(declaration: string): Promise<void>
     });
 }
 
-/** 记忆度表达式（与 src/lib/memory.ts memoryOf 一致） */
-const MEMORY_EXPR = sql`exp(-extract(epoch from (now() - ${segments.lastViewedAt})) / 86400.0 / greatest(${segments.stability}, 1e-9))`;
-const READ = sql`${segments.stability} > 0 and ${segments.lastViewedAt} is not null`;
+/** 记忆度表达式与「已读」判定（与 src/lib/memory.ts memoryOf 一致，口径收敛在 @/lib/memory-sql） */
+const MEMORY_EXPR = memory();
+const READ = isRead();
 
 /** 五项 SQL 聚合并行推导画像 */
 export async function deriveLearnerProfile(): Promise<LearnerProfile | null> {
@@ -50,15 +51,15 @@ export async function deriveLearnerProfile(): Promise<LearnerProfile | null> {
       .select({
         total: sql<number>`count(*)::int`,
         unread: sql<number>`count(*) filter (where not (${READ}))::int`,
-        weak: sql<number>`count(*) filter (where ${READ} and ${MEMORY_EXPR} < 0.4)::int`,
-        medium: sql<number>`count(*) filter (where ${READ} and ${MEMORY_EXPR} >= 0.4 and ${MEMORY_EXPR} < 0.75)::int`,
-        strong: sql<number>`count(*) filter (where ${READ} and ${MEMORY_EXPR} >= 0.75)::int`,
+        weak: sql<number>`count(*) filter (where ${READ} and ${MEMORY_EXPR} < ${weakLimit()})::int`,
+        medium: sql<number>`count(*) filter (where ${READ} and ${MEMORY_EXPR} >= ${weakLimit()} and ${MEMORY_EXPR} < ${strongLimit()})::int`,
+        strong: sql<number>`count(*) filter (where ${READ} and ${MEMORY_EXPR} >= ${strongLimit()})::int`,
       })
       .from(segments),
     db
       .select({ id: segments.id, title: segments.title, memory: sql<number>`(${MEMORY_EXPR})::float8` })
       .from(segments)
-      .where(sql`${READ} and ${MEMORY_EXPR} < 0.4`)
+      .where(sql`${READ} and ${MEMORY_EXPR} < ${weakLimit()}`)
       .orderBy(sql`${MEMORY_EXPR} asc`)
       .limit(5),
     db

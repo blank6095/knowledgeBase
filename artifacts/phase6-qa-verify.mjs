@@ -52,8 +52,6 @@ const login = async (page) => {
   await page.waitForURL('**/graph', { timeout: 30_000 });
 };
 const mapButton = (page) => page.getByRole('button', { name: /学习地图/ });
-const mapPanel = (page) => page.locator('div', { hasText: '学习地图用独立的' }).last();
-const legendChips = (page) => page.locator('div.absolute.bottom-8.left-3 span');
 async function openMap(page) {
   await mapButton(page).click();
   await page.getByRole('button', { name: '地图', exact: true }).waitFor({ timeout: 8_000 });

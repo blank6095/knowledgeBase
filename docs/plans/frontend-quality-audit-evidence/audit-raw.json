@@ -1,0 +1,1241 @@
+{
+  "startedAt": "2026-11-03T10:35:29.511Z",
+  "browser": {
+    "version": "156.0.8078.74"
+  },
+  "pages": [
+    {
+      "label": "desktop-login",
+      "diag": {
+        "url": "http://127.0.0.1:3100/login",
+        "title": "知识宇宙",
+        "innerWidth": 1440,
+        "scrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflowX": false,
+        "offenders": [],
+        "text": "知识宇宙\n\n输入访问口令，进入你的知识宇宙。\n\n访问口令\n进入",
+        "links": [],
+        "buttons": [],
+        "inputs": []
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "desktop-dashboard",
+      "diag": {
+        "url": "http://127.0.0.1:3100/",
+        "title": "知识宇宙",
+        "innerWidth": 1440,
+        "scrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflowX": false,
+        "offenders": [],
+        "text": "概览\n导入知识\n\n今日学习\n\n先回忆，再看答案\n约 6–9 分钟\n1\nJava Spring（多线程环境）\n上次没有答出\n单线程 · 记忆 9%\n开始回忆 →\n2\n请求对象通配符\n最近读过，尚未自测\n管道 · 记忆 18%\n开始回忆 →\n3\n资源修饰符\n最近读过，尚未自测\n管道 · 记忆 1%\n开始回忆 →\n近 7 天自测\n2\n需再巩固\n2\n有改善\n0\n活跃天数\n1\n薄弱清单\n\n按遗忘风险 × 关联度排序\n\nOSI 七层模型\n0% · 关联 6\nTCP 与 UDP\n23% · 关联 5\nHTTP 状态码\n0% · 关联 3\n未读精选\n\n最新导入里还没点亮的\n\n路由通配符\n管道\n重定向\n管道\n概述\n单线程\n最近导入\n查看全部 →\n管道\n4 个知识点 · 10/25 14:52\n单线程\n7 个知识点 · 10/25 01:27\n优化字体和图像\n1 个知识点 · 10/25 01:11\n计算机网",
+        "links": [
+          {
+            "t": "导入知识",
+            "href": "/import"
+          },
+          {
+            "t": "1\nJava Spring（多线程环境）\n上次没有答出\n单线程 · 记忆 9%\n",
+            "href": "/study/9e2b7211-0d17-43d8-82a2-e3136fd6d87f"
+          },
+          {
+            "t": "2\n请求对象通配符\n最近读过，尚未自测\n管道 · 记忆 18%\n开始回忆 →",
+            "href": "/study/253305f9-4467-4062-baa9-c39b159a4679"
+          },
+          {
+            "t": "3\n资源修饰符\n最近读过，尚未自测\n管道 · 记忆 1%\n开始回忆 →",
+            "href": "/study/788c428b-e146-4e1d-afa1-06f875736883"
+          },
+          {
+            "t": "OSI 七层模型\n0% · 关联 6",
+            "href": "/segments/cfd0465f-349a-4481-91bf-433db22fe3f7"
+          },
+          {
+            "t": "TCP 与 UDP\n23% · 关联 5",
+            "href": "/segments/c2cd410f-c3cf-4d1a-b16c-bfa1b850ce31"
+          },
+          {
+            "t": "HTTP 状态码\n0% · 关联 3",
+            "href": "/segments/5d8bd6f2-aa65-4a7b-b188-7dabcbb6ec6b"
+          },
+          {
+            "t": "路由通配符\n管道",
+            "href": "/segments/0a25cfb3-a603-4492-9260-70ccccdde3a3"
+          },
+          {
+            "t": "重定向\n管道",
+            "href": "/segments/fe2b71f8-7472-4bb3-90d6-5cc86684297b"
+          },
+          {
+            "t": "概述\n单线程",
+            "href": "/segments/7dda1a3a-6ca5-4f6e-b38c-46db4b8bc9f3"
+          },
+          {
+            "t": "查看全部 →",
+            "href": "/notes"
+          },
+          {
+            "t": "管道",
+            "href": "/notes/995f8673-3d85-4a62-8dae-3014a0eefd62"
+          },
+          {
+            "t": "单线程",
+            "href": "/notes/7fcfb69b-8136-470d-bd14-54ecb6e35dc2"
+          },
+          {
+            "t": "优化字体和图像",
+            "href": "/notes/459728bf-a9ba-4bf6-9d8a-fbf0537e5efb"
+          },
+          {
+            "t": "计算机网络基础",
+            "href": "/notes/258c90af-dc62-40a2-b366-71a5d7b2de64"
+          },
+          {
+            "t": "在图谱中查看掌握分布 →",
+            "href": "/graph"
+          }
+        ],
+        "buttons": [],
+        "inputs": []
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "desktop-notes",
+      "diag": {
+        "url": "http://127.0.0.1:3100/notes",
+        "title": "知识宇宙",
+        "innerWidth": 1440,
+        "scrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflowX": false,
+        "offenders": [],
+        "text": "知识库\n4 篇文档\n导入\n管道\n4 点\n10/25 14:52\n单线程\n7 点\n10/25 01:27\n优化字体和图像\n1 点\n10/25 01:11\n计算机网络基础#网络#基础\n3 点\n10/25 00:47",
+        "links": [
+          {
+            "t": "导入",
+            "href": "/import"
+          },
+          {
+            "t": "管道\n4 点\n10/25 14:52",
+            "href": "/notes/995f8673-3d85-4a62-8dae-3014a0eefd62"
+          },
+          {
+            "t": "单线程\n7 点\n10/25 01:27",
+            "href": "/notes/7fcfb69b-8136-470d-bd14-54ecb6e35dc2"
+          },
+          {
+            "t": "优化字体和图像\n1 点\n10/25 01:11",
+            "href": "/notes/459728bf-a9ba-4bf6-9d8a-fbf0537e5efb"
+          },
+          {
+            "t": "计算机网络基础#网络#基础\n3 点\n10/25 00:47",
+            "href": "/notes/258c90af-dc62-40a2-b366-71a5d7b2de64"
+          }
+        ],
+        "buttons": [],
+        "inputs": [
+          {
+            "ph": "搜索标题或标签…",
+            "type": null,
+            "aria": null
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "desktop-note-detail",
+      "diag": {
+        "url": "http://127.0.0.1:3100/notes/995f8673-3d85-4a62-8dae-3014a0eefd62",
+        "title": "知识宇宙",
+        "innerWidth": 1440,
+        "scrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflowX": false,
+        "offenders": [],
+        "text": "目录\n\n1\n请求对象通配符\n2\n资源修饰符\n3\n路由通配符\n4\n重定向\n← 知识库\n✎ 编辑\n管道\n4 个知识点\n1\n请求对象通配符\n✎＋\n控制器\n@Request() / @Req()\n\n作用：获取完整的请求对象（req）。当你需要访问请求对象的多个属性或方法时使用。\n\n示例：\n\n@Get('all')\nfindAll(@Request() req) {\n  // 获取请求头中的授权信息\n  const authHeader = req.headers['authorization'];\n  // 获取完整的查询对象\n  const query = req.query;\n  return `授权头是: ${authHeader}`;\n}\n\n@Response() / @Res()\n作用：获取响应对象（res）。使用此装饰器后，你需要手动处理响应（如调用 res.send() 或 res.",
+        "links": [
+          {
+            "t": "1\n请求对象通配符",
+            "href": "#sec-0"
+          },
+          {
+            "t": "2\n资源修饰符",
+            "href": "#sec-1"
+          },
+          {
+            "t": "3\n路由通配符",
+            "href": "#sec-2"
+          },
+          {
+            "t": "4\n重定向",
+            "href": "#sec-3"
+          },
+          {
+            "t": "← 知识库",
+            "href": "/notes"
+          },
+          {
+            "t": "https://nestjs.com",
+            "href": "https://nestjs.com"
+          },
+          {
+            "t": "",
+            "href": "/segments/253305f9-4467-4062-baa9-c39b159a4679"
+          },
+          {
+            "t": "",
+            "href": "/segments/788c428b-e146-4e1d-afa1-06f875736883"
+          },
+          {
+            "t": "",
+            "href": "/segments/0a25cfb3-a603-4492-9260-70ccccdde3a3"
+          },
+          {
+            "t": "",
+            "href": "/segments/fe2b71f8-7472-4bb3-90d6-5cc86684297b"
+          }
+        ],
+        "buttons": [
+          "打开目录",
+          "✎ 编辑",
+          "✎＋",
+          "✎＋",
+          "✎＋",
+          "✎＋"
+        ],
+        "inputs": []
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "desktop-segment-detail",
+      "diag": {
+        "url": "http://127.0.0.1:3100/segments/253305f9-4467-4062-baa9-c39b159a4679",
+        "title": "知识宇宙",
+        "innerWidth": 1440,
+        "scrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflowX": false,
+        "offenders": [],
+        "text": "",
+        "links": [],
+        "buttons": [],
+        "inputs": []
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "desktop-study",
+      "diag": {
+        "url": "http://127.0.0.1:3100/study/253305f9-4467-4062-baa9-c39b159a4679",
+        "title": "知识宇宙",
+        "innerWidth": 1440,
+        "scrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflowX": false,
+        "offenders": [],
+        "text": "",
+        "links": [],
+        "buttons": [],
+        "inputs": []
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "desktop-progress",
+      "diag": {
+        "url": "http://127.0.0.1:3100/progress",
+        "title": "知识宇宙",
+        "innerWidth": 1440,
+        "scrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflowX": false,
+        "offenders": [],
+        "text": "学习复盘\n\n只看真实行为：阅读、主动回忆、巩固与改善。\n\n返回今日学习\n\n近 7 天结论\n\n近 7 天完成 2 次主动回忆，其中 2 次需要继续巩固；0 个知识点较此前有改善，活跃 1 天。\n\n主动回忆\n\n2\n\n较前 7 天 +2\n\n需再巩固\n\n2\n\n较前 7 天 +2\n\n有改善\n\n0\n\n较前 7 天 持平\n\n活跃天数\n\n1\n\n较前 7 天 +1\n\n14 天学习热力\n色块 = 阅读 + 自测活跃度 · 悬停、聚焦或点击看当天明细\n21\n0\n22\n0\n23\n0\n24\n0\n25\n26\n26\n1\n27\n1\n28\n1\n29\n1\n30\n8\n31\n4\n01\n0\n02\n3\n03\n0\n\n悬停、聚焦或点击格子查看当天明细（键盘可用 Tab 聚焦，Enter 选中）。\n\n下一步优先项\n查看全部今日学习 →\nJava Spring（多线程环境）\n上次没有答出\n开始回忆 →\n请求对象通配符\n最近读过，尚未自测\n开",
+        "links": [
+          {
+            "t": "返回今日学习",
+            "href": "/"
+          },
+          {
+            "t": "查看全部今日学习 →",
+            "href": "/"
+          },
+          {
+            "t": "Java Spring（多线程环境）\n上次没有答出\n开始回忆 →",
+            "href": "/study/9e2b7211-0d17-43d8-82a2-e3136fd6d87f"
+          },
+          {
+            "t": "请求对象通配符\n最近读过，尚未自测\n开始回忆 →",
+            "href": "/study/253305f9-4467-4062-baa9-c39b159a4679"
+          },
+          {
+            "t": "资源修饰符\n最近读过，尚未自测\n开始回忆 →",
+            "href": "/study/788c428b-e146-4e1d-afa1-06f875736883"
+          }
+        ],
+        "buttons": [
+          "21\n0",
+          "22\n0",
+          "23\n0",
+          "24\n0",
+          "25\n26",
+          "26\n1",
+          "27\n1",
+          "28\n1",
+          "29\n1",
+          "30\n8",
+          "31\n4",
+          "01\n0",
+          "02\n3",
+          "03\n0"
+        ],
+        "inputs": []
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "desktop-ask",
+      "diag": {
+        "url": "http://127.0.0.1:3100/ask",
+        "title": "知识宇宙",
+        "innerWidth": 1440,
+        "scrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflowX": false,
+        "offenders": [],
+        "text": "助手\n\n了解你的知识库与学习进度：可以问答、查细节、也能帮你改标题、整理段落（每一步都会先给你确认）。\n\n我下一步学什么？\n我最薄弱的是什么？\n帮我规划本周复习\n发送\n\n可以直接问，也可以让它改标题、拆段落——改动前都会先经你确认。",
+        "links": [],
+        "buttons": [
+          "我下一步学什么？",
+          "我最薄弱的是什么？",
+          "帮我规划本周复习",
+          "发送"
+        ],
+        "inputs": [
+          {
+            "ph": "例如：把《TCP 与 UDP》的标题改成「传输层对比」",
+            "type": null,
+            "aria": null
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "desktop-import",
+      "diag": {
+        "url": "http://127.0.0.1:3100/import",
+        "title": "知识宇宙",
+        "innerWidth": 1440,
+        "scrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflowX": false,
+        "offenders": [],
+        "text": "导入知识\n\n支持 Markdown 文件或直接粘贴。导入后按标题层级自动拆解为知识点、提取标签与 [[双链]] 关联，原文备份到 Cloudflare R2。\n\n来源\n\n标题（留空自动取文件名/首个标题）\n选择 .md 文件\n支持 .md / .markdown / .txt，单个文件不超过 4 MB（受部署平台请求体上限约束）\n\n粒度\n\n粗\n标准\n细\n\n## 章节为一个阅读单元（### 并入父节，超长才拆）。按标题层级优先拆解，超长内容降级到句子边界，代码块与表格始终保持完整。粗 ≈ 2400 字 · 标准 ≈ 1800 字 · 细 ≈ 1200 字\n\n语义拆分（消耗 token）\n仅处理超长段落（每篇至多 5 段），由大模型按语义重组为更小的知识点；失败自动保留结构拆分结果，不阻断导入。\n\n内容\n\n粘贴 Markdown\n导入",
+        "links": [],
+        "buttons": [
+          "粗",
+          "标准",
+          "细",
+          "导入"
+        ],
+        "inputs": [
+          {
+            "ph": "如：React Hooks 笔记",
+            "type": null,
+            "aria": null
+          },
+          {
+            "ph": null,
+            "type": "file",
+            "aria": null
+          },
+          {
+            "ph": null,
+            "type": "checkbox",
+            "aria": null
+          },
+          {
+            "ph": "---\ntitle: 笔记标题\ntags: [前端, React]\n---\n\n## 第一节\n内容…\n\n## 第二节\n内容…",
+            "type": null,
+            "aria": null
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "desktop-settings",
+      "diag": {
+        "url": "http://127.0.0.1:3100/settings",
+        "title": "知识宇宙",
+        "innerWidth": 1440,
+        "scrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflowX": false,
+        "offenders": [],
+        "text": "设置\n\n大模型接入用于编辑态的语义拆解/聚合与「问知识库」。API Key 只保存在服务端数据库，页面与接口均不回显明文。\n\nDEEPSEEK API KEY\n\n模型\n\ndeepseek-v4-flash（默认）\ndeepseek-chat\ndeepseek-reasoner\n自定义…\nfast 档（摘要/测试连接）\n同主模型\ndeepseek-v4-flash\ndeepseek-chat\ndeepseek-reasoner\n自定义…\n\n学习者自述（可选，供 AI 个性化）\n\n保存\n测试当前输入\n无需先保存；Key 留空则用已保存的 Key 测试\n\n配置即存即用，无需重启。DeepSeek 接口地址 https://api.deepseek.com（OpenAI 兼容），在 api-docs.deepseek.com 申请 API Key。\n\n大模型用量 · 近 7 天\n\n今日 2 次调用",
+        "links": [
+          {
+            "t": "← 返回概览",
+            "href": "/"
+          }
+        ],
+        "buttons": [
+          "保存",
+          "测试当前输入"
+        ],
+        "inputs": [
+          {
+            "ph": "已保存（尾号 *******），留空表示不修改",
+            "type": "password",
+            "aria": null
+          },
+          {
+            "ph": null,
+            "type": null,
+            "aria": null
+          },
+          {
+            "ph": null,
+            "type": null,
+            "aria": null
+          },
+          {
+            "ph": "fast 档模型 id",
+            "type": null,
+            "aria": null
+          },
+          {
+            "ph": "如：后端方向求职，正在补计算机网络与 Node.js；喜欢先看结论再看细节。会随「问知识库」与 AI 拆解/聚合注入，使回答与拆解粒度贴合你的目标。",
+            "type": null,
+            "aria": null
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "desktop-graph",
+      "diag": {
+        "url": "http://127.0.0.1:3100/graph",
+        "title": "知识宇宙",
+        "innerWidth": 1440,
+        "scrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflowX": false,
+        "offenders": [],
+        "text": "关系图谱\n记忆度\n◉ 学习地图\n联系两概念\n⚙\n节点大小 = 关联数 · 单击查看详情 · 双击进入阅读\n✦\n知识宇宙\n搜索知识、概念、标签…\nCtrl\nK\n\n15 知识点·16 关系\n\n知识宇宙\n知识库\n今日学习\n学习复盘\nAI 助手\n外观主题\n设置\n退出登录",
+        "links": [
+          {
+            "t": "",
+            "href": "/graph"
+          },
+          {
+            "t": "",
+            "href": "/notes"
+          },
+          {
+            "t": "",
+            "href": "/"
+          },
+          {
+            "t": "",
+            "href": "/progress"
+          },
+          {
+            "t": "",
+            "href": "/ask"
+          },
+          {
+            "t": "",
+            "href": "/settings"
+          }
+        ],
+        "buttons": [
+          "记忆度",
+          "◉ 学习地图",
+          "联系两概念",
+          "⚙",
+          "更多操作",
+          "搜索知识、概念、标签…\nCtrl\nK",
+          "外观主题",
+          "更多导航",
+          "退出登录"
+        ],
+        "inputs": []
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "desktop-graph-small",
+      "diag": {
+        "url": "http://127.0.0.1:3100/graph?fixture=graph-small",
+        "title": "知识宇宙",
+        "innerWidth": 1440,
+        "scrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflowX": false,
+        "offenders": [],
+        "text": "关系图谱\n记忆度\n◉ 学习地图\n联系两概念\n⚙\n节点大小 = 关联数 · 单击查看详情 · 双击进入阅读\n✦\n知识宇宙\n搜索知识、概念、标签…\nCtrl\nK\n压测 · graph-small\n\n500 知识点·1489 关系\n\n知识宇宙\n知识库\n今日学习\n学习复盘\nAI 助手\n外观主题\n设置\n退出登录",
+        "links": [
+          {
+            "t": "",
+            "href": "/graph"
+          },
+          {
+            "t": "",
+            "href": "/notes"
+          },
+          {
+            "t": "",
+            "href": "/"
+          },
+          {
+            "t": "",
+            "href": "/progress"
+          },
+          {
+            "t": "",
+            "href": "/ask"
+          },
+          {
+            "t": "",
+            "href": "/settings"
+          }
+        ],
+        "buttons": [
+          "记忆度",
+          "◉ 学习地图",
+          "联系两概念",
+          "⚙",
+          "更多操作",
+          "搜索知识、概念、标签…\nCtrl\nK",
+          "外观主题",
+          "更多导航",
+          "退出登录"
+        ],
+        "inputs": []
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "desktop-ask-context",
+      "diag": {
+        "url": "http://127.0.0.1:3100/ask?segment=253305f9-4467-4062-baa9-c39b159a4679&path=253305f9-4467-4062-baa9-c39b159a4679,788c428b-e146-4e1d-afa1-06f875736883",
+        "title": "知识宇宙",
+        "innerWidth": 1440,
+        "scrollWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflowX": false,
+        "offenders": [],
+        "text": "助手\n\n了解你的知识库与学习进度：可以问答、查细节、也能帮你改标题、整理段落（每一步都会先给你确认）。\n\n当前上下文\n\n我下一步学什么？\n我最薄弱的是什么？\n帮我规划本周复习\n发送\n\n可以直接问，也可以让它改标题、拆段落——改动前都会先经你确认。",
+        "links": [],
+        "buttons": [
+          "我下一步学什么？",
+          "我最薄弱的是什么？",
+          "帮我规划本周复习",
+          "发送"
+        ],
+        "inputs": [
+          {
+            "ph": "例如：把《TCP 与 UDP》的标题改成「传输层对比」",
+            "type": null,
+            "aria": null
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    }
+  ],
+  "mobile": [
+    {
+      "label": "mobile-dashboard",
+      "diag": {
+        "url": "http://127.0.0.1:3100/",
+        "title": "知识宇宙",
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "overflowX": false,
+        "offenders": [],
+        "text": "概览\n导入知识\n\n今日学习\n\n先回忆，再看答案\n约 6–9 分钟\n1\nJava Spring（多线程环境）\n上次没有答出\n单线程 · 记忆 9%\n开始回忆 →\n2\n请求对象通配符\n最近读过，尚未自测\n管道 · 记忆 18%\n开始回忆 →\n3\n资源修饰符\n最近读过，尚未自测\n管道 · 记忆 1%\n开始回忆 →\n近 7 天自测\n2\n需再巩固\n2\n有改善\n0\n活跃天数\n1\n薄弱清单\n\n按遗忘风险 × 关联度排序\n\nOSI 七层模型\n0% · 关联 6\nTCP 与 UDP\n23% · 关联 5\nHTTP 状态码\n0% · 关联 3\n未读精选\n\n最新导入里还没点亮的\n\n路由通配符\n管道\n重定向\n管道\n概述\n单线程\n最近导入\n查看全部 →\n管道\n4 个知识点 · 10/25 14:52\n单线程\n7 个知识点 · 10/25 01:27\n优化字体和图像\n1 个知识点 · 10/25 01:11\n计算机网",
+        "links": [
+          {
+            "t": "导入知识",
+            "href": "/import"
+          },
+          {
+            "t": "1\nJava Spring（多线程环境）\n上次没有答出\n单线程 · 记忆 9%\n",
+            "href": "/study/9e2b7211-0d17-43d8-82a2-e3136fd6d87f"
+          },
+          {
+            "t": "2\n请求对象通配符\n最近读过，尚未自测\n管道 · 记忆 18%\n开始回忆 →",
+            "href": "/study/253305f9-4467-4062-baa9-c39b159a4679"
+          },
+          {
+            "t": "3\n资源修饰符\n最近读过，尚未自测\n管道 · 记忆 1%\n开始回忆 →",
+            "href": "/study/788c428b-e146-4e1d-afa1-06f875736883"
+          },
+          {
+            "t": "OSI 七层模型\n0% · 关联 6",
+            "href": "/segments/cfd0465f-349a-4481-91bf-433db22fe3f7"
+          },
+          {
+            "t": "TCP 与 UDP\n23% · 关联 5",
+            "href": "/segments/c2cd410f-c3cf-4d1a-b16c-bfa1b850ce31"
+          },
+          {
+            "t": "HTTP 状态码\n0% · 关联 3",
+            "href": "/segments/5d8bd6f2-aa65-4a7b-b188-7dabcbb6ec6b"
+          },
+          {
+            "t": "路由通配符\n管道",
+            "href": "/segments/0a25cfb3-a603-4492-9260-70ccccdde3a3"
+          },
+          {
+            "t": "重定向\n管道",
+            "href": "/segments/fe2b71f8-7472-4bb3-90d6-5cc86684297b"
+          },
+          {
+            "t": "概述\n单线程",
+            "href": "/segments/7dda1a3a-6ca5-4f6e-b38c-46db4b8bc9f3"
+          },
+          {
+            "t": "查看全部 →",
+            "href": "/notes"
+          },
+          {
+            "t": "管道",
+            "href": "/notes/995f8673-3d85-4a62-8dae-3014a0eefd62"
+          },
+          {
+            "t": "单线程",
+            "href": "/notes/7fcfb69b-8136-470d-bd14-54ecb6e35dc2"
+          },
+          {
+            "t": "优化字体和图像",
+            "href": "/notes/459728bf-a9ba-4bf6-9d8a-fbf0537e5efb"
+          },
+          {
+            "t": "计算机网络基础",
+            "href": "/notes/258c90af-dc62-40a2-b366-71a5d7b2de64"
+          },
+          {
+            "t": "在图谱中查看掌握分布 →",
+            "href": "/graph"
+          }
+        ],
+        "buttons": [],
+        "inputs": []
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "mobile-notes",
+      "diag": {
+        "url": "http://127.0.0.1:3100/notes",
+        "title": "知识宇宙",
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "overflowX": false,
+        "offenders": [],
+        "text": "知识库\n4 篇文档\n导入\n管道\n4 点\n10/25 14:52\n单线程\n7 点\n10/25 01:27\n优化字体和图像\n1 点\n10/25 01:11\n计算机网络基础\n3 点\n10/25 00:47",
+        "links": [
+          {
+            "t": "导入",
+            "href": "/import"
+          },
+          {
+            "t": "管道\n4 点\n10/25 14:52",
+            "href": "/notes/995f8673-3d85-4a62-8dae-3014a0eefd62"
+          },
+          {
+            "t": "单线程\n7 点\n10/25 01:27",
+            "href": "/notes/7fcfb69b-8136-470d-bd14-54ecb6e35dc2"
+          },
+          {
+            "t": "优化字体和图像\n1 点\n10/25 01:11",
+            "href": "/notes/459728bf-a9ba-4bf6-9d8a-fbf0537e5efb"
+          },
+          {
+            "t": "计算机网络基础\n3 点\n10/25 00:47",
+            "href": "/notes/258c90af-dc62-40a2-b366-71a5d7b2de64"
+          }
+        ],
+        "buttons": [],
+        "inputs": [
+          {
+            "ph": "搜索标题或标签…",
+            "type": null,
+            "aria": null
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "mobile-note-detail",
+      "diag": {
+        "url": "http://127.0.0.1:3100/notes/995f8673-3d85-4a62-8dae-3014a0eefd62",
+        "title": "知识宇宙",
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "overflowX": false,
+        "offenders": [
+          {
+            "tag": "CODE",
+            "cls": "language-typescript",
+            "right": 465,
+            "w": 383,
+            "pos": "static"
+          },
+          {
+            "tag": "CODE",
+            "cls": "language-typescript",
+            "right": 478,
+            "w": 395,
+            "pos": "static"
+          },
+          {
+            "tag": "CODE",
+            "cls": "language-typescript",
+            "right": 516,
+            "w": 434,
+            "pos": "static"
+          },
+          {
+            "tag": "CODE",
+            "cls": "language-typescript",
+            "right": 610,
+            "w": 528,
+            "pos": "static"
+          },
+          {
+            "tag": "CODE",
+            "cls": "language-typescript",
+            "right": 480,
+            "w": 398,
+            "pos": "static"
+          },
+          {
+            "tag": "CODE",
+            "cls": "language-nestjs",
+            "right": 481,
+            "w": 421,
+            "pos": "static"
+          }
+        ],
+        "text": "← 知识库\n✎ 编辑\n管道\n4 个知识点\n1\n请求对象通配符\n✎＋\n控制器\n@Request() / @Req()\n\n作用：获取完整的请求对象（req）。当你需要访问请求对象的多个属性或方法时使用。\n\n示例：\n\n@Get('all')\nfindAll(@Request() req) {\n  // 获取请求头中的授权信息\n  const authHeader = req.headers['authorization'];\n  // 获取完整的查询对象\n  const query = req.query;\n  return `授权头是: ${authHeader}`;\n}\n\n@Response() / @Res()\n作用：获取响应对象（res）。使用此装饰器后，你需要手动处理响应（如调用 res.send() 或 res.json()），NestJS 将不会自动处理返回值。这被称为“库特定”的",
+        "links": [
+          {
+            "t": "1微光 · 阅读 16 次请求对象通配符",
+            "href": "#sec-0"
+          },
+          {
+            "t": "2微光 · 阅读 5 次资源修饰符",
+            "href": "#sec-1"
+          },
+          {
+            "t": "3未读 · 阅读 1 次路由通配符",
+            "href": "#sec-2"
+          },
+          {
+            "t": "4未读 · 阅读 1 次重定向",
+            "href": "#sec-3"
+          },
+          {
+            "t": "← 知识库",
+            "href": "/notes"
+          },
+          {
+            "t": "https://nestjs.com",
+            "href": "https://nestjs.com"
+          },
+          {
+            "t": "",
+            "href": "/segments/253305f9-4467-4062-baa9-c39b159a4679"
+          },
+          {
+            "t": "",
+            "href": "/segments/788c428b-e146-4e1d-afa1-06f875736883"
+          },
+          {
+            "t": "",
+            "href": "/segments/0a25cfb3-a603-4492-9260-70ccccdde3a3"
+          },
+          {
+            "t": "",
+            "href": "/segments/fe2b71f8-7472-4bb3-90d6-5cc86684297b"
+          }
+        ],
+        "buttons": [
+          "打开目录",
+          "✎ 编辑",
+          "✎＋",
+          "✎＋",
+          "✎＋",
+          "✎＋"
+        ],
+        "inputs": []
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "mobile-segment-detail",
+      "diag": {
+        "url": "http://127.0.0.1:3100/segments/253305f9-4467-4062-baa9-c39b159a4679",
+        "title": "知识宇宙",
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "overflowX": false,
+        "offenders": [
+          {
+            "tag": "CODE",
+            "cls": "language-typescript",
+            "right": 461,
+            "w": 383,
+            "pos": "static"
+          },
+          {
+            "tag": "CODE",
+            "cls": "language-typescript",
+            "right": 474,
+            "w": 395,
+            "pos": "static"
+          },
+          {
+            "tag": "CODE",
+            "cls": "language-typescript",
+            "right": 512,
+            "w": 434,
+            "pos": "static"
+          },
+          {
+            "tag": "CODE",
+            "cls": "language-typescript",
+            "right": 606,
+            "w": 528,
+            "pos": "static"
+          },
+          {
+            "tag": "CODE",
+            "cls": "language-typescript",
+            "right": 476,
+            "w": 398,
+            "pos": "static"
+          }
+        ],
+        "text": "← 管道\n开始复习\n✎ 编辑\n请求对象通配符\n控制器\n@Request() / @Req()\n\n作用：获取完整的请求对象（req）。当你需要访问请求对象的多个属性或方法时使用。\n\n示例：\n\n@Get('all')\nfindAll(@Request() req) {\n  // 获取请求头中的授权信息\n  const authHeader = req.headers['authorization'];\n  // 获取完整的查询对象\n  const query = req.query;\n  return `授权头是: ${authHeader}`;\n}\n\n@Response() / @Res()\n作用：获取响应对象（res）。使用此装饰器后，你需要手动处理响应（如调用 res.send() 或 res.json()），NestJS 将不会自动处理返回值。这被称为“库特定”的方式。\n示例：\n@Ge",
+        "links": [
+          {
+            "t": "← 管道",
+            "href": "/notes/995f8673-3d85-4a62-8dae-3014a0eefd62"
+          },
+          {
+            "t": "开始复习",
+            "href": "/study/253305f9-4467-4062-baa9-c39b159a4679"
+          },
+          {
+            "t": "开始自测",
+            "href": "/study/253305f9-4467-4062-baa9-c39b159a4679"
+          },
+          {
+            "t": "资源修饰符 →",
+            "href": "/segments/788c428b-e146-4e1d-afa1-06f875736883"
+          }
+        ],
+        "buttons": [
+          "✎ 编辑"
+        ],
+        "inputs": []
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "mobile-study",
+      "diag": {
+        "url": "http://127.0.0.1:3100/study/253305f9-4467-4062-baa9-c39b159a4679",
+        "title": "知识宇宙",
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "overflowX": false,
+        "offenders": [],
+        "text": "← 今日学习\n·\n管道\n·\n主动回忆\n\n先别看原文\n\n请求对象通配符\n\n在 NestJS 控制器中，@Request() / @Req() 装饰器的作用是什么？\n\n你的回答\n查看参考答案\n先完成回忆，再依据原文校准。",
+        "links": [
+          {
+            "t": "← 今日学习",
+            "href": "/"
+          }
+        ],
+        "buttons": [
+          "查看参考答案"
+        ],
+        "inputs": [
+          {
+            "ph": "先凭记忆作答；完全想不起来也可以留空。",
+            "type": null,
+            "aria": null
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "mobile-progress",
+      "diag": {
+        "url": "http://127.0.0.1:3100/progress",
+        "title": "知识宇宙",
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "overflowX": false,
+        "offenders": [
+          {
+            "tag": "BUTTON",
+            "cls": "flex h-14 w-11 shrink-0 flex-col justify-between rounded-lg border p-1.5 text-le",
+            "right": 430,
+            "w": 44,
+            "pos": "static"
+          },
+          {
+            "tag": "SPAN",
+            "cls": "font-mono text-tag tabular-nums",
+            "right": 423,
+            "w": 30,
+            "pos": "static"
+          },
+          {
+            "tag": "SPAN",
+            "cls": "font-mono text-body font-semibold tabular-nums",
+            "right": 423,
+            "w": 30,
+            "pos": "static"
+          },
+          {
+            "tag": "BUTTON",
+            "cls": "flex h-14 w-11 shrink-0 flex-col justify-between rounded-lg border p-1.5 text-le",
+            "right": 480,
+            "w": 44,
+            "pos": "static"
+          },
+          {
+            "tag": "SPAN",
+            "cls": "font-mono text-tag tabular-nums",
+            "right": 473,
+            "w": 30,
+            "pos": "static"
+          },
+          {
+            "tag": "SPAN",
+            "cls": "font-mono text-body font-semibold tabular-nums",
+            "right": 473,
+            "w": 30,
+            "pos": "static"
+          }
+        ],
+        "text": "学习复盘\n\n只看真实行为：阅读、主动回忆、巩固与改善。\n\n返回今日学习\n\n近 7 天结论\n\n近 7 天完成 2 次主动回忆，其中 2 次需要继续巩固；0 个知识点较此前有改善，活跃 1 天。\n\n主动回忆\n\n2\n\n较前 7 天 +2\n\n需再巩固\n\n2\n\n较前 7 天 +2\n\n有改善\n\n0\n\n较前 7 天 持平\n\n活跃天数\n\n1\n\n较前 7 天 +1\n\n14 天学习热力\n色块 = 阅读 + 自测活跃度 · 悬停、聚焦或点击看当天明细\n21\n0\n22\n0\n23\n0\n24\n0\n25\n26\n26\n1\n27\n1\n28\n1\n29\n1\n30\n8\n31\n4\n01\n0\n02\n3\n03\n0\n\n悬停、聚焦或点击格子查看当天明细（键盘可用 Tab 聚焦，Enter 选中）。\n\n下一步优先项\n查看全部今日学习 →\nJava Spring（多线程环境）\n上次没有答出\n开始回忆 →\n请求对象通配符\n最近读过，尚未自测\n开",
+        "links": [
+          {
+            "t": "返回今日学习",
+            "href": "/"
+          },
+          {
+            "t": "查看全部今日学习 →",
+            "href": "/"
+          },
+          {
+            "t": "Java Spring（多线程环境）\n上次没有答出\n开始回忆 →",
+            "href": "/study/9e2b7211-0d17-43d8-82a2-e3136fd6d87f"
+          },
+          {
+            "t": "请求对象通配符\n最近读过，尚未自测\n开始回忆 →",
+            "href": "/study/253305f9-4467-4062-baa9-c39b159a4679"
+          },
+          {
+            "t": "资源修饰符\n最近读过，尚未自测\n开始回忆 →",
+            "href": "/study/788c428b-e146-4e1d-afa1-06f875736883"
+          }
+        ],
+        "buttons": [
+          "21\n0",
+          "22\n0",
+          "23\n0",
+          "24\n0",
+          "25\n26",
+          "26\n1",
+          "27\n1",
+          "28\n1",
+          "29\n1",
+          "30\n8",
+          "31\n4",
+          "01\n0",
+          "02\n3",
+          "03\n0"
+        ],
+        "inputs": []
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "mobile-ask",
+      "diag": {
+        "url": "http://127.0.0.1:3100/ask",
+        "title": "知识宇宙",
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "overflowX": false,
+        "offenders": [],
+        "text": "助手\n\n了解你的知识库与学习进度：可以问答、查细节、也能帮你改标题、整理段落（每一步都会先给你确认）。\n\n我下一步学什么？\n我最薄弱的是什么？\n帮我规划本周复习\n发送\n\n可以直接问，也可以让它改标题、拆段落——改动前都会先经你确认。",
+        "links": [],
+        "buttons": [
+          "我下一步学什么？",
+          "我最薄弱的是什么？",
+          "帮我规划本周复习",
+          "发送"
+        ],
+        "inputs": [
+          {
+            "ph": "例如：把《TCP 与 UDP》的标题改成「传输层对比」",
+            "type": null,
+            "aria": null
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "mobile-import",
+      "diag": {
+        "url": "http://127.0.0.1:3100/import",
+        "title": "知识宇宙",
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "overflowX": false,
+        "offenders": [],
+        "text": "导入知识\n\n支持 Markdown 文件或直接粘贴。导入后按标题层级自动拆解为知识点、提取标签与 [[双链]] 关联，原文备份到 Cloudflare R2。\n\n来源\n\n标题（留空自动取文件名/首个标题）\n选择 .md 文件\n支持 .md / .markdown / .txt，单个文件不超过 4 MB（受部署平台请求体上限约束）\n\n粒度\n\n粗\n标准\n细\n\n## 章节为一个阅读单元（### 并入父节，超长才拆）。按标题层级优先拆解，超长内容降级到句子边界，代码块与表格始终保持完整。粗 ≈ 2400 字 · 标准 ≈ 1800 字 · 细 ≈ 1200 字\n\n语义拆分（消耗 token）\n仅处理超长段落（每篇至多 5 段），由大模型按语义重组为更小的知识点；失败自动保留结构拆分结果，不阻断导入。\n\n内容\n\n粘贴 Markdown\n导入",
+        "links": [],
+        "buttons": [
+          "粗",
+          "标准",
+          "细",
+          "导入"
+        ],
+        "inputs": [
+          {
+            "ph": "如：React Hooks 笔记",
+            "type": null,
+            "aria": null
+          },
+          {
+            "ph": null,
+            "type": "file",
+            "aria": null
+          },
+          {
+            "ph": null,
+            "type": "checkbox",
+            "aria": null
+          },
+          {
+            "ph": "---\ntitle: 笔记标题\ntags: [前端, React]\n---\n\n## 第一节\n内容…\n\n## 第二节\n内容…",
+            "type": null,
+            "aria": null
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "mobile-settings",
+      "diag": {
+        "url": "http://127.0.0.1:3100/settings",
+        "title": "知识宇宙",
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "overflowX": false,
+        "offenders": [],
+        "text": "设置\n\n大模型接入用于编辑态的语义拆解/聚合与「问知识库」。API Key 只保存在服务端数据库，页面与接口均不回显明文。\n\nDEEPSEEK API KEY\n\n模型\n\ndeepseek-v4-flash（默认）\ndeepseek-chat\ndeepseek-reasoner\n自定义…\nfast 档（摘要/测试连接）\n同主模型\ndeepseek-v4-flash\ndeepseek-chat\ndeepseek-reasoner\n自定义…\n\n学习者自述（可选，供 AI 个性化）\n\n保存\n测试当前输入\n无需先保存；Key 留空则用已保存的 Key 测试\n\n配置即存即用，无需重启。DeepSeek 接口地址 https://api.deepseek.com（OpenAI 兼容），在 api-docs.deepseek.com 申请 API Key。\n\n大模型用量 · 近 7 天\n\n今日 2 次调用",
+        "links": [
+          {
+            "t": "← 返回概览",
+            "href": "/"
+          }
+        ],
+        "buttons": [
+          "保存",
+          "测试当前输入"
+        ],
+        "inputs": [
+          {
+            "ph": "已保存（尾号 *******），留空表示不修改",
+            "type": "password",
+            "aria": null
+          },
+          {
+            "ph": null,
+            "type": null,
+            "aria": null
+          },
+          {
+            "ph": null,
+            "type": null,
+            "aria": null
+          },
+          {
+            "ph": "fast 档模型 id",
+            "type": null,
+            "aria": null
+          },
+          {
+            "ph": "如：后端方向求职，正在补计算机网络与 Node.js；喜欢先看结论再看细节。会随「问知识库」与 AI 拆解/聚合注入，使回答与拆解粒度贴合你的目标。",
+            "type": null,
+            "aria": null
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    },
+    {
+      "label": "mobile-graph",
+      "diag": {
+        "url": "http://127.0.0.1:3100/graph",
+        "title": "知识宇宙",
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "bodyScrollWidth": 390,
+        "overflowX": false,
+        "offenders": [],
+        "text": "关系图谱\n搜索知识、概念、标签…\n知识宇宙\n知识库\nAI 助手",
+        "links": [
+          {
+            "t": "",
+            "href": "/graph"
+          },
+          {
+            "t": "",
+            "href": "/notes"
+          },
+          {
+            "t": "",
+            "href": "/"
+          },
+          {
+            "t": "",
+            "href": "/progress"
+          },
+          {
+            "t": "",
+            "href": "/ask"
+          },
+          {
+            "t": "",
+            "href": "/settings"
+          }
+        ],
+        "buttons": [
+          "展开记忆度图例",
+          "◉ 学习地图",
+          "联系两概念",
+          "⚙",
+          "更多操作",
+          "搜索知识、概念、标签…",
+          "外观主题",
+          "更多导航",
+          "退出登录"
+        ],
+        "inputs": []
+      },
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpStatus": 200
+    }
+  ],
+  "api": {
+    "notesStatus": 4,
+    "documents": [
+      {
+        "id": "995f8673-3d85-4a62-8dae-3014a0eefd62",
+        "title": "管道",
+        "segmentCount": 4
+      },
+      {
+        "id": "7fcfb69b-8136-470d-bd14-54ecb6e35dc2",
+        "title": "单线程",
+        "segmentCount": 7
+      },
+      {
+        "id": "459728bf-a9ba-4bf6-9d8a-fbf0537e5efb",
+        "title": "优化字体和图像",
+        "segmentCount": 1
+      },
+      {
+        "id": "258c90af-dc62-40a2-b366-71a5d7b2de64",
+        "title": "计算机网络基础",
+        "segmentCount": 3
+      }
+    ],
+    "graphNodes": 15,
+    "graphEdges": 16,
+    "graphError": null,
+    "noteSegments": 4
+  },
+  "console": []
+}

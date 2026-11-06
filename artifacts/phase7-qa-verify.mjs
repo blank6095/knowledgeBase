@@ -82,7 +82,6 @@ const login = async (page) => {
   await page.waitForURL((u) => !new URL(u).pathname.startsWith('/login'), { timeout: 60_000 });
 };
   await login(page);
-  const base = await waitGraphReady(page);
 
   await check('默认关闭：小地图不出现', async () => {
     assert((await minimap(page).count()) === 0, '默认应无小地图');

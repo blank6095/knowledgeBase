@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api } from '@/lib/client';
@@ -26,6 +26,9 @@ export default function SectionEditor({
   onStructureChanged,
   onSaved,
   onInsertAfter,
+  isFirst = false,
+  isLast = false,
+  onDirtyChange,
 }: {
   index: number;
   segment: { id: string; title: string; content: string; tags: string[] };
@@ -35,6 +38,12 @@ export default function SectionEditor({
   onStructureChanged: () => Promise<unknown>;
   onSaved: () => Promise<unknown>;
   onInsertAfter: () => Promise<unknown>;
+  /** 首段：禁用「上移」，不再等用户点了才收到服务端 400 */
+  isFirst?: boolean;
+  /** 末段：禁用「下移」 */
+  isLast?: boolean;
+  /** 未保存改动变化时回调，供页面在「✓ 完成编辑」退出前确认 */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [title, setTitle] = useState(segment.title);
   const [content, setContent] = useState(segment.content);
@@ -59,6 +68,17 @@ export default function SectionEditor({
     setTagsInput(tagsText);
   }
 
+  // 草稿脏状态：标题/正文/标签任一与已保存值不一致，即视为有未保存改动。
+  // 用 ref 记录上次上报值，避免父组件回调身份变化时重复通知；props 同步（AI 拆解/聚合、
+  // 保存后 reload）会同时刷新本地 state 与 segment，因此不会误报为 dirty。
+  const dirty = title !== segment.title || content !== segment.content || tagsInput !== tagsText;
+  const lastDirtyRef = useRef(false);
+  useEffect(() => {
+    if (lastDirtyRef.current === dirty) return;
+    lastDirtyRef.current = dirty;
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
     setMsg('');
@@ -73,18 +93,22 @@ export default function SectionEditor({
 
   const save = () =>
     run(async () => {
-      if (!title.trim()) {
+      const nextTitle = title.trim();
+      if (!nextTitle) {
         setMsg('标题不能为空');
         return;
       }
       await api(`/api/segments/${segment.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
-          title,
+          title: nextTitle,
           content,
           tags: tagsInput.split(/[,，]/).map((t) => t.trim()).filter(Boolean),
         }),
       });
+      // 保存成功后让本地标题收敛到提交值：避免「仅多打尾随空格」在 reload 未刷新 props 时
+      // 仍被判为有未保存改动（服务端同样 trim 标题）。
+      setTitle(nextTitle);
       await onSaved();
     });
 
@@ -143,9 +167,18 @@ export default function SectionEditor({
 
   const splitDisabled = busy || splitBusy || !llmReady;
 
+  /**
+   * 工具按钮共用外壳：<sm（窄屏）触控高度 ≥40px、图标按钮正方 40px，
+   * ≥sm 恢复改前的紧凑尺寸（px-2 py-1），不改变桌面单行观感。
+   */
+  const toolBtn =
+    'inline-flex h-10 min-w-10 items-center justify-center rounded-md border border-line px-2.5 text-tag text-muted transition-colors duration-150 disabled:cursor-not-allowed sm:h-auto sm:min-w-0 sm:px-2 sm:py-1';
+
   return (
     <section className="card fade-up space-y-3 px-4 py-4">
-      <div className="flex items-center gap-2">
+      {/* 窄屏：checkbox + 序号 + 标题占满首行，工具按钮另起一行；≥sm 恢复单行工具条。
+          flex-wrap + min-w-0 保证 320px 下标题可编辑且不产生横向溢出。 */}
+      <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
         <input
           type="checkbox"
           checked={selected}
@@ -161,28 +194,30 @@ export default function SectionEditor({
           className="min-w-0 flex-1 rounded-lg border border-line bg-app px-3 py-1.5 font-display text-body text-primary outline-none transition-colors focus:border-accent"
           placeholder="段落标题"
         />
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex w-full shrink-0 flex-wrap items-center gap-1 sm:w-auto sm:flex-nowrap">
           <button
             onClick={() => setPreview((p) => !p)}
-            className="rounded-md border border-line px-2 py-1 text-tag text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
+            className={`${toolBtn} hover:bg-surface-hover hover:text-primary`}
           >
             {preview ? '编辑' : '预览'}
           </button>
           <button
             onClick={() => move('up')}
-            disabled={busy}
-            title="上移"
+            disabled={busy || isFirst}
+            aria-disabled={busy || isFirst}
+            title={isFirst ? '已经是第一节' : '上移'}
             aria-label="上移"
-            className="rounded-md border border-line px-2 py-1 text-tag text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary disabled:opacity-50"
+            className={`${toolBtn} hover:bg-surface-hover hover:text-primary disabled:opacity-50`}
           >
             ↑
           </button>
           <button
             onClick={() => move('down')}
-            disabled={busy}
-            title="下移"
+            disabled={busy || isLast}
+            aria-disabled={busy || isLast}
+            title={isLast ? '已经是最后一节' : '下移'}
             aria-label="下移"
-            className="rounded-md border border-line px-2 py-1 text-tag text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary disabled:opacity-50"
+            className={`${toolBtn} hover:bg-surface-hover hover:text-primary disabled:opacity-50`}
           >
             ↓
           </button>
@@ -191,7 +226,7 @@ export default function SectionEditor({
             disabled={busy}
             title="在其后插入一段"
             aria-label="在其后插入一段"
-            className="rounded-md border border-line px-2 py-1 text-tag text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary disabled:opacity-50"
+            className={`${toolBtn} hover:bg-surface-hover hover:text-primary disabled:opacity-50`}
           >
             ＋
           </button>
@@ -200,7 +235,7 @@ export default function SectionEditor({
             disabled={splitDisabled}
             title={llmReady ? 'AI 语义拆解（预览后应用）' : '未配置大模型：到侧边栏「设置」页填写 DeepSeek API Key，保存后立即可用'}
             aria-label="AI 语义拆解"
-            className="rounded-md border border-line px-2 py-1 text-tag text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-muted"
+            className={`${toolBtn} hover:bg-surface-hover hover:text-accent disabled:opacity-40 disabled:hover:text-muted`}
           >
             {splitBusy ? '…' : '✨'}
           </button>
@@ -209,7 +244,7 @@ export default function SectionEditor({
             disabled={busy}
             title="删除"
             aria-label="删除段落"
-            className="rounded-md border border-line px-2 py-1 text-tag text-muted transition-colors duration-150 hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-50"
+            className={`${toolBtn} hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-50`}
           >
             ✕
           </button>
@@ -241,7 +276,7 @@ export default function SectionEditor({
         <button
           onClick={save}
           disabled={busy}
-          className="rounded-lg bg-accent px-4 py-1.5 text-minor font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong disabled:opacity-50"
+          className="inline-flex min-h-11 items-center rounded-lg bg-accent px-4 text-minor font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong disabled:opacity-50"
         >
           {busy ? '保存中…' : '保存'}
         </button>
@@ -260,14 +295,14 @@ export default function SectionEditor({
             <>
               <button
                 onClick={() => setSplitPreview(null)}
-                className="rounded-lg border border-line px-4 py-1.5 text-minor text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
+                className="inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-minor text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
               >
                 取消
               </button>
               <button
                 onClick={splitApply}
                 disabled={splitBusy}
-                className="rounded-lg bg-accent px-4 py-1.5 text-minor font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong disabled:opacity-50"
+                className="inline-flex min-h-11 items-center rounded-lg bg-accent px-4 text-minor font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong disabled:opacity-50"
               >
                 {splitBusy ? '应用中…' : '应用拆解'}
               </button>

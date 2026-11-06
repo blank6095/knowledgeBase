@@ -9,8 +9,8 @@
  * 本模块不依赖 React，纯函数可直接单测；图表尺寸/引擎实例等 DOM 相关类型放这里只为
  * 复用，不在模块加载时触碰 window。
  */
-import type { NodePaint } from '@/app/graph/node-sprites';
-import { colorBucketKey, shade } from '@/app/graph/color-utils';
+import type { NodePaint } from '@/lib/graph/node-sprites';
+import { colorBucketKey, shade } from '@/lib/graph/color-utils';
 import { MEMORY_TIER_ORDER, memoryColor, memoryTier } from '@/lib/memory';
 import type { GraphLink, GraphNode } from './graph-types';
 

@@ -6,25 +6,13 @@ import { dbUnavailable, guard } from '@/lib/api';
 import { getCache } from '@/lib/cache';
 import { withDbRetry } from '@/lib/db-retry';
 import { withStaleFallback } from '@/lib/db-read';
-import { MEMORY_TIER_ORDER, type MemoryTier } from '@/lib/memory';
+import { isRead, memory, strongLimit, weakLimit } from '@/lib/memory-sql';
+import { MEMORY_TIER_ORDER } from '@/lib/memory';
+import type { StatsPayload } from '@/lib/contracts';
+import { startOfDayInTimeZone } from '@/lib/day-boundary';
 
 const CACHE_KEY = 'stats';
 const CACHE_TTL_MS = 60_000;
-
-type RecentDocument = Pick<typeof documents.$inferSelect, 'id' | 'title' | 'segmentCount' | 'createdAt'>;
-
-interface StatsPayload {
-  total: number;
-  byTier: { unread: number; weak: number; medium: number; strong: number };
-  tierOrder: MemoryTier[];
-  readToday: number;
-  recentDocuments: RecentDocument[];
-  suggestion: { segmentId: string; title: string; memory: number; degree: number } | null;
-  /** 与 suggestion 同一条 SQL：已读且记忆薄弱（m<0.4）按 薄弱度×(度数+1) 取 top3 */
-  weakTop3: { segmentId: string; title: string; memory: number; degree: number }[];
-  /** 最新导入且未读的段落 top3（文档创建时间倒序、段内顺序正序） */
-  unreadTop3: { segmentId: string; title: string; documentId: string; documentTitle: string; createdAt: string | Date }[];
-}
 
 /** 概览统计：总数/记忆档位分布（SQL CASE 下推，单行返回）/今日阅读数/最近导入/今日首推（薄弱×中心性，纯规则不调 LLM） */
 export async function GET(req: NextRequest) {
@@ -38,12 +26,12 @@ export async function GET(req: NextRequest) {
   }
 
   const t0 = performance.now();
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+  // 「今日」按业务时区（Asia/Shanghai）计算，与 learning-plan.ts 口径一致
+  const startOfDay = startOfDayInTimeZone();
 
-  // 记忆度表达式与 src/lib/memory.ts memoryOf/memoryTier 一致：unread=M0 / weak<0.4 / medium<0.75 / strong≥0.75
-  const m = sql`exp(-extract(epoch from (now() - ${segments.lastViewedAt})) / 86400.0 / greatest(${segments.stability}, 1e-9))`;
-  const read = sql`${segments.stability} > 0 and ${segments.lastViewedAt} is not null`;
+  // 记忆度表达式与档位阈值统一取自 @/lib/memory-sql（口径同 src/lib/memory.ts memoryOf/memoryTier）
+  const m = memory();
+  const read = isRead();
 
   // 今日首推与薄弱清单共用一条 SQL：已读但记忆薄弱（m<0.4）的段里，
   // 按 薄弱程度(1-m) × 图谱中心性(度数+1) 排序；suggestion 取第一行，weakTop3 取前三行。
@@ -58,7 +46,7 @@ export async function GET(req: NextRequest) {
         })
         .from(segments)
         .leftJoin(links, or(eq(links.fromId, segments.id), eq(links.toId, segments.id)))
-        .where(sql`${read} and (${m}) < 0.4`)
+        .where(sql`${read} and (${m}) < ${weakLimit()}`)
         .groupBy(segments.id, segments.title, segments.lastViewedAt, segments.stability)
         .orderBy(desc(sql`(1 - (${m})) * (count(${links.id}) + 1)`))
         .limit(3),
@@ -92,9 +80,9 @@ export async function GET(req: NextRequest) {
             .select({
               total: sql<number>`count(*)::int`,
               unread: sql<number>`count(*) filter (where not (${read}))::int`,
-              weak: sql<number>`count(*) filter (where ${read} and ${m} < 0.4)::int`,
-              medium: sql<number>`count(*) filter (where ${read} and ${m} >= 0.4 and ${m} < 0.75)::int`,
-              strong: sql<number>`count(*) filter (where ${read} and ${m} >= 0.75)::int`,
+              weak: sql<number>`count(*) filter (where ${read} and ${m} < ${weakLimit()})::int`,
+              medium: sql<number>`count(*) filter (where ${read} and ${m} >= ${weakLimit()} and ${m} < ${strongLimit()})::int`,
+              strong: sql<number>`count(*) filter (where ${read} and ${m} >= ${strongLimit()})::int`,
             })
             .from(segments),
         { label: 'stats.tier' },
@@ -131,7 +119,8 @@ export async function GET(req: NextRequest) {
       title: row.title,
       documentId: row.documentId,
       documentTitle: row.documentTitle,
-      createdAt: row.createdAt,
+      // 契约以 wire 形态（ISO 字符串）描述日期；显式转换让类型与实际 JSON 一致
+      createdAt: row.createdAt.toISOString(),
     }));
 
     return {
@@ -144,7 +133,12 @@ export async function GET(req: NextRequest) {
       },
       tierOrder: MEMORY_TIER_ORDER,
       readToday: todayRow[0]?.count ?? 0,
-      recentDocuments: recentDocs,
+      recentDocuments: recentDocs.map((doc) => ({
+        id: doc.id,
+        title: doc.title,
+        segmentCount: doc.segmentCount,
+        createdAt: doc.createdAt.toISOString(),
+      })),
       suggestion: weakTop3[0] ?? null,
       weakTop3,
       unreadTop3,

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Knowledge Universe · 图谱原型（T05）</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body data-page="graph">
+<div id="ku-chrome"></div>
+
+<main class="page ku-content">
+  <div class="page-head">
+    <div>
+      <h1>图谱 · 核心工作空间</h1>
+      <p>五种主模式互斥 + 五项独立上下文并存 · 搜索聚焦 · 节点选中 · 关系路径 · 详情空间浮层</p>
+    </div>
+    <span class="tag">T05 · 两层状态模型</span>
+  </div>
+
+  <div class="mode-bar" id="mode-bar" role="group" aria-label="主交互模式"></div>
+
+  <div class="graph-layout">
+    <section class="graph-main">
+      <div class="card">
+        <div class="search-box">
+          <input id="ku-search" type="search" placeholder="搜索标题 / 标签 / 路径 / 摘要" aria-label="搜索知识点">
+          <button type="button" id="clear-search">清除搜索</button>
+        </div>
+        <div class="search-result" id="search-result" aria-live="polite">表 2 边界：只检索 title / tags / headingPath / summary。</div>
+        <div class="universe-canvas graph-canvas-wrap" id="graph-canvas">
+          <svg id="graph-svg"></svg>
+        </div>
+        <div id="legend"></div>
+      </div>
+    </section>
+
+    <aside class="side-stack">
+      <div class="card">
+        <h2>两层状态 · 实时</h2>
+        <div class="context-list" id="context-list"></div>
+        <p class="tiny muted" style="margin-top:10px">验收要点：点击节点不清空搜索上下文；唤起 AI 不丢失选中节点；退出后回到进入前主模式。</p>
+      </div>
+      <div class="card">
+        <h2>主模式（互斥，5 种）</h2>
+        <div id="mode-list" class="tiny muted"></div>
+        <div class="divider"></div>
+        <h2>独立上下文（并存，5 项）</h2>
+        <div class="tiny muted">当前选中节点 · 当前搜索词与结果 · 路径起点与终点 · 浮层展开状态 · 离开前的图谱位置</div>
+      </div>
+      <div class="card">
+        <h2>键盘 / 触控</h2>
+        <div class="tiny muted">Enter / Space 选中节点 · / 聚焦搜索 · Ctrl/⌘+K 全局检索 · Esc 关闭浮层<br>移动端：tap 命中容差 44px、长按查看关联、依次 tap 选路径端点</div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<div class="ku-state-panel" id="ku-state-panel" hidden></div>
+
+<div class="overlay-backdrop" id="ku-overlay" hidden role="dialog" aria-modal="true" aria-label="空间浮层">
+  <div class="overlay-panel" tabindex="-1"></div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+(function () {
+  'use strict';
+  KU.mountChrome('graph');
+  KU.bindKeys();
+
+  // 第一层：主交互模式（互斥）。第二层：独立上下文（并存）。
+  var st = {
+    mode: 'free',
+    previousMode: 'free',
+    context: {
+      selectedId: null,
+      query: '',
+      matchedIds: [],
+      pathEndpoints: [],
+      overlay: null,
+      savedView: null
+    }
+  };
+
+  function modeName(m) {
+    for (var i = 0; i < KU.MODES.length; i++) if (KU.MODES[i].id === m) return KU.MODES[i].label;
+    return m;
+  }
+  function nodeName(id) { var n = KU.nodeById(id); return n ? n.title : '—'; }
+
+  function renderModeBar() {
+    var bar = KU.byId('mode-bar');
+    bar.innerHTML = '';
+    KU.MODES.forEach(function (m) {
+      var b = KU.el('button', {
+        type: 'button',
+        class: st.mode === m.id ? 'active' : '',
+        'aria-pressed': st.mode === m.id ? 'true' : 'false'
+      }, m.label);
+      b.addEventListener('click', function () { enterMode(m.id); });
+      bar.appendChild(b);
+    });
+    var blank = KU.el('button', { type: 'button', class: 'ghost' }, '点空白（关浮层）');
+    blank.addEventListener('click', pointBlank);
+    bar.appendChild(blank);
+  }
+
+  function renderContext() {
+    var c = st.context;
+    var path = c.pathEndpoints.length
+      ? c.pathEndpoints.map(nodeName).join(' → ') + '（' + c.pathEndpoints.length + '/2）'
+      : '—';
+    var rows = [
+      ['主模式', modeName(st.mode)],
+      ['当前选中节点', nodeName(c.selectedId)],
+      ['当前搜索词与结果', c.query ? '"' + c.query + '" · ' + c.matchedIds.length + ' 命中' : '—'],
+      ['路径起点与终点', path],
+      ['浮层展开状态', c.overlay || 'none'],
+      ['离开前的图谱位置', c.savedView ? '已保存（zoom 1 / 0,0）' : '—']
+    ];
+    KU.byId('context-list').innerHTML = rows.map(function (r) {
+      return '<div class="context-row"><span>' + KU.esc(r[0]) + '</span><b>' + KU.esc(r[1]) + '</b></div>';
+    }).join('');
+    KU.byId('mode-list').innerHTML = KU.MODES.map(function (m) {
+      return '<div class="list-row"><span>' + (st.mode === m.id ? '<b style="color:var(--ku-explore)">' : '') +
+        KU.esc(m.label) + (st.mode === m.id ? '</b>' : '') + '</span><span class="muted">' +
+        (st.mode === m.id ? '当前' : '未激活') + '</span></div>';
+    }).join('');
+  }
+
+  function renderGraph() {
+    KU.renderGraph(KU.byId('graph-svg'), {
+      selectedId: st.context.selectedId,
+      query: st.context.query,
+      matchedIds: st.context.matchedIds,
+      pathEndpoints: st.context.pathEndpoints,
+      showLabels: true,
+      interactive: true,
+      onNode: selectNode
+    });
+  }
+
+  function renderSearchHint() {
+    var c = st.context;
+    KU.byId('search-result').textContent = c.query
+      ? '命中 ' + c.matchedIds.length + ' 个知识点 · 非匹配节点仅用透明度降权，记忆亮度保持不变'
+      : '表 2 边界：只检索 title / tags / headingPath / summary；正文 / 关系 / 学习状态不作为搜索维度。';
+  }
+
+  function renderAll() {
+    renderModeBar();
+    renderContext();
+    renderGraph();
+    renderSearchHint();
+  }
+
+  // ---- 动作：严格保持两层模型 ----
+  function setQuery(q) {
+    st.context.query = q;
+    st.context.matchedIds = KU.searchMatches(q);
+    if (q && st.mode !== 'ai' && st.mode !== 'learn') st.mode = 'search';
+    if (!q && st.mode === 'search') st.mode = 'free';
+    KU.byId('ku-search').value = q;
+    // 不清空 selectedId / overlay / pathEndpoints / savedView
+    renderAll();
+  }
+
+  function selectNode(id) {
+    var c = st.context;
+    c.selectedId = id;                 // 只更新第二层上下文，不改主模式
+    c.overlay = 'detail';
+    if (st.mode === 'path' && c.pathEndpoints.length < 2 && c.pathEndpoints.indexOf(id) < 0) {
+      c.pathEndpoints.push(id);
+      KU.toast(c.pathEndpoints.length === 1 ? '路径起点已选，请选择终点' : '路径探索：两端已选，关系线已强调');
+    }
+    renderAll();
+    KU.openOverlay('ku-overlay', 'detail', function () { return KU.detailPanelHtml(KU.nodeById(id)); });
+  }
+
+  function enterMode(m) {
+    var c = st.context;
+    if (m === 'free') {
+      // 显式回到自由探索：清模式相关的查询与路径，保留选中节点与离开前视角
+      st.mode = 'free';
+      c.query = '';
+      c.matchedIds = [];
+      c.pathEndpoints = [];
+      c.overlay = null;
+      KU.byId('ku-search').value = '';
+      KU.closeOverlay('ku-overlay');
+    } else if (m === 'search') {
+      KU.byId('ku-search').focus();
+      if (!c.query) KU.toast('输入关键词进入搜索聚焦（选中节点等上下文会保留）');
+      else st.mode = 'search';
+    } else if (m === 'path') {
+      st.previousMode = st.mode === 'path' ? st.previousMode : st.mode;
+      st.mode = 'path';
+      c.pathEndpoints = [];
+      KU.toast('路径探索：依次点击两个节点作为起点与终点');
+    } else if (m === 'learn') {
+      st.previousMode = st.mode === 'learn' ? st.previousMode : st.mode;
+      st.mode = 'learn';
+      c.overlay = 'learn';
+      c.savedView = { zoom: 1, center: '0,0' };   // 第二层上下文：离开前的图谱位置
+      KU.openOverlay('ku-overlay', 'learn', function () { return KU.learnPanelHtml(KU.nodeById(c.selectedId)); });
+    } else if (m === 'ai') {
+      st.previousMode = st.mode === 'ai' ? st.previousMode : st.mode;
+      st.mode = 'ai';
+      c.overlay = 'ai';                            // 选中节点 / 搜索词均保留
+      KU.openOverlay('ku-overlay', 'ai', function () { return KU.aiPanelHtml(KU.nodeById(c.selectedId)); });
+    }
+    renderAll();
+  }
+
+  function exitSpecial() {
+    st.mode = st.previousMode || 'free';
+    st.context.overlay = null;
+    // 不清空任何第二层上下文
+    KU.closeOverlay('ku-overlay');
+    renderAll();
+  }
+
+  function pointBlank() {
+    st.context.overlay = null;
+    if (st.mode === 'ai' || st.mode === 'learn') st.mode = st.previousMode || 'free';
+    KU.closeOverlay('ku-overlay');
+    renderAll();
+    KU.toast('已关闭浮层；搜索词与选中节点等上下文保留');
+  }
+
+  window.addEventListener('ku:overlayclose', function () {
+    if (st.context.overlay !== null) {
+      st.context.overlay = null;
+      if (st.mode === 'ai' || st.mode === 'learn') st.mode = st.previousMode || 'free';
+      renderAll();
+    }
+  });
+
+  KU.onOverlayAction = function (action, value) {
+    if (action === 'read') { window.location.href = 'detail.html?id=' + encodeURIComponent(value); return; }
+    if (action === 'ai') { enterMode('ai'); return; }
+    if (action === 'recall') { enterMode('learn'); return; }
+    if (action === 'learn-back') { exitSpecial(); KU.toast('已返回图谱，选中节点与搜索上下文保留'); return; }
+    if (action === 'edit') { KU.toast('辅助操作：编辑（原型示意，不改数据）'); return; }
+    if (action === 'relations') { KU.toast('辅助操作：查看完整关系（原型示意）'); return; }
+    if (action === 'ai-explain') { KU.toast('一次性候选建议：解释知识点（不持久化、不自动写库）'); return; }
+    if (action === 'ai-relations') { KU.toast('一次性候选建议：查关联（仅基于已检索内容）'); return; }
+    if (action === 'ai-question') { KU.toast('一次性候选建议：生成回忆问题（需用户确认后执行）'); return; }
+    KU.toast('原型动作：' + action);
+  };
+
+  KU.byId('legend').innerHTML = KU.legendHtml();
+  KU.byId('ku-search').addEventListener('input', function () { setQuery(this.value); });
+  KU.byId('clear-search').addEventListener('click', function () { setQuery(''); });
+  KU.byId('graph-canvas').addEventListener('click', function (e) { if (e.target.tagName !== 'circle' && e.target.tagName !== 'text') pointBlank(); });
+  KU.byId('ku-overlay').addEventListener('click', function (e) { if (e.target === this) pointBlank(); });
+
+  // URL 参数：评审 / 截图可直达指定状态
+  var params = new URLSearchParams(window.location.search);
+  var initNode = params.get('node');
+  var initQuery = params.get('q') || '';
+  var initMode = params.get('mode');
+  if (initQuery) setQuery(initQuery);
+  if (initNode && KU.nodeById(initNode)) {
+    st.context.selectedId = initNode;
+    st.context.overlay = 'detail';
+    KU.openOverlay('ku-overlay', 'detail', function () { return KU.detailPanelHtml(KU.nodeById(initNode)); });
+  }
+  if (initMode && initMode !== 'free') enterMode(initMode);
+  renderAll();
+})();
+</script>
+</body>
+</html>

@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import React from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { api, formatDate } from '@/lib/client';
+import { api, isAuthError } from '@/lib/client';
 import { MEMORY_TIER_LABELS, memoryTier } from '@/lib/memory';
 import { LampDot } from '@/components/MemoryBadge';
 import { Skeleton } from '@/components/Skeleton';
@@ -14,15 +14,22 @@ import SectionEditor from '@/components/SectionEditor';
 import AiOverlay from '@/components/AiOverlay';
 import {
   ANNOTATION_COLORS,
-  ANNOTATION_COLOR_ORDER,
   locate,
   MIN_QUOTE_LEN,
   type AnnotationColor,
   type AnnotationKind,
 } from '@/lib/annotations';
 import { injectMarks, type MarkSpec } from '@/lib/highlight';
-import { clampPopover, POPOVER_WIDTH } from '@/lib/ui/geometry';
 import InlineFeedback from '@/components/InlineFeedback';
+import ErrorState from '@/components/ErrorState';
+import {
+  AnnotationViewCard,
+  ExplainOverlay,
+  SectionNotePopover,
+  SelectionPopover,
+  type AnnotationRow,
+  type SelAnchor,
+} from '@/components/notes/AnnotationOverlays';
 
 interface DocDetail {
   document: { id: string; title: string; tags: string[]; segmentCount: number; createdAt: string; storageKey: string | null };
@@ -35,33 +42,6 @@ interface DocDetail {
     content: string;
     memory: number;
   }[];
-}
-
-interface AnnotationRow {
-  id: string;
-  segmentId: string;
-  kind: AnnotationKind;
-  quote: string | null;
-  occurrence: number;
-  prefix: string | null;
-  suffix: string | null;
-  note: string | null;
-  color: AnnotationColor;
-  createdAt: string;
-  updatedAt: string;
-  segmentTitle: string;
-  segmentOrder: number;
-}
-
-/** 选区产生的标注锚点（在段渲染文本上的四元组） */
-interface SelAnchor {
-  x: number;
-  y: number;
-  segId: string;
-  quote: string;
-  occurrence: number;
-  prefix: string;
-  suffix: string;
 }
 
 /** memo 化 Markdown：内容不变时避免 React 重渲染破坏已注入的划线 DOM */
@@ -154,13 +134,6 @@ const IcToc = (p: React.SVGProps<SVGSVGElement>) => (
 const excerpt = (s: string, n = 40) => (s.length > n ? `${s.slice(0, n)}…` : s);
 const MIN_READING_MS = 5_000;
 
-/** 浮层尺寸估算：用于碰撞计算（实际渲染宽度与 POPOVER_WIDTH 一致） */
-const POP_SIZE = {
-  color: { width: 220, height: 44 },
-  note: { width: POPOVER_WIDTH, height: 220 },
-  card: { width: POPOVER_WIDTH, height: 190 },
-} as const;
-
 interface SectionReadingSession {
   opened: boolean;
   since: number | null;
@@ -175,6 +148,9 @@ export default function NoteDetailPage() {
   const [activeSec, setActiveSec] = useState(0);
   const [tocOpen, setTocOpen] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
+  /** 目录抽屉焦点管理（UX-16）：打开时把焦点移入抽屉，关闭后还原到触发钮 */
+  const tocTriggerRef = useRef<HTMLButtonElement>(null);
+  const tocPanelRef = useRef<HTMLElement>(null);
   const readingSessions = useRef(new Map<string, SectionReadingSession>());
   const activeReadingId = useRef<string | null>(null);
   const readingVisible = useRef(true);
@@ -185,7 +161,10 @@ export default function NoteDetailPage() {
   const [docTitle, setDocTitle] = useState('');
   const [docTagsInput, setDocTagsInput] = useState('');
   const [docMsg, setDocMsg] = useState('');
+  const [docMsgTone, setDocMsgTone] = useState<'success' | 'danger'>('success');
   const [deleting, setDeleting] = useState(false);
+  /** 编辑模式下有未保存改动的段 id（由 SectionEditor 的 onDirtyChange 上报，UX-14） */
+  const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set());
   // AI 语义拆解/聚合
   const [llmReady, setLlmReady] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -195,6 +174,8 @@ export default function NoteDetailPage() {
 
   // 标注
   const [annotations, setAnnotations] = useState<AnnotationRow[] | null>(null);
+  /** 标注加载失败原因：与「没有标注」区分开（UX-27） */
+  const [annotationError, setAnnotationError] = useState('');
   const [invalidIds, setInvalidIds] = useState<Set<string>>(new Set());
   const [selPop, setSelPop] = useState<SelAnchor | null>(null);
   const [popMode, setPopMode] = useState<'color' | 'note'>('color');
@@ -218,19 +199,6 @@ export default function NoteDetailPage() {
     return () => window.removeEventListener('resize', update);
   }, []);
 
-  /** 浮层定位：保证不越界；空间不足时自动翻转/贴边 */
-  const popPosition = (x: number, y: number, size: { width: number; height: number }) =>
-    viewport.width > 0 && viewport.height > 0
-      ? clampPopover({
-          anchorX: x,
-          anchorY: y,
-          width: size.width,
-          height: size.height,
-          viewportWidth: viewport.width,
-          viewportHeight: viewport.height,
-        })
-      : { left: x, top: y, placement: 'bottom' as const, clampedX: false, flipped: false };
-
   const popModeRef = useRef(popMode);
   useEffect(() => {
     popModeRef.current = popMode;
@@ -246,6 +214,28 @@ export default function NoteDetailPage() {
   const reloadAnnotations = async () => {
     const d = await api<{ annotations: AnnotationRow[] }>(`/api/notes/${id}/annotations`);
     setAnnotations(d.annotations);
+  };
+
+  /** UX-26：详情加载失败后的重试——只重拉文档，不清空已加载的标注 */
+  const retryDocument = async () => {
+    setError('');
+    try {
+      await reload();
+    } catch (e) {
+      if (isAuthError(e)) return; // 401 已由 api() 跳转登录，不再显示「请求失败」
+      setError(e instanceof Error ? e.message : '加载失败');
+    }
+  };
+
+  /** UX-27：标注加载失败后的重试——只重拉标注，不整页刷新 */
+  const retryAnnotations = async () => {
+    setAnnotationError('');
+    try {
+      await reloadAnnotations();
+    } catch (e) {
+      if (isAuthError(e)) return;
+      setAnnotationError(e instanceof Error ? e.message : '标注加载失败，请重试');
+    }
   };
 
   // 灯点摘要缓存：首次 hover 触发生成（服务端 in-flight 去重），成功后页面级记住
@@ -267,17 +257,41 @@ export default function NoteDetailPage() {
     return m;
   }, [annotations]);
 
+  // 段被删除/替换后清理残留的脏标记：派生有效脏段，避免退出确认把已不存在的段算进去
+  const dirtySegmentIds = useMemo(() => {
+    if (!data) return dirtyIds;
+    const segmentIds = new Set(data.segments.map((s) => s.id));
+    return new Set([...dirtyIds].filter((sid) => segmentIds.has(sid)));
+  }, [data, dirtyIds]);
+
   useEffect(() => {
+    let alive = true;
     api<DocDetail>(`/api/notes/${id}`)
       .then((d) => {
+        if (!alive) return;
+        setError('');
         setData(d);
         setDocTitle(d.document.title);
         setDocTagsInput(d.document.tags.join(', '));
       })
-      .catch((e) => setError(e.message));
+      .catch((e: unknown) => {
+        if (!alive || isAuthError(e)) return;
+        setError(e instanceof Error ? e.message : '加载失败');
+      });
+    // 标注失败不能置空冒充「没有标注」：保留错误，页面内联提示并可单独重试（UX-27）
     api<{ annotations: AnnotationRow[] }>(`/api/notes/${id}/annotations`)
-      .then((d) => setAnnotations(d.annotations))
-      .catch(() => setAnnotations([]));
+      .then((d) => {
+        if (!alive) return;
+        setAnnotations(d.annotations);
+        setAnnotationError('');
+      })
+      .catch((e: unknown) => {
+        if (!alive || isAuthError(e)) return;
+        setAnnotationError(e instanceof Error ? e.message : '标注加载失败，请重试');
+      });
+    return () => {
+      alive = false;
+    };
   }, [id]);
 
   // 整篇连续阅读：当前可见节累计停留；切节、隐藏或卸载时提交有效阅读。
@@ -454,6 +468,46 @@ export default function NoteDetailPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // 目录抽屉（UX-16）：打开时聚焦首个可聚焦元素、Tab 在抽屉内循环、关闭后焦点还原到触发钮
+  useEffect(() => {
+    if (!tocOpen) return;
+    const panel = tocPanelRef.current;
+    const trigger = tocTriggerRef.current;
+    const focusables = () =>
+      Array.from(
+        panel?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? [],
+      );
+    focusables()[0]?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const items = focusables();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const activeEl = document.activeElement as HTMLElement | null;
+      const inside = !!activeEl && !!panel?.contains(activeEl);
+      if (e.shiftKey && (!inside || activeEl === first)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (!inside || activeEl === last)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    // 抽屉只在 <xl 生效：视口变宽后自动收起，避免焦点被困在已隐藏的面板里
+    const desktop = window.matchMedia('(min-width: 1280px)');
+    const onBreakpoint = () => {
+      if (desktop.matches) setTocOpen(false);
+    };
+    desktop.addEventListener('change', onBreakpoint);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      desktop.removeEventListener('change', onBreakpoint);
+      trigger?.focus();
+    };
+  }, [tocOpen]);
+
   // 阅读态划线注入：锚点定位 → DOM 包裹；失败集合供列表灰显
   useEffect(() => {
     if (editing || !data) return;
@@ -575,6 +629,7 @@ export default function NoteDetailPage() {
       window.getSelection()?.removeAllRanges();
       await reloadAnnotations();
     } catch (e) {
+      if (isAuthError(e)) return;
       setAnnoMsg(e instanceof Error ? e.message : '保存失败');
     }
   };
@@ -598,6 +653,7 @@ export default function NoteDetailPage() {
       });
       setSelPop(null);
     } catch (error) {
+      if (isAuthError(error)) return;
       setAnnoMsg(error instanceof Error ? error.message : '解释失败');
     } finally {
       setExplainBusy(false);
@@ -616,18 +672,22 @@ export default function NoteDetailPage() {
       setSecNoteText('');
       await reloadAnnotations();
     } catch (e) {
+      if (isAuthError(e)) return;
       // 失败必须让用户看见：弹层保持打开，便于直接重试
       setSecNoteMsg(e instanceof Error ? e.message : '保存失败，请重试');
     }
   };
 
   const deleteAnnotation = async (annId: string) => {
+    // 与删除段/删除文档一致：标注不可恢复，删除前必须二次确认（UX-15）
+    if (!window.confirm('删除这条标注？划线高亮与笔记内容将一并删除，且无法恢复。')) return;
     setAnnoListMsg('');
     try {
       await api(`/api/annotations/${annId}`, { method: 'DELETE' });
       setViewCard(null);
       await reloadAnnotations();
     } catch (e) {
+      if (isAuthError(e)) return;
       setAnnoListMsg(e instanceof Error ? e.message : '删除失败，请重试');
     }
   };
@@ -644,18 +704,28 @@ export default function NoteDetailPage() {
   };
 
   const saveDocMeta = async () => {
+    // UX-23：标题先 trim 再校验，空标题不发请求
+    const title = docTitle.trim();
+    if (!title) {
+      setDocMsgTone('danger');
+      setDocMsg('文档标题不能为空');
+      return;
+    }
     setDocMsg('');
     try {
       await api(`/api/notes/${id}`, {
         method: 'PATCH',
         body: JSON.stringify({
-          title: docTitle,
+          title,
           tags: docTagsInput.split(/[,，]/).map((t) => t.trim()).filter(Boolean),
         }),
       });
       await reload();
+      setDocMsgTone('success');
       setDocMsg('已保存');
     } catch (e) {
+      if (isAuthError(e)) return;
+      setDocMsgTone('danger');
       setDocMsg(e instanceof Error ? e.message : '保存失败');
     }
   };
@@ -669,6 +739,8 @@ export default function NoteDetailPage() {
       await api(`/api/notes/${id}`, { method: 'DELETE' });
       router.replace('/notes');
     } catch (e) {
+      if (isAuthError(e)) return;
+      setDocMsgTone('danger');
       setDocMsg(e instanceof Error ? e.message : '删除失败');
       setDeleting(false);
     }
@@ -698,6 +770,7 @@ export default function NoteDetailPage() {
       });
       setAggPreview(d.merged);
     } catch (e) {
+      if (isAuthError(e)) return;
       setAggMsg(e instanceof Error ? e.message : '聚合失败');
     } finally {
       setAggBusy(false);
@@ -718,16 +791,73 @@ export default function NoteDetailPage() {
       await reload();
       await reloadAnnotations();
     } catch (e) {
+      if (isAuthError(e)) return;
       setAggMsg(e instanceof Error ? e.message : '应用聚合失败');
     } finally {
       setAggBusy(false);
     }
   };
 
-  if (error) return <p className="text-body text-danger">{error}</p>;
+  /** SectionEditor 上报脏状态（UX-14）：只记录有未保存改动的段 */
+  const handleDirtyChange = (segId: string, dirty: boolean) => {
+    setDirtyIds((prev) => {
+      if (prev.has(segId) === dirty) return prev;
+      const next = new Set(prev);
+      if (dirty) next.add(segId);
+      else next.delete(segId);
+      return next;
+    });
+  };
+
+  const enterEditing = () => {
+    setTocOpen(false);
+    setEditing(true);
+    setSelectedIds(new Set());
+    setAggPreview(null);
+    setDirtyIds(new Set());
+    // 进入编辑模式时探测 LLM 可用性（失败按未配置处理，按钮禁用）
+    api<{ configured: boolean }>('/api/ai/config')
+      .then((c) => setLlmReady(c.configured))
+      .catch(() => setLlmReady(false));
+  };
+
+  const exitEditing = () => {
+    setEditing(false);
+    setSelectedIds(new Set());
+    setAggPreview(null);
+    setDirtyIds(new Set());
+  };
+
+  /** UX-14：有未保存改动时退出编辑先确认；无改动直接退出 */
+  const exitWithDirtyCheck = (action: '完成编辑' | '放弃改动') => {
+    if (dirtySegmentIds.size > 0) {
+      const ok = window.confirm(`有 ${dirtySegmentIds.size} 个段落存在未保存的改动，${action}后这些改动会丢失。确定退出编辑吗？`);
+      if (!ok) return;
+    }
+    exitEditing();
+  };
+
+  const toggleEditing = () => {
+    if (editing) exitWithDirtyCheck('完成编辑');
+    else enterEditing();
+  };
+
+  const cancelEditing = () => exitWithDirtyCheck('放弃改动');
+
+  if (error) {
+    return (
+      <div className="mx-auto max-w-reading">
+        <ErrorState
+          message={error}
+          onRetry={retryDocument}
+          hint="文档或数据库可能暂时不可用；点「重试」会重新拉取本文，不会删除任何标注。"
+        />
+      </div>
+    );
+  }
   if (!data)
     return (
-      <div className="mx-auto max-w-[42rem] space-y-4" role="status" aria-label="加载中">
+      <div className="mx-auto max-w-reading space-y-4" role="status" aria-label="加载中">
         <Skeleton className="h-4 w-20" />
         <Skeleton className="h-8 w-72" />
         <div className="card px-6 py-8">
@@ -752,7 +882,7 @@ export default function NoteDetailPage() {
   };
 
   return (
-    <div className="relative mx-auto max-w-[42rem]">
+    <div className="relative mx-auto max-w-reading">
       {/* 阅读进度条 */}
       <div className="fixed inset-x-0 top-0 z-30 h-0.5 bg-transparent">
         <div ref={barRef} className="h-full bg-accent" style={{ width: '0%' }} />
@@ -770,26 +900,42 @@ export default function NoteDetailPage() {
         </nav>
       )}
 
-      {/* <1280px：右下角悬浮目录钮 */}
+      {/* <1280px：右下角悬浮目录钮（UX-02：<md 上移到固定底部导航条之上，md 起恢复右下角） */}
       {hasToc && (
         <button
+          ref={tocTriggerRef}
           onClick={() => setTocOpen(true)}
           aria-label="打开目录"
-          className="fixed bottom-5 right-5 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-elevated text-muted shadow-lg transition-colors duration-150 hover:text-primary xl:hidden"
+          aria-haspopup="dialog"
+          aria-expanded={tocOpen}
+          className="fixed bottom-[calc(5rem_+_env(safe-area-inset-bottom))] right-5 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-elevated text-muted shadow-lg transition-colors duration-150 hover:text-primary md:bottom-5 xl:hidden"
         >
           <IcToc className="h-5 w-5" />
         </button>
       )}
 
-      {/* <1280px：浮层目录 */}
+      {/* <1280px：浮层目录（UX-16：初始聚焦、Tab 循环、Esc 关闭、关闭后焦点还原） */}
       {tocOpen && (
         <div className="fixed inset-0 z-50 xl:hidden" role="dialog" aria-modal="true" aria-label="目录" onClick={() => setTocOpen(false)}>
           <div className="absolute inset-0 bg-black/50" />
           <nav
-            className="absolute bottom-20 right-4 max-h-[65vh] w-72 overflow-y-auto rounded-xl border border-line bg-elevated p-3 shadow-2xl"
+            ref={tocPanelRef}
+            aria-label="目录导航"
+            className="absolute bottom-[calc(5rem_+_env(safe-area-inset-bottom))] right-4 max-h-[65vh] w-72 overflow-y-auto rounded-xl border border-line bg-elevated p-3 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="mb-1.5 px-1 text-tag uppercase text-faint">目录</p>
+            {/* FE-014：浮层目录原先只能靠点击遮罩关闭，没有显式关闭按钮 */}
+            <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
+              <p className="text-tag uppercase text-faint">目录</p>
+              <button
+                type="button"
+                aria-label="关闭目录"
+                onClick={() => setTocOpen(false)}
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
+              >
+                ✕
+              </button>
+            </div>
             <TocList sections={segments} active={activeSec} summaries={summaries} onEnsureSummary={ensureSummary} onNavigate={() => setTocOpen(false)} />
           </nav>
         </div>
@@ -798,27 +944,28 @@ export default function NoteDetailPage() {
       <div className="fade-up">
         <div className="flex items-start justify-between gap-3">
           <Link href="/notes" className="mt-1 text-tag text-faint transition-colors hover:text-accent hover:underline">← 知识库</Link>
-          <button
-            onClick={() => {
-              const next = !editing;
-              setEditing(next);
-              setSelectedIds(new Set());
-              setAggPreview(null);
-              if (next) {
-                // 进入编辑模式时探测 LLM 可用性（失败按未配置处理，按钮禁用）
-                api<{ configured: boolean }>('/api/ai/config')
-                  .then((c) => setLlmReady(c.configured))
-                  .catch(() => setLlmReady(false));
-              }
-            }}
-            className={`shrink-0 rounded-lg border px-3 py-1.5 text-tag transition-colors duration-150 ${
-              editing
-                ? 'border-accent bg-accent text-accent-ink'
-                : 'border-line bg-surface text-muted hover:bg-surface-hover hover:text-primary'
-            }`}
-          >
-            {editing ? '✓ 完成编辑' : '✎ 编辑'}
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {editing && (
+              <button
+                onClick={cancelEditing}
+                title="放弃未保存的修改并退出编辑"
+                className="inline-flex min-h-11 items-center rounded-lg border border-line px-3 text-tag text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
+              >
+                取消
+              </button>
+            )}
+            <button
+              onClick={toggleEditing}
+              title={editing && dirtySegmentIds.size > 0 ? `有 ${dirtySegmentIds.size} 个段落存在未保存的改动` : undefined}
+              className={`inline-flex min-h-11 shrink-0 items-center rounded-lg border px-3 py-1.5 text-tag transition-colors duration-150 ${
+                editing
+                  ? 'border-accent bg-accent text-accent-ink'
+                  : 'border-line bg-surface text-muted hover:bg-surface-hover hover:text-primary'
+              }`}
+            >
+              {editing ? '✓ 完成编辑' : '✎ 编辑'}
+            </button>
+          </div>
         </div>
         <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1 className="font-display text-subtitle font-semibold">{doc.title}</h1>
@@ -844,7 +991,11 @@ export default function NoteDetailPage() {
               标题
               <input
                 value={docTitle}
-                onChange={(e) => setDocTitle(e.target.value)}
+                onChange={(e) => {
+                  setDocTitle(e.target.value);
+                  setDocMsg('');
+                }}
+                aria-label="文档标题"
                 className="min-w-0 flex-1 rounded-lg border border-line bg-app px-3 py-1.5 text-body text-primary outline-none transition-colors focus:border-accent"
               />
             </label>
@@ -859,18 +1010,18 @@ export default function NoteDetailPage() {
             </label>
             <button
               onClick={saveDocMeta}
-              className="rounded-lg border border-line px-3 py-1.5 text-tag text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
+              className="inline-flex min-h-11 items-center rounded-lg border border-line px-3 text-tag text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
             >
               保存文档信息
             </button>
             <button
               onClick={deleteDocument}
               disabled={deleting}
-              className="ml-auto rounded-lg border border-danger/30 px-3 py-1.5 text-tag text-danger transition-colors duration-150 hover:bg-danger/10 disabled:opacity-50"
+              className="ml-auto inline-flex min-h-11 items-center rounded-lg border border-danger/30 px-3 text-tag text-danger transition-colors duration-150 hover:bg-danger/10 disabled:opacity-50"
             >
               {deleting ? '删除中…' : '删除文档'}
             </button>
-            {docMsg && <span className="text-tag text-faint">{docMsg}</span>}
+            {docMsg && <InlineFeedback tone={docMsgTone}>{docMsg}</InlineFeedback>}
           </div>
           <p className="text-tag text-faint">段落编辑保存时保留全部记忆数据；增删/移动会自动维护同文档相邻关联。</p>
         </div>
@@ -888,18 +1039,23 @@ export default function NoteDetailPage() {
                 onClick={aggregatePreviewCall}
                 disabled={aggBusy}
                 title="把所选段落融合为一段（预览后应用）"
-                className="rounded-lg bg-accent px-3 py-1.5 text-minor font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong disabled:opacity-50"
+                className="inline-flex min-h-11 items-center rounded-lg bg-accent px-3 text-minor font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong disabled:opacity-50"
               >
                 {aggBusy ? '聚合中…' : `✨ 聚合所选（${selectedIds.size}）`}
               </button>
               <button
                 onClick={() => setSelectedIds(new Set())}
-                className="rounded-lg border border-line px-3 py-1.5 text-minor text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
+                className="inline-flex min-h-11 items-center rounded-lg border border-line px-3 text-minor text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
               >
                 清除选择
               </button>
               {aggMsg && <span className="text-tag text-danger">{aggMsg}</span>}
             </div>
+          )}
+          {dirtySegmentIds.size > 0 && (
+            <p className="text-tag text-warn" role="status">
+              有 {dirtySegmentIds.size} 个段落存在未保存的改动；点「✓ 完成编辑」或「取消」退出前会提示确认。
+            </p>
           )}
           {segments.length === 0 && (
             <button
@@ -917,6 +1073,9 @@ export default function NoteDetailPage() {
               selected={selectedIds.has(s.id)}
               onToggleSelect={() => toggleSelect(s.id)}
               llmReady={llmReady}
+              isFirst={i === 0}
+              isLast={i === segments.length - 1}
+              onDirtyChange={(dirty) => handleDirtyChange(s.id, dirty)}
               onSaved={reload}
               onStructureChanged={reload}
               onInsertAfter={() => insertAfter(i)}
@@ -962,7 +1121,8 @@ export default function NoteDetailPage() {
                         setSecNoteText('');
                         setSecNote({ x: r.left + 40, y: Math.max(r.top - 8, 56), segId: s.id });
                       }}
-                      className="inline-flex items-center rounded px-1 text-tag text-faint opacity-0 transition-opacity duration-150 hover:text-accent focus-visible:opacity-100 group-hover/sec:opacity-100"
+                      // 触控目标 ≥44px（FE-007）；触屏没有 hover，故移动端常显、桌面 hover 才显
+                      className="-my-2 inline-flex h-11 w-11 items-center justify-center rounded text-tag text-faint opacity-100 transition-opacity duration-150 hover:text-accent focus-visible:opacity-100 md:opacity-0 md:group-hover/sec:opacity-100"
                     >
                       ✎＋
                     </button>
@@ -984,8 +1144,25 @@ export default function NoteDetailPage() {
             )}
           </article>
 
-          {/* 本文标注列表 */}
-          {annotations && annotations.length > 0 && (
+          {/* 标注加载失败：与「没有标注」区分开，提供只重拉标注的独立重试（UX-27） */}
+          {annotationError && (
+            <div className="card fade-up mt-6 flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <InlineFeedback tone="danger">
+                  标注加载失败：{annotationError}。已保存的划线与笔记可能没有显示，请勿据此判断标注已丢失。
+                </InlineFeedback>
+              </div>
+              <button
+                onClick={retryAnnotations}
+                className="inline-flex min-h-11 shrink-0 items-center rounded-lg border border-line px-3 text-tag text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
+              >
+                重试
+              </button>
+            </div>
+          )}
+
+          {/* 本文标注列表（加载失败时先不展示，避免把旧数据当成当前文档的完整标注） */}
+          {!annotationError && annotations && annotations.length > 0 && (
             <details className="card group/anno fade-up mt-6 px-4 py-2" style={{ animationDelay: '100ms' }}>
               <summary className="cursor-pointer list-none text-tag uppercase text-muted transition-colors hover:text-primary">
                 本文标注（{annotations.length}）
@@ -1064,153 +1241,40 @@ export default function NoteDetailPage() {
       )}
 
       {/* 选区划线/笔记 popover */}
-      {selPop && (
-        <div
-          data-anno-pop
-          className="fixed z-50"
-          style={(() => {
-            const pos = popPosition(selPop.x, selPop.y, popMode === 'color' ? POP_SIZE.color : POP_SIZE.note);
-            return { left: pos.left, top: pos.top };
-          })()}
-        >
-          {popMode === 'color' ? (
-            <div className="flex w-max max-w-[calc(100vw-1.5rem)] items-center gap-1.5 rounded-lg border border-line bg-elevated px-2 py-1.5 shadow-xl">
-              {ANNOTATION_COLOR_ORDER.map((c) => (
-                <button
-                  key={c}
-                  title={`划线 · ${ANNOTATION_COLORS[c].label}`}
-                  aria-label={`划线 · ${ANNOTATION_COLORS[c].label}`}
-                  onClick={() => createAnnotation('highlight', c)}
-                  className="h-5 w-5 rounded-full border border-line-strong transition-transform duration-150 hover:scale-110"
-                  style={{ background: ANNOTATION_COLORS[c].dot }}
-                />
-              ))}
-              <span className="mx-0.5 h-4 w-px bg-line" />
-              <button
-                onClick={() => setPopMode('note')}
-                className="rounded px-1.5 py-0.5 text-tag text-muted transition-colors duration-150 hover:text-primary"
-              >
-                ✎ 笔记
-              </button>
-              <button
-                onClick={explainSelection}
-                disabled={explainBusy}
-                className="rounded px-1.5 py-0.5 text-tag text-accent transition-colors duration-150 hover:text-accent-strong disabled:opacity-50"
-              >
-                {explainBusy ? '解释中…' : '✦ 解释'}
-              </button>
-            </div>
-          ) : (
-            <div className="w-72 max-w-[calc(100vw-1.5rem)] rounded-lg border border-line bg-elevated p-2.5 shadow-xl">
-              <p className="mb-1.5 truncate text-tag text-muted" title={selPop.quote}>
-                “{excerpt(selPop.quote, 60)}”
-              </p>
-              <textarea
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-                rows={3}
-                autoFocus
-                className="w-full resize-y rounded-md border border-line bg-app px-2 py-1.5 text-minor text-primary outline-none transition-colors focus:border-accent"
-                placeholder="写下想法…"
-              />
-              <div className="mt-1.5 flex items-center gap-1.5">
-                {ANNOTATION_COLOR_ORDER.map((c) => (
-                  <button
-                    key={c}
-                    aria-label={ANNOTATION_COLORS[c].label}
-                    onClick={() => setNoteColor(c)}
-                    className={`h-4 w-4 rounded-full border ${noteColor === c ? 'border-accent' : 'border-line-strong'}`}
-                    style={{ background: ANNOTATION_COLORS[c].dot }}
-                  />
-                ))}
-                <div className="flex-1" />
-                <button onClick={() => setSelPop(null)} className="rounded px-2 py-1 text-tag text-muted transition-colors duration-150 hover:text-primary">
-                  取消
-                </button>
-                <button
-                  onClick={() => createAnnotation('note', noteColor, noteText)}
-                  className="rounded bg-accent px-2.5 py-1 text-tag font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
-                >
-                  保存
-                </button>
-              </div>
-              {annoMsg && (
-                <div className="mt-1">
-                  <InlineFeedback tone="danger">{annoMsg}</InlineFeedback>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      <SelectionPopover
+        selPop={selPop}
+        popMode={popMode}
+        viewport={viewport}
+        noteText={noteText}
+        noteColor={noteColor}
+        annoMsg={annoMsg}
+        explainBusy={explainBusy}
+        onPopModeChange={setPopMode}
+        onNoteTextChange={setNoteText}
+        onNoteColorChange={setNoteColor}
+        onCreateAnnotation={createAnnotation}
+        onExplainSelection={explainSelection}
+        onClose={() => setSelPop(null)}
+      />
 
       {/* 标注查看卡 */}
-      {viewCard && (
-        <div
-          data-anno-pop
-          className="fixed z-50 w-72 max-w-[calc(100vw-1.5rem)] rounded-lg border border-line bg-elevated p-3 shadow-xl"
-          style={(() => {
-            const pos = popPosition(viewCard.x, viewCard.y, POP_SIZE.card);
-            return { left: pos.left, top: pos.top };
-          })()}
-        >
-          {viewCard.ann.quote && (
-            <p className="mb-1.5 border-l-2 border-accent/50 pl-2 text-minor leading-relaxed text-muted">{excerpt(viewCard.ann.quote, 90)}</p>
-          )}
-          {viewCard.ann.note && <p className="whitespace-pre-wrap text-body leading-relaxed text-primary">{viewCard.ann.note}</p>}
-          <p className="mt-2 flex items-center justify-between gap-2 text-tag text-muted">
-            <span className="truncate">
-              {formatDate(viewCard.ann.createdAt)} · {viewCard.ann.segmentTitle}
-            </span>
-            <button onClick={() => deleteAnnotation(viewCard.ann.id)} className="shrink-0 transition-colors duration-150 hover:text-danger">
-              删除
-            </button>
-          </p>
-          {annoListMsg && (
-            <div className="mt-1">
-              <InlineFeedback tone="danger">{annoListMsg}</InlineFeedback>
-            </div>
-          )}
-        </div>
-      )}
+      <AnnotationViewCard
+        viewCard={viewCard}
+        viewport={viewport}
+        annoListMsg={annoListMsg}
+        onDeleteAnnotation={deleteAnnotation}
+      />
 
       {/* 节级笔记编辑弹层 */}
-      {secNote && (
-        <div
-          data-anno-pop
-          className="fixed z-50 w-72 max-w-[calc(100vw-1.5rem)] rounded-lg border border-line bg-elevated p-2.5 shadow-xl"
-          style={(() => {
-            const pos = popPosition(secNote.x, secNote.y, POP_SIZE.note);
-            return { left: pos.left, top: pos.top };
-          })()}
-        >
-          <textarea
-            value={secNoteText}
-            onChange={(e) => setSecNoteText(e.target.value)}
-            rows={3}
-            autoFocus
-            className="w-full resize-y rounded-md border border-line bg-app px-2 py-1.5 text-minor text-primary outline-none transition-colors focus:border-accent"
-            placeholder="本节笔记…"
-          />
-          <div className="mt-1.5 flex justify-end gap-2">
-            <button onClick={() => setSecNote(null)} className="rounded px-2 py-1 text-tag text-muted transition-colors duration-150 hover:text-primary">
-              取消
-            </button>
-            <button
-              onClick={saveSecNote}
-              disabled={!secNoteText.trim()}
-              className="rounded bg-accent px-2.5 py-1 text-tag font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong disabled:opacity-50"
-            >
-              保存
-            </button>
-          </div>
-          {secNoteMsg && (
-            <div className="mt-1">
-              <InlineFeedback tone="danger">{secNoteMsg}</InlineFeedback>
-            </div>
-          )}
-        </div>
-      )}
+      <SectionNotePopover
+        secNote={secNote}
+        viewport={viewport}
+        secNoteText={secNoteText}
+        secNoteMsg={secNoteMsg}
+        onTextChange={setSecNoteText}
+        onSave={saveSecNote}
+        onClose={() => setSecNote(null)}
+      />
 
       {/* AI 聚合预览浮层：只读融合稿 → 确认应用 */}
       {editing && aggPreview && (
@@ -1222,14 +1286,14 @@ export default function NoteDetailPage() {
             <>
               <button
                 onClick={() => setAggPreview(null)}
-                className="rounded-lg border border-line px-4 py-1.5 text-minor text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
+                className="inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-minor text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
               >
                 取消
               </button>
               <button
                 onClick={aggregateApply}
                 disabled={aggBusy}
-                className="rounded-lg bg-accent px-4 py-1.5 text-minor font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong disabled:opacity-50"
+                className="inline-flex min-h-11 items-center rounded-lg bg-accent px-4 text-minor font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong disabled:opacity-50"
               >
                 {aggBusy ? '应用中…' : '应用聚合'}
               </button>
@@ -1245,28 +1309,7 @@ export default function NoteDetailPage() {
         </AiOverlay>
       )}
 
-      {explainData && (
-        <AiOverlay
-          title="AI 解释这段"
-          subtitle={explainData.segmentTitle}
-          onClose={() => setExplainData(null)}
-          footer={
-            <button
-              onClick={() => setExplainData(null)}
-              className="rounded-lg border border-line px-4 py-1.5 text-minor text-muted hover:bg-surface-hover hover:text-primary"
-            >
-              关闭
-            </button>
-          }
-        >
-          <p className="border-l-2 border-accent/40 pl-3 text-minor leading-relaxed text-faint">
-            “{explainData.quote}”
-          </p>
-          <div className="md-body mt-4 text-body">
-            <Markdown remarkPlugins={[remarkGfm]}>{explainData.explanation}</Markdown>
-          </div>
-        </AiOverlay>
-      )}
+      <ExplainOverlay explainData={explainData} onClose={() => setExplainData(null)} />
     </div>
   );
 }

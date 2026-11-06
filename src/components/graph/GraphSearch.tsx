@@ -10,7 +10,8 @@
  *
  * 行为：
  * - Ctrl/Cmd+K 全局切换打开（浮层关闭时监听仍生效）；
- * - 打开后自动 focus 输入框；↑/↓ 循环高亮、Enter 选中、Esc 调 onClear 并关闭；
+ * - 打开后自动 focus 输入框；↑/↓ 循环高亮、Enter 选中（容器关闭浮层并打开详情）、
+ *   Esc 调 onClear 并关闭；
  * - 输入变化时高亮重置到 0；点击结果即选中；
  * - 空结果用 InlineFeedback 提示「没有找到匹配知识」，图谱保持可见
  *   （本组件只渲染顶部浮层，不铺全屏遮罩）；query 为空时显示引导文案。
@@ -52,6 +53,12 @@ const DROPDOWN_CLASS =
 /** 与 GraphTopBar 搜索位一致的键位提示视觉。 */
 const KBD_CLASS =
   'rounded border border-line bg-app/60 px-1.5 py-0.5 font-mono text-[0.65rem] leading-none text-faint';
+
+/**
+ * 顶栏搜索入口按钮的 DOM id：Esc 关闭浮层后要把焦点还给这个入口，
+ * 否则键盘用户会「丢失」焦点（浮层卸载，输入框随之消失）。
+ */
+export const GRAPH_SEARCH_TRIGGER_ID = 'graph-search-trigger';
 
 function SearchIcon() {
   return (
@@ -119,6 +126,17 @@ export default function GraphSearch({
   // 打开时聚焦输入框（autoFocus 之外再用 ref 兜底，避免重复挂载丢焦点）。
   useEffect(() => {
     if (open) inputRef.current?.focus();
+  }, [open]);
+
+  // 浮层关闭（Esc / Ctrl+K 切换 / 点击外部）后把焦点还给顶栏搜索入口：
+  // 浮层卸载后输入框随之消失，不归还焦点会让键盘用户「丢失」焦点位置。
+  const wasOpenRef = useRef(open);
+  useEffect(() => {
+    const wasOpen = wasOpenRef.current;
+    wasOpenRef.current = open;
+    if (wasOpen && !open) {
+      document.getElementById(GRAPH_SEARCH_TRIGGER_ID)?.focus();
+    }
   }, [open]);
 
   // 浮层打开时，点击浮层以外（图谱画布、顶栏入口等）只关闭，不清除关键词。
@@ -252,14 +270,14 @@ export default function GraphSearch({
 
       {!hasQuery && (
         <div className="px-3 py-3">
-          <p className="text-minor text-muted">搜索标题 / 标签 / 摘要，Enter 聚焦，Esc 清除</p>
+          <p className="text-minor text-muted">搜索标题 / 标签 / 摘要，Enter 打开详情，Esc 清除</p>
         </div>
       )}
 
       <div className="flex items-center justify-between gap-2 border-t border-line px-3 py-2 text-tag text-faint">
         <p role="status">{summary}</p>
         <p aria-hidden className="hidden shrink-0 sm:block">
-          ↑↓ 切换 · Enter 选中 · Esc 清除
+          ↑↓ 切换 · Enter 打开详情 · Esc 清除
         </p>
       </div>
       </div>

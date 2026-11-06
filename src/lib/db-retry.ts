@@ -114,6 +114,8 @@ export async function withDbRetry<T>(fn: () => Promise<T>, options: DbRetryOptio
   const retries = Math.max(0, options.retries ?? envInt('DB_RETRY_ATTEMPTS', 2));
   const baseDelayMs = Math.max(0, options.baseDelayMs ?? envInt('DB_RETRY_BASE_DELAY_MS', 250));
   const maxDelayMs = Math.max(baseDelayMs, options.maxDelayMs ?? 2000);
+  // 退避抖动上限（毫秒）：默认 100 与原实现一致；置 0 可让重试时序确定（测试用）。
+  const jitterMs = Math.max(0, envInt('DB_RETRY_JITTER_MS', 100));
 
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -123,7 +125,7 @@ export async function withDbRetry<T>(fn: () => Promise<T>, options: DbRetryOptio
       lastError = error;
       const canRetry = attempt < retries && isTransientDbError(error);
       if (!canRetry) break;
-      const delay = Math.min(baseDelayMs * 2 ** attempt, maxDelayMs) + Math.floor(Math.random() * 100);
+      const delay = Math.min(baseDelayMs * 2 ** attempt, maxDelayMs) + Math.floor(Math.random() * jitterMs);
       if (options.label) {
         console.warn(
           `[db-retry] ${options.label} 第 ${attempt + 1} 次失败（${describeDbError(error)}），${delay}ms 后重试`,

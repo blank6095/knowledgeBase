@@ -47,6 +47,16 @@
   --text-title--line-height: 1.3;
   --text-hero: 2.25rem;
   --text-hero--line-height: 1.1;
+
+  /*
+   * 内容容器宽度档位（FE-016）。
+   * 旧实现同一批页面在 42rem / 2xl / 3xl / 4xl 四档之间跳变，页面之间左边缘横移。
+   * 这里按用途收敛成三档，页面只引用 max-w-reading / max-w-list / max-w-form：
+   * reading=阅读与问答（长文本，单栏）；list=列表与看板（多列）；form=表单（单列偏宽）。
+   */
+  --container-reading: 42rem;
+  --container-list: 56rem;
+  --container-form: 48rem;
 }
 
 html {
@@ -66,6 +76,21 @@ html {
 }
 @utility bottom-safe-3 {
   bottom: calc(0.75rem + env(safe-area-inset-bottom));
+}
+@utility left-safe-3 {
+  left: max(0.75rem, env(safe-area-inset-left));
+}
+@utility right-safe-3 {
+  right: max(0.75rem, env(safe-area-inset-right));
+}
+@utility top-safe-3 {
+  top: max(0.75rem, env(safe-area-inset-top));
+}
+@media (display-mode: standalone) {
+  html,
+  body {
+    overscroll-behavior-y: none;
+  }
 }
 
 /* 锚点跳转平滑滚动；减少动态效果时直跳 */
@@ -244,13 +269,27 @@ body::after {
   padding: 0.1em 0.35em;
 }
 .md-body pre {
-  background: var(--color-canvas);
   color: var(--color-primary);
   border: 1px solid var(--color-line);
   border-radius: 8px;
   padding: 0.9em 1em;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   margin: 0.8em 0;
+  /*
+   * FE-013：窄屏代码块可横向滚动，但右边缘内容被直接裁切、没有任何可发现的提示。
+   * 用「滚动阴影」提示还有内容：cover 渐变随内容滚动（local），只在还有剩余内容时露出阴影（scroll）。
+   */
+  background-color: var(--color-canvas);
+  background-image:
+    linear-gradient(to right, var(--color-canvas), rgba(0, 0, 0, 0)),
+    linear-gradient(to left, var(--color-canvas), rgba(0, 0, 0, 0)),
+    linear-gradient(to right, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0)),
+    linear-gradient(to left, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0));
+  background-position: left center, right center, left center, right center;
+  background-repeat: no-repeat;
+  background-size: 32px 100%, 32px 100%, 14px 100%, 14px 100%;
+  background-attachment: local, local, scroll, scroll;
 }
 .md-body pre code {
   background: transparent;

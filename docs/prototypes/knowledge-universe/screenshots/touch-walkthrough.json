@@ -1,0 +1,232 @@
+{
+  "capturedAt": "2026-11-06T17:59:09.750Z",
+  "mode": "simulated-touch",
+  "realDevice": false,
+  "note": "Playwright hasTouch + CDP touch 事件模拟，不等价于真实触屏设备；真机走查须人工完成。",
+  "viewports": [
+    "320x720",
+    "375x667",
+    "390x844"
+  ],
+  "pageErrors": [],
+  "results": [
+    {
+      "viewport": "320x720",
+      "width": 320,
+      "height": 720,
+      "checks": {
+        "sheet-open": {
+          "pass": true,
+          "detail": "Sheet 可见=true；选中节点=\"记忆新鲜度\"；.selected 数=1；面板高度=396px / 视口 720px（占比 55%）"
+        },
+        "primary-actions": {
+          "pass": true,
+          "detail": "Sheet 内六项：阅读=可触达、主动回忆=可触达、询问 AI=可触达、关闭=可触达、继续搜索（等价入口）=可触达、返回图谱（等价入口）=可触达；底层主操作（modal 隔离属预期，须有等价入口）：搜索框=被 sheet-toolbar 隔离、模式栏首项=被 overlay-backdrop 隔离、底部导航=被 SPAN 隔离",
+          "underlying": {
+            "搜索框": {
+              "ok": false,
+              "inViewport": true,
+              "w": 180.3,
+              "h": 44,
+              "top": 378.6,
+              "bottom": 422.6,
+              "hit": "sheet-toolbar"
+            },
+            "模式栏首项": {
+              "ok": false,
+              "inViewport": true,
+              "w": 74,
+              "h": 44,
+              "top": 248.2,
+              "bottom": 292.2,
+              "hit": "overlay-backdrop"
+            },
+            "底部导航": {
+              "ok": false,
+              "inViewport": true,
+              "w": 73,
+              "h": 68,
+              "top": 652,
+              "bottom": 720,
+              "hit": "SPAN"
+            }
+          }
+        },
+        "isolation": {
+          "pass": true,
+          "detail": "滑动前/后：主模式 \"搜索聚焦\" → \"搜索聚焦\"，选中 \"记忆新鲜度\" → \"记忆新鲜度\""
+        },
+        "scroll": {
+          "pass": true,
+          "detail": "页面 scrollY 0 → 0；Sheet 内 scrollTop 0 → 272（可滚高度 272px）"
+        },
+        "close-restore": {
+          "pass": true,
+          "detail": "Sheet 已关闭=true；操作链路生效=true；选中 \"记忆新鲜度\"；搜索 \"\"记忆\" · 4 命中\"；主模式 \"搜索聚焦\""
+        },
+        "path-explore": {
+          "pass": true,
+          "detail": "路径端点：\"间隔重复 → 知识图谱（2/2）\"；主模式 \"路径探索\"；第二节点 tap 点命中=core"
+        },
+        "compact-graph": {
+          "pass": true,
+          "detail": "节点 12 / 关系 18 / 可见标签 1 / 选中光环 2 / 选中节点在视口内=true / 焦点标签可见=true / viewBox=0 0 360 420"
+        },
+        "safe-area": {
+          "pass": true,
+          "detail": "maxHeight=396px；paddingBottom=20px；overscroll=contain；页面滚动锁定=true；半屏/全屏切换=true；内容可滚=true；最后按钮 bottom=641.1 / 视口 720"
+        }
+      },
+      "shots": [
+        "touch-320x720-02-sheet.png"
+      ]
+    },
+    {
+      "viewport": "375x667",
+      "width": 375,
+      "height": 667,
+      "checks": {
+        "sheet-open": {
+          "pass": true,
+          "detail": "Sheet 可见=true；选中节点=\"记忆新鲜度\"；.selected 数=1；面板高度=367px / 视口 667px（占比 55%）"
+        },
+        "primary-actions": {
+          "pass": true,
+          "detail": "Sheet 内六项：阅读=可触达、主动回忆=可触达、询问 AI=可触达、关闭=可触达、继续搜索（等价入口）=可触达、返回图谱（等价入口）=可触达；底层主操作（modal 隔离属预期，须有等价入口）：搜索框=被 overlay-panel 隔离、模式栏首项=被 overlay-backdrop 隔离、底部导航=被 SPAN 隔离",
+          "underlying": {
+            "搜索框": {
+              "ok": false,
+              "inViewport": true,
+              "w": 223,
+              "h": 44,
+              "top": 375.2,
+              "bottom": 419.2,
+              "hit": "overlay-panel"
+            },
+            "模式栏首项": {
+              "ok": false,
+              "inViewport": true,
+              "w": 74,
+              "h": 44,
+              "top": 250.2,
+              "bottom": 294.2,
+              "hit": "overlay-backdrop"
+            },
+            "底部导航": {
+              "ok": false,
+              "inViewport": true,
+              "w": 86.8,
+              "h": 68,
+              "top": 599,
+              "bottom": 667,
+              "hit": "SPAN"
+            }
+          }
+        },
+        "isolation": {
+          "pass": true,
+          "detail": "滑动前/后：主模式 \"搜索聚焦\" → \"搜索聚焦\"，选中 \"记忆新鲜度\" → \"记忆新鲜度\""
+        },
+        "scroll": {
+          "pass": true,
+          "detail": "页面 scrollY 0 → 0；Sheet 内 scrollTop 0 → 245（可滚高度 245px）"
+        },
+        "close-restore": {
+          "pass": true,
+          "detail": "Sheet 已关闭=true；操作链路生效=true；选中 \"记忆新鲜度\"；搜索 \"\"记忆\" · 4 命中\"；主模式 \"搜索聚焦\""
+        },
+        "path-explore": {
+          "pass": true,
+          "detail": "路径端点：\"间隔重复 → 知识图谱（2/2）\"；主模式 \"路径探索\"；第二节点 tap 点命中=bottom-nav"
+        },
+        "compact-graph": {
+          "pass": true,
+          "detail": "节点 12 / 关系 18 / 可见标签 1 / 选中光环 2 / 选中节点在视口内=true / 焦点标签可见=true / viewBox=0 0 360 420"
+        },
+        "safe-area": {
+          "pass": true,
+          "detail": "maxHeight=366.85px；paddingBottom=20px；overscroll=contain；页面滚动锁定=true；半屏/全屏切换=true；内容可滚=true；最后按钮 bottom=587.7 / 视口 667"
+        }
+      },
+      "shots": [
+        "touch-375x667-02-sheet.png"
+      ]
+    },
+    {
+      "viewport": "390x844",
+      "width": 390,
+      "height": 844,
+      "checks": {
+        "sheet-open": {
+          "pass": true,
+          "detail": "Sheet 可见=true；选中节点=\"记忆新鲜度\"；.selected 数=1；面板高度=464px / 视口 844px（占比 55%）"
+        },
+        "primary-actions": {
+          "pass": true,
+          "detail": "Sheet 内六项：阅读=可触达、主动回忆=可触达、询问 AI=可触达、关闭=可触达、继续搜索（等价入口）=可触达、返回图谱（等价入口）=可触达；底层主操作（modal 隔离属预期，须有等价入口）：搜索框=被 overlay-panel 隔离、模式栏首项=被 overlay-backdrop 隔离、底部导航=被 SPAN 隔离",
+          "underlying": {
+            "搜索框": {
+              "ok": false,
+              "inViewport": true,
+              "w": 238,
+              "h": 44,
+              "top": 375.2,
+              "bottom": 419.2,
+              "hit": "overlay-panel"
+            },
+            "模式栏首项": {
+              "ok": false,
+              "inViewport": true,
+              "w": 74,
+              "h": 44,
+              "top": 250.2,
+              "bottom": 294.2,
+              "hit": "overlay-backdrop"
+            },
+            "底部导航": {
+              "ok": false,
+              "inViewport": true,
+              "w": 90.5,
+              "h": 68,
+              "top": 776,
+              "bottom": 844,
+              "hit": "SPAN"
+            }
+          }
+        },
+        "isolation": {
+          "pass": true,
+          "detail": "滑动前/后：主模式 \"搜索聚焦\" → \"搜索聚焦\"，选中 \"记忆新鲜度\" → \"记忆新鲜度\""
+        },
+        "scroll": {
+          "pass": true,
+          "detail": "页面 scrollY 0 → 0；Sheet 内 scrollTop 0 → 148（可滚高度 148px）"
+        },
+        "close-restore": {
+          "pass": true,
+          "detail": "Sheet 已关闭=true；操作链路生效=true；选中 \"记忆新鲜度\"；搜索 \"\"记忆\" · 4 命中\"；主模式 \"搜索聚焦\""
+        },
+        "path-explore": {
+          "pass": true,
+          "detail": "路径端点：\"间隔重复 → 知识图谱（2/2）\"；主模式 \"路径探索\"；第二节点 tap 点命中=core"
+        },
+        "compact-graph": {
+          "pass": true,
+          "detail": "节点 12 / 关系 18 / 可见标签 1 / 选中光环 2 / 选中节点在视口内=true / 焦点标签可见=true / viewBox=0 0 360 420"
+        },
+        "safe-area": {
+          "pass": true,
+          "detail": "maxHeight=464.2px；paddingBottom=20px；overscroll=contain；页面滚动锁定=true；半屏/全屏切换=true；内容可滚=true；最后按钮 bottom=583.8 / 视口 844"
+        }
+      },
+      "shots": [
+        "touch-390x844-01-search.png",
+        "touch-390x844-03-sheet-actions.png",
+        "touch-390x844-04-action-ai.png",
+        "touch-390x844-05-restored.png",
+        "touch-390x844-06-path.png",
+        "touch-390x844-07-safe-area.png"
+      ]
+    }
+  ]
+}

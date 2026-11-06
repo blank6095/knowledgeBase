@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { eq, inArray, or } from 'drizzle-orm';
+import { asc, eq, or, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { db } from '@/db';
 import { documents, links, segments } from '@/db/schema';
 import { badRequest, dbUnavailable, guard, isUuid, notFound } from '@/lib/api';
@@ -9,110 +10,158 @@ import { memoryOf } from '@/lib/memory';
 import { extractInlineTags } from '@/lib/markdown';
 import { runBatch } from '@/lib/db-batch';
 import { rebuildDocQueries, rebuildLinksQueries } from '@/lib/links';
+import {
+  getSegmentCache,
+  getStaleSegmentCache,
+  invalidateSegmentCaches,
+  setSegmentCache,
+  type SegmentNeighbor,
+  type SegmentRaw,
+} from '@/lib/segment-cache';
 
-interface NeighborRow {
-  id: string;
-  title: string;
-  stability: number;
-  lastViewedAt: Date | null;
-  orderIndex: number;
-  documentId: string;
+/**
+ * 读取段详情所需的原始行。
+ *
+ * 取数压成「一轮并行」：Neon HTTP 驱动每次查询都是一次网络往返（RTT ≈ 270ms），
+ * 原实现分两批串行（先段+边，再文档+邻段），总耗时约 2×RTT；
+ * 现在把文档标题并进段查询、把对端段信息并进边查询，两条并发发出只需 1×RTT。
+ *
+ * 对端段用 alias 自连接一次取回（case when 求边的另一端），
+ * 省掉原先「先查边、再按边里的 id 批量查邻段」的第三轮往返。
+ */
+async function loadSegmentRaw(id: string): Promise<SegmentRaw | null> {
+  const neighbor = alias(segments, 'neighbor');
+  const [segRows, edgeRows] = await Promise.all([
+    withDbRetry(
+      () =>
+        db
+          .select({
+            id: segments.id,
+            title: segments.title,
+            content: segments.content,
+            headingPath: segments.headingPath,
+            tags: segments.tags,
+            viewCount: segments.viewCount,
+            firstViewedAt: segments.firstViewedAt,
+            lastViewedAt: segments.lastViewedAt,
+            stability: segments.stability,
+            readingMs: segments.readingMs,
+            summary: segments.summary,
+            documentId: segments.documentId,
+            orderIndex: segments.orderIndex,
+            documentTitle: documents.title,
+          })
+          .from(segments)
+          .leftJoin(documents, eq(documents.id, segments.documentId))
+          .where(eq(segments.id, id)),
+      { label: 'segment.row' },
+    ),
+    withDbRetry(
+      () =>
+        db
+          .select({
+            fromId: links.fromId,
+            toId: links.toId,
+            kind: links.kind,
+            weight: links.weight,
+            neighborId: neighbor.id,
+            neighborTitle: neighbor.title,
+            neighborStability: neighbor.stability,
+            neighborLastViewedAt: neighbor.lastViewedAt,
+            neighborOrderIndex: neighbor.orderIndex,
+            neighborDocumentId: neighbor.documentId,
+          })
+          .from(links)
+          .leftJoin(
+            neighbor,
+            sql`${neighbor.id} = case when ${links.fromId} = ${id} then ${links.toId} else ${links.fromId} end`,
+          )
+          .where(or(eq(links.fromId, id), eq(links.toId, id)))
+          .orderBy(asc(links.id)),
+      { label: 'segment.edges' },
+    ),
+  ]);
+
+  const row = segRows[0];
+  // 段不存在：不缓存 404，交给上层返回 notFound
+  if (!row) return null;
+
+  const edges = edgeRows.map((r) => ({ fromId: r.fromId, toId: r.toId, kind: r.kind, weight: r.weight }));
+
+  // 同一邻段可能有多条边（wiki/tag/doc 各一），按 id 去重后作为邻段表
+  const neighbors: SegmentNeighbor[] = [];
+  const seen = new Set<string>();
+  for (const r of edgeRows) {
+    if (!r.neighborId || seen.has(r.neighborId)) continue;
+    seen.add(r.neighborId);
+    neighbors.push({
+      id: r.neighborId,
+      title: r.neighborTitle ?? '',
+      stability: r.neighborStability ?? 0,
+      lastViewedAt: r.neighborLastViewedAt,
+      orderIndex: r.neighborOrderIndex ?? 0,
+      documentId: r.neighborDocumentId ?? '',
+    });
+  }
+
+  return {
+    seg: {
+      id: row.id,
+      title: row.title,
+      content: row.content,
+      headingPath: row.headingPath,
+      tags: row.tags,
+      viewCount: row.viewCount,
+      firstViewedAt: row.firstViewedAt,
+      lastViewedAt: row.lastViewedAt,
+      stability: row.stability,
+      readingMs: row.readingMs,
+      summary: row.summary,
+      documentId: row.documentId,
+      orderIndex: row.orderIndex,
+    },
+    document: row.documentTitle != null ? { id: row.documentId, title: row.documentTitle } : null,
+    edges,
+    neighbors,
+  };
 }
 
-/** 知识点详情：内容 + 结构化链接（出/入链、上一/下一节、共同标签）+ 原始边 */
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const denied = await guard(req);
-  if (denied) return denied;
-  const { id } = await params;
-  if (!isUuid(id)) return notFound();
-
-  const t0 = performance.now();
-  let segRows: (typeof segments.$inferSelect)[];
-  let edges: { fromId: string; toId: string; kind: string; weight: number }[];
-  try {
-    [segRows, edges] = await Promise.all([
-      withDbRetry(() => db.select().from(segments).where(eq(segments.id, id)), { label: 'segment.row' }),
-      withDbRetry(
-        () =>
-          db
-            .select({ fromId: links.fromId, toId: links.toId, kind: links.kind, weight: links.weight })
-            .from(links)
-            .where(or(eq(links.fromId, id), eq(links.toId, id))),
-        { label: 'segment.edges' },
-      ),
-    ]);
-  } catch {
-    // 数据库瞬时不可用且无缓存可兜底：返回 503，前端展示可重试错误态
-    return dbUnavailable();
-  }
-  const t1 = performance.now();
-  const seg = segRows[0];
-  if (!seg) return notFound('知识点不存在');
-
-  const targetIds = [...new Set(edges.map((e) => (e.fromId === id ? e.toId : e.fromId)))];
-  let docRows: { id: string; title: string }[];
-  let neighborRows: NeighborRow[];
-  try {
-    [docRows, neighborRows] = await Promise.all([
-      withDbRetry(
-        () =>
-          db
-            .select({ id: documents.id, title: documents.title })
-            .from(documents)
-            .where(eq(documents.id, seg.documentId)),
-        { label: 'segment.document' },
-      ),
-      targetIds.length
-        ? withDbRetry(
-            () =>
-              db
-                .select({
-                  id: segments.id,
-                  title: segments.title,
-                  stability: segments.stability,
-                  lastViewedAt: segments.lastViewedAt,
-                  orderIndex: segments.orderIndex,
-                  documentId: segments.documentId,
-                })
-                .from(segments)
-                .where(inArray(segments.id, targetIds)),
-            { label: 'segment.neighbors' },
-          )
-        : Promise.resolve([] as NeighborRow[]),
-    ]);
-  } catch {
-    return dbUnavailable();
-  }
-  const t2 = performance.now();
-
+/**
+ * 由原始行组装响应体。
+ *
+ * 记忆度（memory）在读取时现算：缓存里只放原始字段（stability/lastViewedAt），
+ * 命中缓存时灯点仍随时间衰减，不会被冻结在写入时刻。
+ */
+function buildPayload(raw: SegmentRaw) {
+  const seg = raw.seg;
   const now = new Date();
-  const byId = new Map(neighborRows.map((r) => [r.id, r] as const));
-  const toItem = (r: NeighborRow) => ({ id: r.id, title: r.title, memory: memoryOf(r.stability, r.lastViewedAt, now) });
+  const byId = new Map(raw.neighbors.map((r) => [r.id, r] as const));
+  const toItem = (r: SegmentNeighbor) => ({ id: r.id, title: r.title, memory: memoryOf(r.stability, r.lastViewedAt, now) });
   /** 组内按目标去重（links_unique 保证同 kind 每对仅一条，此处防御跨 kind 汇入） */
-  const dedupe = (rows: NeighborRow[]) => {
+  const dedupe = (rows: SegmentNeighbor[]) => {
     const seen = new Set<string>();
     return rows.filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
   };
   const resolve = (edgeTargets: string[]) =>
-    dedupe(edgeTargets.map((t) => byId.get(t)).filter((r): r is NeighborRow => !!r));
+    dedupe(edgeTargets.map((t) => byId.get(t)).filter((r): r is SegmentNeighbor => !!r));
 
   // wiki 有向边：from 提及 to
-  const outgoing = resolve(edges.filter((e) => e.kind === 'wiki' && e.fromId === id).map((e) => e.toId));
-  const incoming = resolve(edges.filter((e) => e.kind === 'wiki' && e.toId === id).map((e) => e.fromId));
-  const relatedTags = resolve(edges.filter((e) => e.kind === 'tag').map((e) => (e.fromId === id ? e.toId : e.fromId)));
+  const outgoing = resolve(raw.edges.filter((e) => e.kind === 'wiki' && e.fromId === seg.id).map((e) => e.toId));
+  const incoming = resolve(raw.edges.filter((e) => e.kind === 'wiki' && e.toId === seg.id).map((e) => e.fromId));
+  const relatedTags = resolve(raw.edges.filter((e) => e.kind === 'tag').map((e) => (e.fromId === seg.id ? e.toId : e.fromId)));
 
   // doc 边为同文档相邻链 i-1→i：按 orderIndex ±1 映射上一节/下一节
-  let prev: NeighborRow | null = null;
-  let next: NeighborRow | null = null;
-  for (const e of edges) {
+  let prev: SegmentNeighbor | null = null;
+  let next: SegmentNeighbor | null = null;
+  for (const e of raw.edges) {
     if (e.kind !== 'doc') continue;
-    const r = byId.get(e.fromId === id ? e.toId : e.fromId);
+    const r = byId.get(e.fromId === seg.id ? e.toId : e.fromId);
     if (!r || r.documentId !== seg.documentId) continue;
     if (r.orderIndex === seg.orderIndex - 1) prev = r;
     if (r.orderIndex === seg.orderIndex + 1) next = r;
   }
 
-  const payload = {
+  return {
     segment: {
       id: seg.id,
       title: seg.title,
@@ -127,8 +176,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       memory: memoryOf(seg.stability, seg.lastViewedAt, now),
       summary: seg.summary,
     },
-    document: docRows[0] ?? null,
-    links: edges,
+    document: raw.document,
+    links: raw.edges,
     refs: {
       outgoing: outgoing.map(toItem),
       incoming: incoming.map(toItem),
@@ -137,15 +186,53 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       relatedTags: relatedTags.map(toItem),
     },
   };
-  const t3 = performance.now();
+}
+
+/**
+ * 知识点详情：内容 + 结构化链接（出/入链、上一/下一节、共同标签）+ 原始边。
+ *
+ * 缓存：段详情只读且读多写少，命中缓存可省掉一整轮 DB 往返（warm p50 目标 <200ms）。
+ * 缓存的是原始行而非响应体，记忆度读取时现算；写路径（编辑/删除/排序/导入/AI 拆分合并）
+ * 统一调用 invalidateSegmentCaches() 主动失效。
+ * 缓存为进程内 best-effort，不承担一致性职责；鉴权在缓存之前（guard），且段详情
+ * 不含跨用户敏感字段，故可安全缓存。
+ */
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await guard(req);
+  if (denied) return denied;
+  const { id } = await params;
+  if (!isUuid(id)) return notFound();
+
+  const t0 = performance.now();
+  let raw: SegmentRaw | null = getSegmentCache(id) ?? null;
+  let cacheState: 'HIT' | 'MISS' | 'STALE' = raw ? 'HIT' : 'MISS';
+
+  if (!raw) {
+    try {
+      raw = await loadSegmentRaw(id);
+    } catch {
+      // 数据库不可用：回退到陈旧快照（宁可给 slightly old 的数据，也不要整页报错）
+      const stale = getStaleSegmentCache(id);
+      if (!stale) return dbUnavailable();
+      raw = stale;
+      cacheState = 'STALE';
+    }
+    if (!raw) return notFound('知识点不存在');
+    if (cacheState === 'MISS') setSegmentCache(id, raw);
+  }
+
+  const t1 = performance.now();
+  const payload = buildPayload(raw);
+  const t2 = performance.now();
   console.log(
-    `[perf] GET /api/segments/${id} seg+edges=${(t1 - t0).toFixed(1)}ms doc+neighbors=${(t2 - t1).toFixed(1)}ms transform=${(t3 - t2).toFixed(1)}ms total=${(t3 - t0).toFixed(1)}ms edges=${edges.length}`,
+    `[perf] GET /api/segments/${id} cache=${cacheState} db=${(t1 - t0).toFixed(1)}ms transform=${(t2 - t1).toFixed(1)}ms total=${(t2 - t0).toFixed(1)}ms edges=${raw.edges.length}`,
   );
 
   const res = NextResponse.json(payload);
+  res.headers.set('X-Cache', cacheState);
   res.headers.set(
     'Server-Timing',
-    `q1;dur=${(t1 - t0).toFixed(1)}, q2;dur=${(t2 - t1).toFixed(1)}, transform;dur=${(t3 - t2).toFixed(1)}, total;dur=${(t3 - t0).toFixed(1)}`,
+    `db;dur=${(t1 - t0).toFixed(1)}, transform;dur=${(t2 - t1).toFixed(1)}, total;dur=${(t2 - t0).toFixed(1)}`,
   );
   return res;
 }
@@ -203,6 +290,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   invalidateCache('stats');
   invalidateCache('docs');
   invalidateCache(`note:${seg.documentId}`);
+  // 段内容与边变了，本段及邻段的详情都要重取
+  invalidateSegmentCaches();
 
   const now = new Date();
   return NextResponse.json({
@@ -239,6 +328,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   invalidateCache('stats');
   invalidateCache('docs');
   invalidateCache(`note:${seg.documentId}`);
+  invalidateSegmentCaches();
 
   return NextResponse.json({ ok: true });
 }

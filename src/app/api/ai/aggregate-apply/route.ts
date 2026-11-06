@@ -7,6 +7,7 @@ import { planAnnotationMigration } from '@/lib/annotation-migrate';
 import { invalidateCache } from '@/lib/cache';
 import { runBatch } from '@/lib/db-batch';
 import { rebuildDocQueries, rebuildLinksQueries } from '@/lib/links';
+import { invalidateSegmentCaches } from '@/lib/segment-cache';
 import { stripMarkdown } from '@/lib/markdown';
 
 /**
@@ -92,6 +93,8 @@ export async function POST(req: NextRequest) {
   invalidateCache('stats');
   invalidateCache('docs');
   invalidateCache(`note:${keeper.documentId}`);
+  // 被聚合的段已删除、保留段内容与记忆字段改变，段详情缓存一并失效
+  invalidateSegmentCaches();
 
   return NextResponse.json({
     segment: updated,

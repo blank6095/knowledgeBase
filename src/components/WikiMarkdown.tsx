@@ -5,6 +5,9 @@
  *
  * 批注锚点按 `.md-body` 的 textContent 偏移定位，所以内链渲染必须**保持原文文本**：
  * `[[`、`标题|`、`]]` 都用字号 0 的 span 隐藏，textContent 与原始 content 完全一致。
+ *
+ * TODO(U-7, 2026-11-02)：本组件已实现但全站暂无引用（阅读页用 react-markdown + injectMarks）。
+ * 按产品决策暂留，不删除；接线或移除前先确认 `docs/前端缺陷清单与修复方案.md` §6.1。
  */
 import Link from 'next/link';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -13,17 +16,14 @@ import remarkGfm from 'remark-gfm';
 import remarkWikiLink from '@/lib/remark-wikilink';
 import { api } from '@/lib/client';
 import { buildWikiIndex, resolveWikiTarget, type WikiIndex } from '@/lib/wikilink';
-
-interface GraphPayloadLike {
-  nodes: { id: string; title: string; documentTitle?: string | null }[];
-}
+import type { GraphPayload } from '@/lib/graph/graph-types';
 
 /** 全库标题索引（/api/graph 有进程内缓存，页面内只请求一次） */
 export function useWikiIndex(): WikiIndex {
   const [index, setIndex] = useState<WikiIndex>(() => new Map());
   useEffect(() => {
     let alive = true;
-    api<GraphPayloadLike>('/api/graph')
+    api<GraphPayload>('/api/graph')
       .then((data) => {
         if (alive) setIndex(buildWikiIndex(data.nodes));
       })

@@ -50,6 +50,7 @@ const RECENT: RecentDocument[] = [
 const FULL: StatsPayload = {
   total: 15,
   byTier: { unread: 4, weak: 11, medium: 0, strong: 0 },
+  tierOrder: ['unread', 'weak', 'medium', 'strong'],
   readToday: 2,
   recentDocuments: RECENT,
   suggestion: WEAK[0],
@@ -200,7 +201,16 @@ describe('数据就绪后的行动面板', () => {
   });
 
   it('空库：只渲染引导卡，不渲染任何行动区块与统计带', () => {
-    const emptyStats: StatsPayload = { total: 0, byTier: {}, readToday: 0, recentDocuments: [], weakTop3: [], unreadTop3: [] };
+    const emptyStats: StatsPayload = {
+      total: 0,
+      byTier: { unread: 0, weak: 0, medium: 0, strong: 0 },
+      tierOrder: ['unread', 'weak', 'medium', 'strong'],
+      readToday: 0,
+      recentDocuments: [],
+      suggestion: null,
+      weakTop3: [],
+      unreadTop3: [],
+    };
     const html = render(createElement(DashboardView, { stats: emptyStats }));
     expect(html).toContain('一盏灯都还没点亮。');
     for (const absent of ['今日先看', '薄弱清单', '未读精选', '最近导入', '知识点总数']) {
@@ -212,6 +222,7 @@ describe('数据就绪后的行动面板', () => {
     const allStrong: StatsPayload = {
       total: 3,
       byTier: { unread: 0, weak: 0, medium: 0, strong: 3 },
+      tierOrder: ['unread', 'weak', 'medium', 'strong'],
       readToday: 1,
       recentDocuments: RECENT,
       suggestion: null,
@@ -229,6 +240,7 @@ describe('数据就绪后的行动面板', () => {
     const unreadOnly: StatsPayload = {
       total: 2,
       byTier: { unread: 2, weak: 0, medium: 0, strong: 0 },
+      tierOrder: ['unread', 'weak', 'medium', 'strong'],
       readToday: 0,
       recentDocuments: RECENT,
       suggestion: null,

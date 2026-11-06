@@ -5,6 +5,8 @@
  * 属于 best-effort 优化，不承担一致性职责（所有写路径显式失效）。
  */
 
+import { setWithCapacity } from '@/lib/ttl-store';
+
 interface CacheEntry {
   /** 写入时间（ms epoch） */
   at: number;
@@ -39,27 +41,10 @@ export function getCache<T>(key: string): T | undefined {
 
 /** 写入缓存：覆盖已有 key 不占新增容量，仅刷新写入时间与位置 */
 export function setCache<T>(key: string, value: T, ttlMs = DEFAULT_TTL_MS): void {
-  const isNewKey = !store.has(key);
-  if (isNewKey) {
-    while (store.size >= MAX_ENTRIES) {
-      const oldestKey = store.keys().next().value;
-      if (oldestKey === undefined) break;
-      store.delete(oldestKey);
-    }
-  } else {
-    // 重新插入以刷新 Map 顺序，避免刚更新的条目被当作最旧淘汰
-    store.delete(key);
-  }
-  store.set(key, { at: Date.now(), ttlMs, value });
+  setWithCapacity(store, key, { at: Date.now(), ttlMs, value }, MAX_ENTRIES);
 
   // 同时留一份陈旧快照，供数据库不可用时降级返回
-  staleStore.delete(key);
-  staleStore.set(key, { at: Date.now(), ttlMs: STALE_TTL_MS, value });
-  while (staleStore.size > MAX_ENTRIES) {
-    const oldestKey = staleStore.keys().next().value;
-    if (oldestKey === undefined) break;
-    staleStore.delete(oldestKey);
-  }
+  setWithCapacity(staleStore, key, { at: Date.now(), ttlMs: STALE_TTL_MS, value }, MAX_ENTRIES);
 }
 
 /**

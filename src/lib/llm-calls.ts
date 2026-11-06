@@ -5,6 +5,7 @@
  */
 import { db } from '@/db';
 import { llmCalls } from '@/db/schema';
+import { startOfDayInTimeZone } from '@/lib/day-boundary';
 import { gte, sql } from 'drizzle-orm';
 
 export const DAILY_TOKEN_GUARDRAIL = 500_000;
@@ -37,8 +38,8 @@ export async function logLlmCall(log: LlmCallLogInput): Promise<void> {
 
 /** 每次真实调用前读取日累计量；成本护栏读取失败时 fail-closed。 */
 export async function assertDailyTokenBudget(): Promise<void> {
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+  // 「今日」按业务时区（Asia/Shanghai）计算，与 learning-plan.ts 口径一致
+  const startOfDay = startOfDayInTimeZone();
   let tokens: number;
   try {
     const [row] = await db

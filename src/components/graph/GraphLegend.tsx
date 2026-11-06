@@ -31,7 +31,7 @@ const FALLBACK_UNREAD: GraphLegendTier = { label: '未读', color: '#55504a' };
 const FALLBACK_STRONG: GraphLegendTier = { label: '长明', color: '#f2c069' };
 
 const SHELL_CLASS =
-  'pointer-events-auto absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] right-3 z-20 max-w-[calc(100vw-1.5rem)] rounded-xl border border-line bg-elevated/95 shadow-2xl backdrop-blur md:bottom-4 md:right-4';
+  'pointer-events-auto absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] right-safe-3 z-20 max-w-[calc(100vw-1.5rem)] rounded-xl border border-line bg-elevated/95 shadow-2xl backdrop-blur md:bottom-4 md:right-4';
 
 export default function GraphLegend({
   tiers,

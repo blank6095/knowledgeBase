@@ -6,6 +6,9 @@
  * - 168×112 缩略图：节点按记忆度着色（与主画布同色），视口矩形跟随相机；
  * - 点击/拖动小地图 → centerAt 到对应图坐标（不重排、不请求）；
  * - 8k 节点只采样 ≤1500 个点，静态点阵离屏缓存，视口矩形 350ms 刷新一次，避免逐帧重绘。
+ *
+ * TODO(U-7, 2026-11-02)：本组件已实现但全站暂无引用（图谱页未挂载）。
+ * 按产品决策暂留，不删除；接线或移除前先确认 `docs/前端缺陷清单与修复方案.md` §6.1。
  */
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
@@ -109,7 +112,7 @@ export default function GraphMinimap({ fgRef, nodes, viewport, width = 168, heig
   };
 
   return (
-    <div className="absolute bottom-24 right-3 z-20 overflow-hidden rounded-xl border border-line bg-surface/85 p-1.5 shadow-xl backdrop-blur md:bottom-24 md:right-4">
+    <div className="absolute bottom-[calc(7rem+env(safe-area-inset-bottom))] right-safe-3 z-20 overflow-hidden rounded-xl border border-line bg-surface/85 p-1.5 shadow-xl backdrop-blur md:bottom-24 md:right-4">
       <canvas
         ref={canvasRef}
         width={width}

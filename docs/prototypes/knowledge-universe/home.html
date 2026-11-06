@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Knowledge Universe · 首页原型（T04）</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body data-page="home">
+<div id="ku-chrome"></div>
+
+<main class="page ku-content">
+  <div class="page-head">
+    <div>
+      <h1>进入自己的知识宇宙</h1>
+      <p>首页 = 世界入口，不是统计 Dashboard · 中央可交互宇宙缩略图 · 今日学习 · 搜索入口 · AI 建议</p>
+    </div>
+    <span class="tag">T04 · 模拟数据</span>
+  </div>
+
+  <div class="home-grid">
+    <section class="card" aria-label="知识宇宙缩略图">
+      <h2>知识宇宙</h2>
+      <div class="universe-canvas home-universe">
+        <svg id="home-svg"></svg>
+      </div>
+      <div id="home-node-info" class="tiny muted" style="margin-top:10px;min-height:20px">点击任一星体查看知识点信息（缩略图可交互）。</div>
+      <div class="hero-actions">
+        <button type="button" class="primary" id="enter-universe">进入知识宇宙 →</button>
+        <button type="button" id="focus-search">搜索知识点</button>
+        <button type="button" id="shuffle-view">换个视角</button>
+      </div>
+      <div class="divider"></div>
+      <h2>全局搜索</h2>
+      <div class="search-box">
+        <input id="ku-search" type="search" placeholder="搜索标题 / 标签 / 路径 / 摘要" aria-label="搜索知识点">
+        <button type="button" id="clear-search">清除</button>
+      </div>
+      <div class="search-result" id="search-result" aria-live="polite">输入关键词，仅检索标题 / 标签 / 路径 / 摘要（表 2 边界）。</div>
+      <div id="search-hits" class="tiny muted"></div>
+    </section>
+
+    <aside class="home-side">
+      <section class="card">
+        <h2>今日学习 <span class="muted tiny">/api/learning/today · items[]</span></h2>
+        <div id="today-list"></div>
+      </section>
+
+      <section class="card">
+        <h2>知识概览 <span class="muted tiny">/api/stats</span></h2>
+        <div class="stat-grid">
+          <div><div class="field-label">total</div><div class="metric" id="m-total"></div></div>
+          <div><div class="field-label">readToday</div><div class="metric" id="m-read"></div></div>
+        </div>
+        <div class="divider"></div>
+        <div class="field-label">byTier</div>
+        <div id="tier-row" class="tiny" style="margin-top:6px"></div>
+        <div class="divider"></div>
+        <div class="field-label">recentDocuments</div>
+        <div id="recent-list" style="margin-top:6px"></div>
+      </section>
+
+      <section class="card">
+        <h2>AI 建议 <span class="muted tiny">/api/ai/config</span></h2>
+        <div id="ai-block"></div>
+      </section>
+
+      <section class="card">
+        <h2>薄弱 / 未读精选 <span class="muted tiny">weakTop3 · unreadTop3</span></h2>
+        <div class="list-row"><span class="muted">weakTop3</span><b id="weak-list"></b></div>
+        <div class="list-row"><span class="muted">unreadTop3</span><b id="unread-list"></b></div>
+      </section>
+    </aside>
+  </div>
+</main>
+
+<div class="ku-state-panel" id="ku-state-panel" hidden></div>
+<script src="shared.js"></script>
+<script>
+(function () {
+  'use strict';
+  KU.mountChrome('home');
+  KU.bindKeys();
+
+  var selected = null;
+  var viewFlip = false;
+
+  function draw() {
+    KU.renderGraph(KU.byId('home-svg'), {
+      selectedId: selected,
+      query: '',
+      matchedIds: [],
+      showLabels: true,
+      interactive: true,
+      onNode: function (id) {
+        selected = id;
+        var n = KU.nodeById(id);
+        KU.byId('home-node-info').innerHTML =
+          '<b style="color:var(--ku-explore)">' + KU.esc(n.title) + '</b> · 所属文档：' + KU.esc(n.doc) +
+          ' · 记忆：' + KU.memoryLabel(n.memory) +
+          ' · <a href="graph.html?node=' + encodeURIComponent(id) + '">在图谱中查看 →</a>';
+        draw();
+      }
+    });
+    var svg = KU.byId('home-svg');
+    if (viewFlip) svg.style.transform = 'scaleX(-1)';
+    else svg.style.transform = '';
+  }
+
+  function renderToday(filter) {
+    var q = (filter || '').trim().toLowerCase();
+    var rows = KU.STATS.recentDocuments.concat([
+      { title: '主动回忆练习', at: '今天 · 待复习' },
+      { title: '双链笔记整理', at: '今天 · 推荐' }
+    ]).filter(function (r) { return !q || r.title.toLowerCase().indexOf(q) >= 0; });
+    var box = KU.byId('today-list');
+    box.innerHTML = rows.length
+      ? rows.map(function (r) { return '<div class="list-row"><b>' + KU.esc(r.title) + '</b><span class="muted tiny">' + KU.esc(r.at) + '</span></div>'; }).join('')
+      : '<p class="muted tiny">今日暂无匹配条目（空状态）。</p>';
+  }
+
+  function renderStats() {
+    KU.byId('m-total').innerHTML = KU.STATS.total + '<small>total</small>';
+    KU.byId('m-read').innerHTML = KU.STATS.readToday + '<small>readToday</small>';
+    KU.byId('tier-row').innerHTML = Object.keys(KU.STATS.byTier).map(function (k) {
+      return '<span class="tag">' + k + ' ' + KU.STATS.byTier[k] + '</span>';
+    }).join('');
+    KU.byId('recent-list').innerHTML = KU.STATS.recentDocuments.map(function (r) {
+      return '<div class="list-row"><b>' + KU.esc(r.title) + '</b><span class="muted tiny">' + KU.esc(r.at) + '</span></div>';
+    }).join('');
+    KU.byId('weak-list').textContent = KU.STATS.weakTop3.join('、');
+    KU.byId('unread-list').textContent = KU.STATS.unreadTop3.join('、');
+    // /api/ai/config 只有 configured 等状态，不提供建议内容
+    KU.byId('ai-block').innerHTML = KU.STATS.aiConfigured
+      ? '<p class="tiny muted">已配置；建议内容由现有 AI 工具链产生，不在本原型内模拟。</p>'
+      : '<p class="tiny muted">AI 未配置（configured=false）：不伪造建议内容，仅提供普通入口。</p>' +
+        '<button type="button" id="ai-entry" style="margin-top:8px">去 AI 助手</button>';
+    var entry = KU.byId('ai-entry');
+    if (entry) entry.addEventListener('click', function () { KU.toast('原型：AI 不可用时的普通入口'); });
+  }
+
+  KU.byId('enter-universe').addEventListener('click', function () {
+    window.location.href = 'graph.html';
+  });
+  KU.byId('focus-search').addEventListener('click', function () { KU.byId('ku-search').focus(); });
+  KU.byId('shuffle-view').addEventListener('click', function () {
+    viewFlip = !viewFlip;
+    draw();
+    KU.toast('已切换视角（模拟，不改变数据）');
+  });
+  KU.byId('clear-search').addEventListener('click', function () {
+    KU.byId('ku-search').value = '';
+    runSearch();
+  });
+  KU.byId('ku-search').addEventListener('input', runSearch);
+
+  function runSearch() {
+    var q = KU.byId('ku-search').value;
+    var hits = KU.searchMatches(q);
+    var result = KU.byId('search-result');
+    var box = KU.byId('search-hits');
+    if (!q.trim()) {
+      result.textContent = '输入关键词，仅检索标题 / 标签 / 路径 / 摘要（表 2 边界）。';
+      box.textContent = '';
+      renderToday('');
+      draw();
+      return;
+    }
+    result.textContent = '命中 ' + hits.length + ' 个知识点 · 主模式：搜索聚焦';
+    box.innerHTML = hits.length
+      ? hits.map(function (id) {
+          var n = KU.nodeById(id);
+          return '<a class="tag" href="graph.html?node=' + encodeURIComponent(id) + '&q=' + encodeURIComponent(q) + '">' + KU.esc(n.title) + '</a>';
+        }).join('')
+      : '无匹配（空状态）：正文 / 关系 / 学习状态不作为搜索维度。';
+    renderToday(q);
+    // 首页缩略图同步聚焦：命中保持可辨，未命中透明度降权，亮度不变
+    selected = null;
+    KU.renderGraph(KU.byId('home-svg'), {
+      selectedId: null, query: q, matchedIds: hits, showLabels: true, interactive: true,
+      onNode: function (id) {
+        selected = id;
+        KU.toast('已选中：' + KU.nodeById(id).title);
+        draw();
+      }
+    });
+  }
+
+  draw();
+  renderToday('');
+  renderStats();
+})();
+</script>
+</body>
+</html>

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/client';
+import InlineFeedback from '@/components/InlineFeedback';
 
 interface ImportResult {
   documentId: string;
@@ -17,6 +18,33 @@ const GRANULARITY = [
   { label: '标准', value: 1800 },
   { label: '细', value: 1200 },
 ] as const;
+
+/**
+ * 单文件上限（UX-22）：`accept` 只是提示，真正拦截靠 onChange 里的校验。
+ * 取 4MB 而非更大值：部署平台（Vercel Hobby）请求体上限约 4.5MB（README 已知限制），
+ * 超过会在请求到达路由前就被平台拒绝，前端提前拦下表意更清楚。
+ */
+const MAX_FILE_BYTES = 4 * 1024 * 1024;
+const MAX_FILE_LABEL = '4 MB';
+const ACCEPTED_EXTENSIONS = ['.md', '.markdown', '.txt'];
+const ACCEPTED_EXTENSIONS_LABEL = '.md / .markdown / .txt';
+
+/** 扩展名与 MIME 双校验：扩展名必须在白名单内；MIME 允许浏览器/系统给的空值与 octet-stream */
+function checkTextFile(file: File): string | null {
+  const name = file.name.toLowerCase();
+  if (!ACCEPTED_EXTENSIONS.some((ext) => name.endsWith(ext))) {
+    return `文件类型不支持：仅支持 ${ACCEPTED_EXTENSIONS_LABEL}，请重新选择`;
+  }
+  const mime = file.type.toLowerCase();
+  if (mime && mime !== 'application/octet-stream' && !mime.startsWith('text/')) {
+    return `文件类型不支持（${file.type}）：仅支持纯文本 ${ACCEPTED_EXTENSIONS_LABEL}`;
+  }
+  if (file.size > MAX_FILE_BYTES) {
+    return `文件过大（${(file.size / 1024 / 1024).toFixed(1)} MB），单个文件上限 ${MAX_FILE_LABEL}，请拆分后再导入`;
+  }
+  if (file.size === 0) return '文件是空的，请选择有内容的文件或直接粘贴 Markdown';
+  return null;
+}
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <p className="mb-2 text-tag uppercase text-faint">{children}</p>;
@@ -52,12 +80,30 @@ export default function ImportPage() {
 
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setFilename(file.name);
-    const text = await file.text();
-    setContent(text);
-    if (!title) setTitle(file.name.replace(/\.(md|markdown|txt)$/i, ''));
+    const input = e.currentTarget;
+    const file = input.files?.[0];
+    if (!file || loading) return;
+    setError('');
+    setResult(null);
+
+    // UX-22：`accept` 拦不住拖拽/改后缀，选中后必须自己校验类型与大小
+    const invalid = checkTextFile(file);
+    if (invalid) {
+      input.value = '';
+      setError(invalid);
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      setFilename(file.name);
+      setContent(text);
+      if (!title) setTitle(file.name.replace(/\.(md|markdown|txt)$/i, ''));
+    } catch {
+      // 不可读文件（权限/编码异常）此前会让 unhandled rejection 静默吞掉，用户看不到任何反馈
+      input.value = '';
+      setError('文件读取失败：可能是权限或编码问题，请另存为 UTF-8 的 Markdown 后重试，或直接粘贴内容');
+    }
   };
 
   const submit = async () => {
@@ -93,7 +139,7 @@ export default function ImportPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="mx-auto max-w-form space-y-5">
       <div className="fade-up">
         <h1 className="font-display text-title font-semibold">导入知识</h1>
         <p className="mt-1.5 text-body text-muted">
@@ -111,7 +157,8 @@ export default function ImportPage() {
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full rounded-lg border border-line bg-app px-3 py-2 text-body text-primary outline-none transition-colors placeholder:text-faint focus:border-accent"
+                disabled={loading}
+                className="w-full rounded-lg border border-line bg-app px-3 py-2 text-body text-primary outline-none transition-colors placeholder:text-faint focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="如：React Hooks 笔记"
               />
             </label>
@@ -122,8 +169,12 @@ export default function ImportPage() {
                 type="file"
                 accept=".md,.markdown,.txt"
                 onChange={onFile}
-                className="w-full text-minor text-muted file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-body file:font-medium file:text-accent-ink transition-colors hover:file:bg-accent-strong"
+                disabled={loading}
+                className="w-full text-minor text-muted file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-body file:font-medium file:text-accent-ink transition-colors hover:file:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
               />
+              <span className="mt-1 block text-tag text-faint">
+                支持 {ACCEPTED_EXTENSIONS_LABEL}，单个文件不超过 {MAX_FILE_LABEL}（受部署平台请求体上限约束）
+              </span>
             </label>
           </div>
         </section>
@@ -137,7 +188,8 @@ export default function ImportPage() {
                 key={g.label}
                 type="button"
                 onClick={() => setMaxChars(g.value)}
-                className={`flex-1 px-4 py-2 text-body transition-colors duration-150 ${
+                disabled={loading}
+                className={`flex min-h-11 flex-1 items-center justify-center px-4 py-2 text-body transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${
                   maxChars === g.value
                     ? 'bg-accent font-medium text-accent-ink'
                     : 'bg-app text-muted hover:bg-surface-hover hover:text-primary'
@@ -179,14 +231,15 @@ export default function ImportPage() {
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
+              disabled={loading}
               rows={12}
               placeholder={'---\ntitle: 笔记标题\ntags: [前端, React]\n---\n\n## 第一节\n内容…\n\n## 第二节\n内容…'}
-              className="w-full rounded-lg border border-line bg-app p-3 font-mono text-minor text-primary outline-none transition-colors placeholder:text-faint focus:border-accent"
+              className="w-full rounded-lg border border-line bg-app p-3 font-mono text-minor text-primary outline-none transition-colors placeholder:text-faint focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"
             />
           </label>
         </section>
 
-        {error && <p className="text-body text-danger">{error}</p>}
+        {error && <InlineFeedback tone="danger">{error}</InlineFeedback>}
 
         {result && (
           <div className="space-y-1.5 rounded-lg border border-success/25 bg-success/10 p-4">
@@ -210,20 +263,20 @@ export default function ImportPage() {
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <Link
                 href={`/notes/${result.documentId}`}
-                className="rounded-lg bg-accent px-3.5 py-1.5 text-body font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
+                className="inline-flex min-h-11 items-center rounded-lg bg-accent px-3.5 text-body font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
               >
                 查看文档
               </Link>
               <Link
                 href="/graph"
-                className="rounded-lg border border-line px-3.5 py-1.5 text-body text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
+                className="inline-flex min-h-11 items-center rounded-lg border border-line px-3.5 text-body text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-primary"
               >
                 查看关系图谱
               </Link>
               <button
                 type="button"
                 onClick={() => setResult(null)}
-                className="rounded-lg px-3 py-1.5 text-tag text-muted transition-colors duration-150 hover:text-primary"
+                className="inline-flex min-h-11 items-center rounded-lg px-3 text-tag text-muted transition-colors duration-150 hover:text-primary"
               >
                 继续导入
               </button>
@@ -234,7 +287,7 @@ export default function ImportPage() {
         <button
           onClick={submit}
           disabled={loading}
-          className={`rounded-lg px-5 py-2 text-body font-medium transition-colors duration-150 disabled:opacity-50 ${
+          className={`inline-flex min-h-11 items-center rounded-lg px-5 text-body font-medium transition-colors duration-150 disabled:opacity-50 ${
             result
               ? 'border border-line text-muted hover:bg-surface-hover hover:text-primary'
               : 'bg-accent text-accent-ink hover:bg-accent-strong'

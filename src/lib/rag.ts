@@ -7,6 +7,7 @@
 import { arrayOverlaps, asc, ilike, inArray, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { links, segments } from '@/db/schema';
+import { safeMemory, weakLimit } from '@/lib/memory-sql';
 
 export interface RagHit {
   segmentId: string;
@@ -156,12 +157,11 @@ const KIND_WEIGHT: Record<string, number> = { wiki: 2, tag: 1, doc: 1 };
  * 记忆度表达式与 /api/notes 的 SQL 下推一致（v7 原则：不把全表拉回 JS）。
  */
 export async function adviceCandidates(topK = 6): Promise<RagHit[]> {
-  const memoryExpr = sql<number>`case when ${segments.lastViewedAt} is null or ${segments.stability} <= 0 then 0
-    else exp(-extract(epoch from (now() - ${segments.lastViewedAt})) / 86400.0 / greatest(${segments.stability}, 0.0001)) end`;
+  const memoryExpr = safeMemory();
   const candidates = await db
     .select({ id: segments.id, title: segments.title, content: segments.content, summary: segments.summary, memory: memoryExpr })
     .from(segments)
-    .where(sql`${memoryExpr} < 0.4`)
+    .where(sql`${memoryExpr} < ${weakLimit()}`)
     .orderBy(asc(memoryExpr))
     .limit(50);
   if (candidates.length === 0) return [];

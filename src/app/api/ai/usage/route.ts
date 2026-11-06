@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { llmCalls } from '@/db/schema';
 import { guard } from '@/lib/api';
 import { DAILY_TOKEN_GUARDRAIL } from '@/lib/llm-calls';
+import { startOfDayInTimeZone } from '@/lib/day-boundary';
 
 /**
  * 大模型用量（近 7 天，设置页可观测小节）：
@@ -15,8 +16,8 @@ export async function GET(req: NextRequest) {
   if (denied) return denied;
 
   const since = new Date(Date.now() - 7 * 24 * 3600_000);
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+  // 「今日」按业务时区（Asia/Shanghai）计算，与 learning-plan.ts 口径一致
+  const startOfDay = startOfDayInTimeZone();
 
   const [byDay, byKind, todayRow] = await Promise.all([
     db

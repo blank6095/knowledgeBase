@@ -8,6 +8,7 @@ import { extractInlineTags } from '@/lib/markdown';
 import { invalidateCache } from '@/lib/cache';
 import { runBatch } from '@/lib/db-batch';
 import { rebuildDocQueries, rebuildLinksQueries } from '@/lib/links';
+import { invalidateSegmentCaches } from '@/lib/segment-cache';
 
 /** 在文档中插入知识点：afterIndex 为插入位置（新段的序号），缺省追加到末尾 */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -66,6 +67,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   invalidateCache('stats');
   invalidateCache('docs');
   invalidateCache(`note:${id}`);
+  // 插入会挤动后续段的序号（上一/下一节随之变化），段详情缓存一并失效
+  invalidateSegmentCaches();
 
   return NextResponse.json({ segment: { id: segmentId, orderIndex: pos } });
 }

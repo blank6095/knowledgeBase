@@ -2,45 +2,21 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { api, formatDuration } from '@/lib/client';
+import { api, formatDuration, isAuthError } from '@/lib/client';
+import type { SegmentDetailPayload } from '@/lib/contracts';
 import { MEMORY_TIER_LABELS, memoryTier } from '@/lib/memory';
 import { LampDot } from '@/components/MemoryBadge';
 import { Skeleton } from '@/components/Skeleton';
+import ErrorState from '@/components/ErrorState';
 import SegmentEditCard from '@/components/SegmentEditCard';
 
 interface RefItem {
   id: string;
   title: string;
   memory: number;
-}
-
-interface SegmentDetail {
-  segment: {
-    id: string;
-    title: string;
-    content: string;
-    headingPath: string;
-    tags: string[];
-    viewCount: number;
-    firstViewedAt: string | null;
-    lastViewedAt: string | null;
-    stability: number;
-    readingMs: number;
-    memory: number;
-    summary: string | null;
-  };
-  document: { id: string; title: string } | null;
-  links: { fromId: string; toId: string; kind: string; weight: number }[];
-  refs: {
-    outgoing: RefItem[];
-    incoming: RefItem[];
-    prev: RefItem | null;
-    next: RefItem | null;
-    relatedTags: RefItem[];
-  };
 }
 
 /** 停留时长会话：随组件实例存续（StrictMode 二次挂载复用）；切换段时随实例卸载冲刷 */
@@ -79,16 +55,37 @@ function subscribeHash(onChange: () => void) {
 
 function SegmentPageView({ id }: { id: string }) {
   const router = useRouter();
-  const [data, setData] = useState<SegmentDetail | null>(null);
+  const [data, setData] = useState<SegmentDetailPayload | null>(null);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
+  /** 编辑卡脏状态：由 SegmentEditCard 通过 onDirtyChange 上报，退出编辑前据此确认 */
+  const [dirty, setDirty] = useState(false);
   const session = useRef<ReadingSession>({ id: '', counted: false, since: null, dwell: 0 });
 
+  /**
+   * 首次加载与重试共用。
+   * 401 已由 api() 统一跳转登录，这里不能再把「请求失败（401）」当业务错误展示。
+   */
+  const load = useCallback(
+    () =>
+      api<SegmentDetailPayload>(`/api/segments/${id}`)
+        .then((d) => setData(d))
+        .catch((reason: unknown) => {
+          if (isAuthError(reason)) return;
+          setError(reason instanceof Error ? reason.message : '加载失败');
+        }),
+    [id],
+  );
+
   useEffect(() => {
-    api<SegmentDetail>(`/api/segments/${id}`)
-      .then(setData)
-      .catch((e) => setError(e.message));
-  }, [id]);
+    void load();
+  }, [load]);
+
+  /** 重试：先清掉旧错误回到骨架态，再重新拉取（不在 effect 内同步 setState） */
+  const retry = () => {
+    setError('');
+    void load();
+  };
 
   // U1-5：图谱详情面板的「编辑」通过 /segments/{id}#edit 深链进入编辑态。
   // 用 useSyncExternalStore 把 URL 当外部状态读取（不在 effect 里同步 setState）；
@@ -99,12 +96,16 @@ function SegmentPageView({ id }: { id: string }) {
     () => false,
   );
   const showEditor = editing || urlEdit;
-  const closeEditor = () => {
+  /** 页面级退出编辑：「✓ 完成编辑」有未保存修改时先确认；编辑卡自身「取消」在内部确认后走 force 分支 */
+  const exitEditor = (force = false) => {
+    if (!force && dirty && !window.confirm('有未保存的修改，确定放弃吗？')) return;
+    setDirty(false);
     setEditing(false);
     if (typeof window === 'undefined' || window.location.hash !== '#edit') return;
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
     window.dispatchEvent(new Event('popstate'));
   };
+  const requestClose = () => exitEditor();
 
   // 阅读行为采集：打开 ping 计一次查看；可见时计时，隐藏/卸载/离开时上报停留时长
   useEffect(() => {
@@ -159,10 +160,20 @@ function SegmentPageView({ id }: { id: string }) {
     };
   }, [id]);
 
-  if (error) return <p className="text-body text-danger">{error}</p>;
+  if (error)
+    return (
+      <div className="mx-auto max-w-reading">
+        <ErrorState
+          message={error}
+          onRetry={retry}
+          retryLabel="重新加载"
+          hint="如果是从旧链接进入，这段内容可能已被删除或移动；也可以回到知识库重新查找。"
+        />
+      </div>
+    );
   if (!data)
     return (
-      <div className="mx-auto max-w-[42rem] space-y-4" role="status" aria-label="加载中">
+      <div className="mx-auto max-w-reading space-y-4" role="status" aria-label="加载中">
         <Skeleton className="h-4 w-24" />
         <Skeleton className="h-8 w-2/3" />
         <div className="card px-6 py-8">
@@ -178,7 +189,7 @@ function SegmentPageView({ id }: { id: string }) {
   const tier = MEMORY_TIER_LABELS[memoryTier(s.memory)];
 
   const reload = async () => {
-    const d = await api<SegmentDetail>(`/api/segments/${id}`);
+    const d = await api<SegmentDetailPayload>(`/api/segments/${id}`);
     setData(d);
   };
 
@@ -201,7 +212,7 @@ function SegmentPageView({ id }: { id: string }) {
     groups.push({ key: 'tag', title: `共同标签（${relatedTags.length}）`, hint: null, items: relatedTags });
 
   return (
-    <div className="mx-auto max-w-[42rem]">
+    <div className="mx-auto max-w-reading">
       {/* 正文优先：精简标题区（面包屑 + 衬线标题 + 单枚灯点） */}
       <div className="fade-up">
         <div className="flex items-start justify-between gap-3">
@@ -211,16 +222,26 @@ function SegmentPageView({ id }: { id: string }) {
           >
             ← {data.document?.title ?? '文档'}
           </Link>
-          <button
-            onClick={() => (showEditor ? closeEditor() : setEditing(true))}
-            className={`shrink-0 rounded-lg border px-3 py-1.5 text-tag transition-colors duration-150 ${
-              showEditor
-                ? 'border-accent bg-accent text-accent-ink'
-                : 'border-line bg-surface text-muted hover:bg-surface-hover hover:text-primary'
-            }`}
-          >
-            {showEditor ? '✓ 完成编辑' : '✎ 编辑'}
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {!showEditor && (
+              <Link
+                href={`/study/${s.id}`}
+                className="inline-flex min-h-11 items-center rounded-lg bg-accent px-3 py-1.5 text-tag font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
+              >
+                开始复习
+              </Link>
+            )}
+            <button
+              onClick={() => (showEditor ? requestClose() : setEditing(true))}
+              className={`inline-flex min-h-11 shrink-0 items-center rounded-lg border px-3 py-1.5 text-tag transition-colors duration-150 ${
+                showEditor
+                  ? 'border-accent bg-accent text-accent-ink'
+                  : 'border-line bg-surface text-muted hover:bg-surface-hover hover:text-primary'
+              }`}
+            >
+              {showEditor ? '✓ 完成编辑' : '✎ 编辑'}
+            </button>
+          </div>
         </div>
         <div className="mt-2 flex items-center gap-2.5">
           <h1 className="font-display text-subtitle font-semibold">{s.title}</h1>
@@ -236,16 +257,24 @@ function SegmentPageView({ id }: { id: string }) {
         )}
       </div>
 
+      {/* 编辑卡内部已对「取消」做脏确认，onCancel 直接收尾，避免二次弹窗 */}
       {showEditor ? (
         <SegmentEditCard
           key={s.id}
           segment={s}
           onSaved={async () => {
-            await reload();
-            closeEditor();
+            try {
+              await reload();
+            } catch (reason) {
+              // 401 已由 api() 跳转登录，不再让编辑卡显示「请求失败（401）」
+              if (isAuthError(reason)) return;
+              throw reason;
+            }
+            exitEditor(true);
           }}
           onDeleted={onDeleted}
-          onCancel={closeEditor}
+          onCancel={() => exitEditor(true)}
+          onDirtyChange={setDirty}
         />
       ) : (
         <article className="card fade-up mt-4 px-6 py-5" style={{ animationDelay: '80ms' }}>
@@ -253,6 +282,25 @@ function SegmentPageView({ id }: { id: string }) {
             <Markdown remarkPlugins={[remarkGfm]}>{s.content}</Markdown>
           </div>
         </article>
+      )}
+
+      {/* 读完即可自测：把「阅读」与「主动回忆」接起来（UX-32） */}
+      {!showEditor && (
+        <div
+          className="fade-up mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/25 bg-accent/5 px-4 py-3"
+          style={{ animationDelay: '120ms' }}
+        >
+          <div className="min-w-0">
+            <p className="text-body text-primary">读完了？先回忆，再看答案。</p>
+            <p className="mt-0.5 text-tag text-muted">合上原文自测一次，比再读一遍记得更牢。</p>
+          </div>
+          <Link
+            href={`/study/${s.id}`}
+            className="inline-flex min-h-11 shrink-0 items-center rounded-lg bg-accent px-3.5 text-body font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
+          >
+            开始自测
+          </Link>
+        </div>
       )}
 
       {/* 记忆状态：页脚一行（灯点 + 档位名 + 客观数字），无卡片无进度条 */}

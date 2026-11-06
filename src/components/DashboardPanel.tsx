@@ -18,38 +18,9 @@ import MemoryBadge, { MEMORY_TIER_META } from '@/components/MemoryBadge';
 import { TodayLearningSection, type TodayLearningPayload } from '@/components/TodayLearningPanel';
 import ErrorState from '@/components/ErrorState';
 import { MEMORY_TIER_LABELS } from '@/lib/memory';
+import type { StatsPayload, WeakSegment, UnreadSegment, RecentDocument } from '@/lib/contracts';
 
-export interface WeakSegment {
-  segmentId: string;
-  title: string;
-  memory: number;
-  degree: number;
-}
-
-export interface UnreadSegment {
-  segmentId: string;
-  title: string;
-  documentId: string;
-  documentTitle: string;
-  createdAt: string;
-}
-
-export interface RecentDocument {
-  id: string;
-  title: string;
-  segmentCount: number;
-  createdAt: string;
-}
-
-export interface StatsPayload {
-  total: number;
-  byTier: Record<string, number>;
-  readToday: number;
-  recentDocuments: RecentDocument[];
-  suggestion?: WeakSegment | null;
-  weakTop3?: WeakSegment[];
-  unreadTop3?: UnreadSegment[];
-}
+export type { StatsPayload, WeakSegment, UnreadSegment, RecentDocument } from '@/lib/contracts';
 
 /** 取数入口：唯一与 /api/stats 耦合的一行，便于测试直接替换 */
 export function loadStats(): Promise<StatsPayload> {
@@ -130,7 +101,7 @@ export function DashboardShell({
 }) {
   if (error) {
     return (
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-list">
         <ErrorState
           message={error}
           onRetry={onRetry}
@@ -153,7 +124,7 @@ export function DashboardView({
   learningError?: string;
 }) {
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-list space-y-6">
       <PageHeader />
       {stats.total === 0 ? (
         <EmptyLibrary />
@@ -186,7 +157,7 @@ export function PageHeader() {
       <div className="flex-1" />
       <Link
         href="/import"
-        className="rounded-lg bg-accent px-3.5 py-1.5 text-body font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
+        className="inline-flex min-h-11 items-center rounded-lg bg-accent px-3.5 py-1.5 text-body font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
       >
         导入知识
       </Link>
@@ -201,7 +172,7 @@ export function EmptyLibrary() {
       <p className="mt-1 text-minor text-muted">先导入一篇 Markdown，从第一段阅读开始。</p>
       <Link
         href="/import"
-        className="mt-4 inline-flex rounded-lg bg-accent px-3.5 py-1.5 text-body font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
+        className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-accent px-3.5 py-1.5 text-body font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
       >
         导入一篇 Markdown
       </Link>
@@ -303,10 +274,10 @@ export function RecentSection({ documents }: { documents: RecentDocument[] }) {
       ) : (
         <ul className="mt-2 divide-y divide-line">
           {documents.map((d) => (
-            <li key={d.id} className="flex items-center justify-between gap-3 py-2">
+            <li key={d.id} className="flex items-center justify-between gap-3 py-1">
               <Link
                 href={`/notes/${d.id}`}
-                className="min-w-0 flex-1 truncate text-body hover:text-accent hover:underline"
+                className="flex min-h-11 min-w-0 flex-1 items-center truncate text-body hover:text-accent hover:underline"
               >
                 {d.title}
               </Link>
@@ -365,7 +336,7 @@ export function StatItem({ label, value, accent }: { label: string; value: numbe
 
 export function DashboardSkeleton() {
   return (
-    <div className="mx-auto max-w-4xl space-y-6" role="status" aria-label="加载中">
+    <div className="mx-auto max-w-list space-y-6" role="status" aria-label="加载中">
       <div className="flex items-center justify-between gap-3">
         <div className="skeleton h-9 w-32" />
         <div className="skeleton h-8 w-20" />

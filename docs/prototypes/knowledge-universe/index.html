@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Knowledge Universe · 高保真原型索引</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body data-page="index">
+<div id="ku-chrome"></div>
+
+<main class="page ku-content">
+  <div class="page-head">
+    <div>
+      <h1>Knowledge Universe · 沉浸式知识宇宙</h1>
+      <p>第一轮高保真原型（T04–T06）· 三页共用设计令牌 · 模拟数据 · 不接业务 API</p>
+    </div>
+    <span class="tag">v1.2 冻结版对应</span>
+  </div>
+
+  <div class="home-grid">
+    <div class="card">
+      <h2>三页原型</h2>
+      <div class="list-row"><b><a href="home.html">① 首页 · 进入自己的知识宇宙</a></b><span class="muted tiny">T04</span></div>
+      <div class="list-row"><b><a href="graph.html">② 图谱 · 核心工作空间</a></b><span class="muted tiny">T05</span></div>
+      <div class="list-row"><b><a href="detail.html">③ 知识详情 · 一颗知识星体</a></b><span class="muted tiny">T06</span></div>
+      <div class="divider"></div>
+      <h2>每页都必须真实可操作</h2>
+      <p class="muted tiny">搜索输入与结果聚焦 · 节点点击选中 · 详情浮层展开 / 关闭 · 状态切换（正常 / 空数据 / 加载中 / 错误）· 返回 / 关闭 · 五种主模式与独立上下文切换。</p>
+      <div class="hero-actions">
+        <a class="tag" href="../../设计规范与令牌.md">设计规范与令牌（T02）</a>
+        <a class="tag" href="../../移动端适配方案.md">移动端适配方案（T03）</a>
+        <a class="tag" href="../../基线校准记录.md">基线校准记录（T01）</a>
+        <a class="tag" href="../../T07评审材料.md">T07 评审材料</a>
+      </div>
+    </div>
+
+    <div class="home-side">
+      <div class="card">
+        <h2>原型边界</h2>
+        <p class="tiny muted">独立静态页面：<code>file://</code> 直接打开或用任意静态服务托管；<b>不进入 Next.js 业务路由</b>、不新增依赖、不连接数据库与业务 API。</p>
+        <p class="tiny muted">所有数值均为<b>模拟数据</b>，仅展示 <code>/api/stats</code>、<code>/api/graph</code>、<code>/api/learning/today</code>、<code>/api/segments/[id]</code> 中「可靠支持」的字段类别，不出现「8 个知识点值得关注」这类示例统计文案。</p>
+      </div>
+      <div class="card">
+        <h2>DEC-01 · 待评审</h2>
+        <p class="tiny muted">青色外环（有学习记录）与橙色标记（待复习）在原型中<b>保留为示意信号</b>，图例明确标注「DEC-01 待评审 · 示意」。</p>
+        <p class="tiny muted">按执行版 §9.3，当前阶段<b>不提前移除、不确认结论</b>；去留在 T02 评审时统一决定。</p>
+      </div>
+      <div class="card">
+        <h2>截图与几何核对</h2>
+        <p class="tiny muted">四视口 1440×900 / 390×844 / 375×667 / 320×720，截图与 <code>geometry.json</code> 见 <code>screenshots/</code>；采集脚本 <code>capture.mjs</code>。</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="ku-state-panel" id="ku-state-panel" hidden></div>
+<script src="shared.js"></script>
+<script>
+  KU.mountChrome('index');
+  KU.bindKeys();
+</script>
+</body>
+</html>

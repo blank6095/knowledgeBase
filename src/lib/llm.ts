@@ -48,6 +48,18 @@ export interface LlmConfig {
   fastModel: string;
 }
 
+/**
+ * 仅「测试连接」使用的草稿配置覆盖：用前端输入框里尚未保存的 Key/模型发起一次真实调用，
+ * 不读写 app_settings，也不改变已保存配置。未传字段沿用 DB/env 配置。
+ *
+ * 安全约束：只允许覆盖 key/model，**不接受任意 baseUrl**（否则会变成 SSRF 入口）。
+ */
+export interface LlmConfigOverride {
+  apiKey?: string;
+  model?: string;
+  fastModel?: string;
+}
+
 export type LlmTier = 'fast' | 'default';
 
 export interface ChatOptions {
@@ -136,6 +148,23 @@ export function pickModel(config: LlmConfig, tier: LlmTier = 'default'): string 
   return tier === 'fast' && fast ? fast : config.model;
 }
 
+/**
+ * 解析本次调用实际使用的配置：草稿覆盖（override）优先，缺省字段退回 DB/env。
+ * 不传 override 时与旧行为完全一致（只读已保存配置，未配置即抛出原指引）。
+ */
+function resolveConfigWithOverride(status: LlmStatus, override?: LlmConfigOverride): LlmConfig {
+  if (!override) {
+    if (!status.ok) throw new Error(status.hint);
+    return status.config;
+  }
+  const base = status.ok ? status.config : null;
+  const apiKey = override.apiKey?.trim() || base?.apiKey || '';
+  const model = override.model?.trim() || base?.model || DEFAULT_MODEL;
+  const fastModel = override.fastModel?.trim() || base?.fastModel || model;
+  if (!apiKey) throw new Error(status.ok ? LLM_SETUP_HINT : status.hint);
+  return { apiKey, model, fastModel };
+}
+
 /** 是否应对该错误重试（纯函数，供单测）：网络类（无 status）/429/5xx 可重试，其余 4xx 不重试 */
 export function isRetryableError(e: unknown): boolean {
   const status = (e as { status?: number })?.status;
@@ -204,12 +233,17 @@ async function requestOnce(
 /**
  * 调用 chat/completions（非流式）：返回 {text, usage, model}；每次调用写 llm_calls。
  * 非条件重试不吞错误——重试耗尽后原样抛出，由调用方按「降级不阻断」铁律处理。
+ *
+ * 第三个参数 override 仅给「测试连接」用（草稿 Key/模型，不落库）；不传时行为与旧版完全一致。
  */
-export async function chatCompletion(messages: ChatMessage[], opts: ChatOptions): Promise<ChatResult> {
+export async function chatCompletion(
+  messages: ChatMessage[],
+  opts: ChatOptions,
+  override?: LlmConfigOverride,
+): Promise<ChatResult> {
   const status = await resolveLlmStatus();
-  if (!status.ok) throw new Error(status.hint);
+  const cfg = resolveConfigWithOverride(status, override);
   await assertDailyTokenBudget();
-  const cfg = status.config;
   const model = pickModel(cfg, opts.tier);
   const maxTokens = opts.maxTokens ?? 2048;
   const temperature = opts.temperature ?? 0.2;

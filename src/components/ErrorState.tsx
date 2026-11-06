@@ -6,6 +6,22 @@
  */
 import Link from 'next/link';
 
+/**
+ * 英文传输层原文 → 中文可行动文案（FE-011）。
+ *
+ * `api()` 已经做过一层映射，这里是最后一道防线：页面也可能把非 api() 抛出的
+ * 原始错误（如 fetch 失败、AbortError）直接传进来。
+ */
+function normalizeMessage(message: string): string {
+  const raw = message.trim();
+  if (!raw) return '请求失败，请稍后重试';
+  if (/failed to fetch|networkerror|load failed|network request failed/i.test(raw)) {
+    return '网络连接失败，请检查网络后重试';
+  }
+  if (/aborted|aborterror/i.test(raw)) return '请求已取消';
+  return raw;
+}
+
 export default function ErrorState({
   message,
   onRetry,
@@ -29,14 +45,14 @@ export default function ErrorState({
   return (
     <div className={`card px-5 py-5 ${className}`.trim()} role="alert">
       <p className="font-display text-card text-primary">出了点问题</p>
-      <p className="mt-1.5 text-minor leading-relaxed text-danger">{message}</p>
+      <p className="mt-1.5 text-minor leading-relaxed text-danger">{normalizeMessage(message)}</p>
       {hint && <p className="mt-1 text-tag leading-relaxed text-muted">{hint}</p>}
       <div className="mt-4 flex items-center gap-3">
         {onRetry && (
           <button
             type="button"
             onClick={onRetry}
-            className="rounded-lg bg-accent px-3.5 py-1.5 text-body font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
+            className="inline-flex min-h-11 items-center rounded-lg bg-accent px-3.5 text-body font-medium text-accent-ink transition-colors duration-150 hover:bg-accent-strong"
           >
             {retryLabel}
           </button>

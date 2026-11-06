@@ -5,6 +5,7 @@ import { readingEvents, segments } from '@/db/schema';
 import { badRequest, guard, isUuid, notFound } from '@/lib/api';
 import { invalidateCache } from '@/lib/cache';
 import { applyReading, MEMORY } from '@/lib/memory';
+import { patchSegmentCache } from '@/lib/segment-cache';
 
 /**
  * 阅读行为上报，两种调用形态：
@@ -65,6 +66,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     invalidateCache('docs');
     invalidateCache(`note:${seg.documentId}`);
 
+    // 段详情缓存里同步新计数（而不是整块失效）：记忆度按读取时的 stability/lastViewedAt 现算，
+    // 只需回写这两个字段，缓存就能继续命中
+    patchSegmentCache(id, {
+      stability,
+      readingMs: Number(seg.readingMs) + effectiveMs,
+      lastViewedAt: now,
+    });
+
     return NextResponse.json({ ok: true, counted: true, stability });
   }
 
@@ -81,6 +90,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   invalidateCache('graph');
   invalidateCache('stats');
   invalidateCache(`note:${seg.documentId}`);
+
+  // 同步缓存里的计数：seg 是本次自增前的快照，+1 后即为库里的最新值
+  patchSegmentCache(id, {
+    viewCount: seg.viewCount + 1,
+    firstViewedAt: seg.firstViewedAt ?? now,
+  });
 
   return NextResponse.json({ ok: true, counted: true });
 }
